@@ -37,24 +37,32 @@ git push -u origin main
 
 ---
 
-## 三、部署到 PaaS（以 Railway 为例，Render 同理）
+## 三、部署到 Render（推荐，本项目已验证适配）
 
-### Railway
-1. 登录 <https://railway.app> → New Project → **Deploy from GitHub repo** → 选该仓库。
-2. Railway 会自动识别 `package.json`，用 `npm start`（即 `node server.js`）启动。
-3. 进入项目 → **Variables**，添加：
-   - `FEISHU_APP_ID` = 你的 App Id
+> 本项目已满足 Render 全部要求：`server.js` 读取 `process.env.PORT`（**Render 自动注入，切勿手填**）并监听所有网卡；`package.json` 含 `start` 脚本；0 依赖无需构建。
+
+1. 登录 <https://render.com> → 右上角 **New** → **Web Service** → 选 GitHub 仓库 **`0V-bot/fufu`**（首次需授权 Render 访问 GitHub）。
+2. 基础配置：
+   - **Name**：`fufu-workbench`（随意）
+   - **Runtime**：Node
+   - **Region**：选离你近的（免费档通常含 Singapore / Oregon）
+   - **Branch**：`main`
+   - **Build Command**：留空（0 依赖，`npm install` 也可，都很快）
+   - **Start Command**：`node server.js`
+3. 展开 **Environment**，添加环境变量（**不要手填 `PORT`**，Render 会自动注入）：
+   - `FEISHU_APP_ID` = `cli_aae1d99a1ff89bcf`
    - `FEISHU_APP_SECRET` = 你的 App Secret
-   - `BASE_TOKEN` = `Wwtfbm66VaJyLOsBQaTcTm1vnHg`
-   - `ACCESS_PWD` = 你自己设的强密码
-   - `PORT` = Railway 会自动注入，无需手填（留空即可）
-4. 部署完成后，Railway 生成一个公网域名（如 `xxx.railway.app`）。打开它 → 输入密码 → 进入工作台。
+   - `BASE_TOKEN` = 可留空（代码已默认你的表 `Wwtfbm66VaJyLOsBQaTcTm1vnHg`）
+   - `ACCESS_PWD` = **强密码**（不设则任何人可直连写你的飞书）
+4. 点击 **Create Web Service**，等首次部署（约 1–2 分钟）。完成后获得 `https://xxx.onrender.com`。
+5. 打开网址 → 输密码 → 进入工作台。
 
-### Render
-1. 登录 <https://render.com> → New → **Web Service** → 连 GitHub 仓库。
-2. Build Command 留空（无依赖）；Start Command：`node server.js`。
-3. 在 Environment 里加同样的环境变量（PORT 用 Render 注入的，或填 10000）。
-4. 部署完成后获得 `xxx.onrender.com` 公网地址。
+> ⚠️ **部署后必做验证**：访问 `https://xxx.onrender.com/api/env-check`（免密）：
+> 期望返回 `{"mode":"openapi","hasAppId":true,"hasSecret":true,"hasPwd":true,...}`。
+> 若 `mode:"none"` 或 `hasAppId:false` → 环境变量没注入，回去确认 Environment 是否保存、是否作用于该 Service。
+
+### （备选）Railway 步骤
+New Project → Deploy from GitHub → Variables 加同样的四项（`FEISHU_APP_ID`/`FEISHU_APP_SECRET`/`BASE_TOKEN`/`ACCESS_PWD`），`PORT` 留空让平台注入即可。
 
 ---
 
