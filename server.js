@@ -386,6 +386,17 @@ async function route(method, url, body, res, req) {
     if (url === '/api/me') {
       return send(res, authed(req) ? 200 : 401, authed(req) ? { ok: true } : { error: 'unauthorized' });
     }
+    // 诊断接口（鉴权前，便于排查环境变量是否进入运行容器；不泄露密钥明文）
+    if (url === '/api/env-check') {
+      return send(res, 200, {
+        mode: USE_OPENAPI ? 'openapi' : (LARK_CLI ? 'lark-cli' : 'none'),
+        hasAppId: !!APP_ID, appIdPreview: APP_ID ? APP_ID.slice(0, 6) + '…' : null,
+        hasSecret: !!APP_SECRET,
+        hasPwd: !!ACCESS_PWD, pwdLen: ACCESS_PWD ? ACCESS_PWD.length : 0,
+        hasBaseToken: !!BASE_TOKEN,
+        port: PORT, node: process.version
+      });
+    }
     if (!authed(req)) return send(res, 401, { error: 'unauthorized' });
 
     let m;
