@@ -1,0 +1,13 @@
+{
+  "name": "fufu-workbench",
+  "version": "1.0.0",
+  "description": "傅傅的工作台 - 网页工作台 + 飞书多维表格后端（纯 Node，无外部依赖）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "private": true
+}

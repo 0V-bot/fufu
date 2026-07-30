@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>傅傅的工作台</title>
+<style>
+  :root{
+    --bg:#f5f6fa; --panel:#ffffff; --ink:#1f2733; --muted:#7a869a;
+    --line:#e8ebf2; --line2:#eef1f7; --brand:#4f46e5; --brand-soft:#eef0ff;
+    --shadow:0 1px 3px rgba(20,30,60,.06),0 8px 24px rgba(20,30,60,.06);
+    --radius:14px;
+  }
+  /* 访问密码门 */
+  #gate{position:fixed;inset:0;background:linear-gradient(135deg,#eef0ff,#f5f6fa);display:none;align-items:center;justify-content:center;z-index:9999;}
+  #gate.show{display:flex;}
+  .gate-card{background:#fff;border-radius:18px;box-shadow:var(--shadow);padding:34px 30px;width:320px;max-width:90vw;text-align:center;}
+  .gate-logo{font-size:40px;}
+  .gate-card h2{margin:10px 0 4px;font-size:20px;color:var(--ink);}
+  .gate-sub{margin:0 0 18px;color:var(--muted);font-size:13px;}
+  #gatePwd{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:15px;outline:none;box-sizing:border-box;}
+  #gatePwd:focus{border-color:var(--brand);}
+  #gateBtn{margin-top:14px;width:100%;padding:12px;border:none;border-radius:10px;background:var(--brand);color:#fff;font-size:15px;font-weight:600;cursor:pointer;}
+  #gateBtn:hover{opacity:.92;}
+  .gate-err{margin-top:12px;color:#e11d48;font-size:13px;min-height:16px;}
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased;
+  }
+  .app{display:flex; min-height:100vh;}
+
+  /* Sidebar */
+  .sidebar{
+    width:268px; flex:0 0 268px; background:#0f172a; color:#cbd5e1;
+    padding:20px 14px; position:sticky; top:0; height:100vh; overflow-y:auto;
+  }
+  .brand{display:flex; align-items:center; gap:10px; padding:6px 8px 18px;}
+  .brand .logo{
+    width:38px;height:38px;border-radius:11px;display:grid;place-items:center;
+    background:linear-gradient(135deg,#6366f1,#8b5cf6); font-size:20px;
+  }
+  .brand .name{font-size:16px;font-weight:700;color:#fff;line-height:1.2;}
+  .brand .sub{font-size:11px;color:#64748b;}
+  .nav{margin-top:6px;}
+  .nav-group{margin-bottom:4px;}
+  .nav-head{
+    display:flex;align-items:center;gap:9px; padding:9px 10px; border-radius:10px;
+    cursor:pointer; user-select:none; font-size:14px; color:#cbd5e1; transition:.15s;
+  }
+  .nav-head:hover{background:#1e293b;}
+  .nav-head .ic{font-size:16px;width:20px;text-align:center;}
+  .nav-head .arrow{margin-left:auto; transition:.2s; font-size:11px; color:#64748b;}
+  .nav-group.collapsed .arrow{transform:rotate(-90deg);}
+  .nav-group.collapsed .nav-items{display:none;}
+  .nav-items{padding:2px 0 4px 14px; margin-left:10px; border-left:1px solid #1e293b;}
+  .nav-item{
+    display:flex;align-items:center;gap:9px; padding:7px 10px; border-radius:9px;
+    font-size:13px; color:#94a3b8; cursor:pointer; transition:.15s;
+  }
+  .nav-item:hover{background:#1e293b; color:#e2e8f0;}
+  .nav-item.active{background:var(--brand); color:#fff; font-weight:600;}
+  .nav-item .dot{width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.7;}
+
+  /* Main */
+  .main{flex:1; min-width:0; padding:26px 30px 60px;}
+  .topbar{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px;}
+  .crumb{font-size:12.5px;color:var(--muted);margin-bottom:6px;}
+  .crumb b{color:var(--ink);}
+  .page-title{font-size:23px;font-weight:800;letter-spacing:.3px;display:flex;align-items:center;gap:10px;}
+  .page-title .tag{font-size:12px;font-weight:600;color:#fff;background:var(--brand);padding:3px 10px;border-radius:999px;}
+  .page-hint{font-size:13px;color:var(--muted);margin-top:4px;}
+  .date-pill{font-size:13px;color:var(--muted);background:var(--panel);border:1px solid var(--line);padding:7px 14px;border-radius:999px;box-shadow:var(--shadow);}
+
+  /* Cards / grid */
+  .grid{display:grid;gap:16px;}
+  .cols-2{grid-template-columns:repeat(2,1fr);}
+  .cols-3{grid-template-columns:repeat(3,1fr);}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);}
+  .card .h{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .card .h .t{font-weight:700;font-size:15px;}
+  .empty{color:var(--muted);font-size:13.5px;text-align:center;padding:26px 10px;border:1.5px dashed var(--line);border-radius:12px;}
+
+  /* Buttons */
+  .btn{
+    border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;
+    padding:9px 15px;border-radius:10px;background:var(--brand);color:#fff;transition:.15s;
+  }
+  .btn:hover{filter:brightness(1.05);}
+  .btn.ghost{background:var(--brand-soft);color:var(--brand);}
+  .btn.soft{background:#f1f3f9;color:var(--ink);}
+  .btn.mini{padding:5px 10px;font-size:12px;border-radius:8px;}
+  .btn.danger{background:#fee2e2;color:#dc2626;}
+
+  /* Item cards */
+  .item{background:#fbfcfe;border:1px solid var(--line);border-radius:12px;padding:14px 15px;position:relative;transition:.15s;}
+  .item:hover{border-color:#d7ddf0;box-shadow:0 4px 14px rgba(20,30,60,.05);}
+  .item .it-title{font-weight:650;font-size:14.5px;margin-bottom:6px;display:flex;align-items:center;gap:8px;}
+  .item .meta{font-size:12.5px;color:var(--muted);line-height:1.7;}
+  .item .meta b{color:#475069;font-weight:600;}
+  .item .ops{position:absolute;top:11px;right:11px;display:flex;gap:6px;opacity:0;transition:.15s;}
+  .item:hover .ops{opacity:1;}
+  .chip{display:inline-block;font-size:11px;padding:2px 9px;border-radius:999px;background:var(--brand-soft);color:var(--brand);margin:3px 4px 0 0;}
+
+  /* progress */
+  .prog{height:8px;background:#eef1f7;border-radius:999px;overflow:hidden;margin-top:9px;}
+  .prog > span{display:block;height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);}
+  .prog-label{font-size:12px;color:var(--muted);margin-top:5px;}
+
+  /* todo */
+  .todo{display:flex;align-items:center;gap:12px;background:#fbfcfe;border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin-bottom:9px;}
+  .todo.done{opacity:.55;}
+  .todo.done .todo-text{text-decoration:line-through;}
+  .check{width:21px;height:21px;border-radius:7px;border:2px solid #c7cde0;cursor:pointer;display:grid;place-items:center;flex:0 0 auto;transition:.15s;}
+  .check.on{background:var(--brand);border-color:var(--brand);color:#fff;font-size:13px;}
+  .todo-text{flex:1;font-size:14px;}
+  .inline-add{display:flex;gap:9px;margin-top:6px;}
+  .inline-add input{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px 13px;font-size:14px;font-family:inherit;outline:none;background:#fff;}
+  .inline-add input:focus{border-color:var(--brand);}
+
+  /* habits */
+  .habit{background:#fbfcfe;border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:10px;}
+  .habit .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .habit .nm{font-weight:650;font-size:14.5px;}
+  .streak{font-size:12px;color:var(--muted);}
+  .streak b{color:#10b981;}
+  .days{display:flex;gap:7px;}
+  .day{flex:1;text-align:center;}
+  .day .dlabel{font-size:10.5px;color:var(--muted);margin-bottom:5px;}
+  .day .cell{height:30px;border-radius:9px;background:#eef1f7;cursor:pointer;display:grid;place-items:center;font-size:13px;transition:.12s;}
+  .day .cell.on{background:#10b981;color:#fff;}
+
+  /* review */
+  textarea.note{width:100%;min-height:200px;border:1px solid var(--line);border-radius:12px;padding:14px;font-family:inherit;font-size:14px;line-height:1.75;outline:none;resize:vertical;background:#fff;color:var(--ink);}
+  textarea.note:focus{border-color:var(--brand);}
+  .review-list{margin-top:16px;}
+  .review-item{border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin-bottom:9px;cursor:pointer;background:#fbfcfe;}
+  .review-item:hover{border-color:#d7ddf0;}
+  .review-item .rd{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px;}
+  .review-item .rs{font-size:13.5px;color:#475069;white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+
+  /* dashboard stat cards */
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);cursor:pointer;transition:.15s;}
+  .stat:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(20,30,60,.1);}
+  .stat .lab{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:7px;}
+  .stat .num{font-size:30px;font-weight:800;margin-top:8px;line-height:1;}
+  .stat .desc{font-size:12px;color:var(--muted);margin-top:6px;}
+
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .overlay.show{display:flex;}
+  .modal{background:#fff;border-radius:16px;width:min(460px,100%);padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto;}
+  .modal h3{margin:0 0 16px;font-size:18px;}
+  .field{margin-bottom:13px;}
+  .field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#475069;}
+  .field input,.field textarea,.field select{
+    width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;outline:none;background:#fff;color:var(--ink);
+  }
+  .field input:focus,.field textarea:focus,.field select:focus{border-color:var(--brand);}
+  .field textarea{min-height:84px;resize:vertical;}
+  .modal-ops{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;}
+  .muted{color:var(--muted);}
+  @media(max-width:900px){.cols-2,.cols-3{grid-template-columns:1fr;}.sidebar{display:none;}}
+</style>
+</head>
+<body>
+<div id="gate">
+  <div class="gate-card">
+    <div class="gate-logo">🪷</div>
+    <h2>傅傅的工作台</h2>
+    <p class="gate-sub">请输入访问密码</p>
+    <input id="gatePwd" type="password" placeholder="访问密码" autocomplete="off" />
+    <button id="gateBtn">进入</button>
+    <div id="gateErr" class="gate-err"></div>
+  </div>
+</div>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">🪄</div>
+      <div>
+        <div class="name">傅傅的工作台</div>
+        <div class="sub">Personal Ops Center</div>
+      </div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <div class="crumb" id="crumb"></div>
+        <div class="page-title" id="pageTitle"></div>
+        <div class="page-hint" id="pageHint"></div>
+      </div>
+      <div class="date-pill" id="datePill"></div>
+    </div>
+    <div id="view"></div>
+  </main>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+/* ---------- data layer (飞书 API) ---------- */
+const API = '/api';
+const cache = {};
+async function apiJson(url, opts){
+  const r = await fetch(API+url, opts||{});
+  if(r.status===401){ showGate(); throw new Error('需要重新输入访问密码'); }
+  return r.json();
+}
+const apiList   = id => apiJson('/section/'+id);
+const apiCreate = (id,obj) => apiJson('/section/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});
+const apiUpdate = (id,rec,obj) => apiJson('/section/'+id+'/'+rec,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});
+const apiDelete = (id,rec) => apiJson('/section/'+id+'/'+rec,{method:'DELETE'});
+const apiHabits = () => apiJson('/habits');
+const apiCreateHabit = name => apiJson('/habits',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+const apiDeleteHabit = rec => apiJson('/habits/'+rec,{method:'DELETE'});
+const apiToggleHabit = (hid,date) => apiJson('/habit-toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({habitId:hid,date})});
+const apiReview = () => apiJson('/review');
+const apiSaveReview = (date,text) => apiJson('/review',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({date,text})});
+const apiProject = section => apiJson('/project/'+section);
+const apiSaveProjectDesc = (section,desc) => apiJson('/project-desc',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({section,desc})});
+
+const today = () => new Date().toISOString().slice(0,10);
+const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- nav config ---------- */
+const NAV = [
+  {id:'dashboard', label:'首页', icon:'🏠'},
+  {id:'strategy', label:'人生战略', icon:'🎯', children:[
+    {id:'annual', label:'年计划'},
+    {id:'monthly', label:'月计划'},
+    {id:'major', label:'重大事项'},
+  ]},
+  {id:'daily', label:'每日管理', icon:'📅', children:[
+    {id:'todos', label:'今日待办'},
+    {id:'habits', label:'微习惯'},
+    {id:'review', label:'日复盘'},
+  ]},
+  {id:'projects', label:'项目中心', icon:'🚀', children:[
+    {id:'taobao', label:'淘宝发圈'},
+    {id:'caps', label:'鸭舌帽'},
+    {id:'counseling', label:'心理咨询'},
+    {id:'outfit', label:'穿搭IP'},
+  ]},
+  {id:'content', label:'内容系统', icon:'✍️', children:[
+    {id:'inspiration', label:'灵感库'},
+    {id:'topics', label:'选题库'},
+    {id:'publish', label:'发布记录'},
+  ]},
+  {id:'knowledge', label:'知识库', icon:'📚', children:[
+    {id:'wealth', label:'财富'},
+    {id:'women', label:'女性成长'},
+    {id:'human', label:'人性'},
+    {id:'health', label:'健康'},
+    {id:'psychology', label:'心理学'},
+  ]},
+];
+
+const SECTIONS = {
+  annual:{name:'年计划',kind:'goals',accent:'#e11d48',hint:'设定今年的核心目标，跟踪完成进度。'},
+  monthly:{name:'月计划',kind:'goals',accent:'#f59e0b',hint:'把年度目标拆解为每月的关键动作。'},
+  major:{name:'重大事项',kind:'events',accent:'#8b5cf6',hint:'记录人生关键节点与重要安排。'},
+  todos:{name:'今日待办',kind:'todos',accent:'#0ea5e9',hint:'聚焦当下，完成今天最重要的几件事。'},
+  habits:{name:'微习惯',kind:'habits',accent:'#10b981',hint:'每天一点点，用复利改变自己。'},
+  review:{name:'日复盘',kind:'review',accent:'#6366f1',hint:'每天 5 分钟，回顾得失、沉淀成长。'},
+  taobao:{name:'淘宝发圈',kind:'project',accent:'#ef4444',hint:'项目目标、任务与进度追踪。'},
+  caps:{name:'鸭舌帽',kind:'project',accent:'#14b8a6',hint:'项目目标、任务与进度追踪。'},
+  counseling:{name:'心理咨询',kind:'project',accent:'#a855f7',hint:'项目目标、任务与进度追踪。'},
+  outfit:{name:'穿搭IP',kind:'project',accent:'#ec4899',hint:'项目目标、任务与进度追踪。'},
+  inspiration:{name:'灵感库',kind:'cards',accent:'#f97316',hint:'随手收藏每一个闪光的念头。'},
+  topics:{name:'选题库',kind:'topics',accent:'#3b82f6',hint:'把灵感打磨成可发布的选题。'},
+  publish:{name:'发布记录',kind:'publish',accent:'#22c55e',hint:'记录每次发布与数据反馈。'},
+  wealth:{name:'财富',kind:'knowledge',accent:'#d97706',hint:'投资、理财与金钱观的沉淀。'},
+  women:{name:'女性成长',kind:'knowledge',accent:'#db2777',hint:'独立、自信与自我实现。'},
+  human:{name:'人性',kind:'knowledge',accent:'#7c3aed',hint:'洞察人性，理解关系与动机。'},
+  health:{name:'健康',kind:'knowledge',accent:'#16a34a',hint:'身体是革命的本钱。'},
+  psychology:{name:'心理学',kind:'knowledge',accent:'#0891b2',hint:'认识自己，理解心智。'},
+};
+
+/* field schemas for generic list kinds */
+const SCHEMA = {
+  goals:[
+    {key:'title',label:'目标',type:'text',required:true},
+    {key:'detail',label:'说明',type:'textarea'},
+    {key:'progress',label:'进度 (%)',type:'number',min:0,max:100,default:0},
+  ],
+  events:[
+    {key:'title',label:'事项',type:'text',required:true},
+    {key:'date',label:'日期',type:'date'},
+    {key:'status',label:'状态',type:'select',options:['计划中','进行中','已完成','已搁置']},
+    {key:'note',label:'备注',type:'textarea'},
+  ],
+  cards:[
+    {key:'title',label:'标题',type:'text',required:true},
+    {key:'content',label:'内容',type:'textarea',required:true},
+    {key:'tags',label:'标签（逗号分隔）',type:'text'},
+  ],
+  topics:[
+    {key:'title',label:'选题',type:'text',required:true},
+    {key:'platform',label:'平台',type:'text'},
+    {key:'status',label:'状态',type:'select',options:['灵感','选题','脚本中','已发布']},
+    {key:'note',label:'备注',type:'textarea'},
+  ],
+  publish:[
+    {key:'date',label:'日期',type:'date'},
+    {key:'platform',label:'平台',type:'text',required:true},
+    {key:'title',label:'标题',type:'text',required:true},
+    {key:'link',label:'链接',type:'text'},
+    {key:'result',label:'数据 / 反馈',type:'textarea'},
+  ],
+  knowledge:[
+    {key:'title',label:'标题',type:'text',required:true},
+    {key:'content',label:'要点',type:'textarea',required:true},
+    {key:'source',label:'来源',type:'text'},
+    {key:'tags',label:'标签',type:'text'},
+  ],
+  project:[
+    {key:'title',label:'任务',type:'text',required:true},
+    {key:'status',label:'状态',type:'select',options:['待办','进行中','已完成']},
+    {key:'note',label:'备注',type:'textarea'},
+  ],
+};
+
+/* ---------- build sidebar ---------- */
+const navEl = document.getElementById('nav');
+function buildNav(){
+  let html='';
+  NAV.forEach(g=>{
+    if(g.children){
+      html += `<div class="nav-group" data-g="${g.id}">
+        <div class="nav-head" onclick="toggleGroup('${g.id}')">
+          <span class="ic">${g.icon}</span><span>${g.label}</span><span class="arrow">▾</span>
+        </div><div class="nav-items">`;
+      g.children.forEach(c=>{
+        html += `<div class="nav-item" data-id="${c.id}" onclick="go('${c.id}')"><span class="dot"></span>${c.label}</div>`;
+      });
+      html += `</div></div>`;
+    } else {
+      html += `<div class="nav-item" data-id="${g.id}" onclick="go('${g.id}')" style="margin:2px 0 6px"><span class="ic" style="width:20px;text-align:center">${g.icon}</span>${g.label}</div>`;
+    }
+  });
+  navEl.innerHTML = html;
+}
+function toggleGroup(id){
+  const g = document.querySelector(`.nav-group[data-g="${id}"]`);
+  g.classList.toggle('collapsed');
+}
+buildNav();
+
+/* ---------- routing ---------- */
+let current = 'dashboard';
+function go(id){
+  current = id;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.id===id));
+  render();
+}
+function crumbPath(id){
+  if(id==='dashboard') return ['首页'];
+  for(const g of NAV){
+    if(g.id===id) return [g.label];
+    if(g.children){
+      const c = g.children.find(x=>x.id===id);
+      if(c) return [g.label, c.label];
+    }
+  }
+  return [id];
+}
+function setHeader(id){
+  const cr = crumbPath(id);
+  document.getElementById('crumb').innerHTML = cr.map((c,i)=> i===cr.length-1?`<b>${c}</b>`:`<span>${c}</span> / `).join('');
+  let title='', hint='', accent='#4f46e5';
+  if(id==='dashboard'){ title='工作台首页'; hint='你的个人运营中枢 · 一屏掌握全局'; }
+  else { const s=SECTIONS[id]; title=s.name; hint=s.hint; accent=s.accent; }
+  document.getElementById('pageTitle').innerHTML = title + (id!=='dashboard'?`<span class="tag" style="background:${accent}">${id.toUpperCase().slice(0,4)}</span>`:'');
+  document.getElementById('pageHint').textContent = hint;
+  document.getElementById('datePill').textContent = new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
+}
+
+/* ---------- modal ---------- */
+const overlay = document.getElementById('overlay');
+const modal = document.getElementById('modal');
+function openModal(title, schema, values, onSave){
+  values = values||{};
+  let fields = schema.map(f=>{
+    const v = values[f.key]!=null?values[f.key]:(f.default!=null?f.default:'');
+    if(f.type==='textarea') return `<div class="field"><label>${f.label}</label><textarea data-k="${f.key}">${esc(v)}</textarea></div>`;
+    if(f.type==='select'){
+      const opts = (f.options||[]).map(o=>`<option ${o===v?'selected':''}>${o}</option>`).join('');
+      return `<div class="field"><label>${f.label}</label><select data-k="${f.key}">${opts}</select></div>`;
+    }
+    const min = f.min!=null?`min="${f.min}"`:'', max=f.max!=null?`max="${f.max}"`:'';
+    return `<div class="field"><label>${f.label}</label><input data-k="${f.key}" type="${f.type==='number'?'number':'text'}" value="${esc(v)}" ${min} ${max}/></div>`;
+  }).join('');
+  modal.innerHTML = `<h3>${title}</h3>${fields}
+    <div class="modal-ops">
+      <button class="btn soft" onclick="closeModal()">取消</button>
+      <button class="btn" onclick="submitModal()">保存</button>
+    </div>`;
+  modal._schema = schema; modal._onSave = onSave; modal._values = values;
+  overlay.classList.add('show');
+}
+function closeModal(){ overlay.classList.remove('show'); }
+overlay.addEventListener('click', e=>{ if(e.target===overlay) closeModal(); });
+async function submitModal(){
+  const schema = modal._schema, vals = modal._values;
+  const out = Object.assign({}, vals);
+  for(const f of schema){
+    const el = modal.querySelector(`[data-k="${f.key}"]`);
+    let v = el.value;
+    if(f.type==='number') v = v===''?0:Number(v);
+    out[f.key]=v;
+    if(f.required && !String(v).trim()){ alert('请填写：'+f.label); return; }
+  }
+  try{ await modal._onSave(out); }catch(e){ alert('保存失败：'+(e&&e.message||e)); return; }
+  closeModal();
+}
+
+/* ---------- generic list renderer ---------- */
+async function renderList(sectionId, kind){
+  const s = SECTIONS[sectionId];
+  let arr;
+  try{ arr = await apiList(sectionId); }
+  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  cache[sectionId] = arr;
+  let html = `<div class="card"><div class="h"><div class="t">${s.name}（${arr.length}）</div>
+    <button class="btn" onclick="addGeneric('${sectionId}')">+ 添加</button></div>`;
+  if(!arr.length){ html += `<div class="empty">还没有内容，点击「添加」开始记录 ✨</div></div>`; view.innerHTML=html; return; }
+  html += '<div class="grid cols-2">';
+  arr.forEach(it=>{
+    html += `<div class="item">
+      <div class="ops">
+        <button class="btn ghost mini" onclick="editGeneric('${sectionId}','${it.id}')">编辑</button>
+        <button class="btn danger mini" onclick="delGeneric('${sectionId}','${it.id}')">删除</button>
+      </div>
+      ${genericBody(kind,it)}
+    </div>`;
+  });
+  html += '</div></div>';
+  view.innerHTML = html;
+}
+function genericBody(kind,it){
+  const fields = SCHEMA[kind];
+  let title = it.title || it.name || '(无标题)';
+  let head = `<div class="it-title">${esc(title)}</div>`;
+  let meta = '';
+  fields.forEach(f=>{
+    if(f.key==='title') return;
+    let v = it[f.key]; if(v==null||v==='') return;
+    if(f.key==='tags'){ meta += (v.split(',').map(t=>`<span class="chip">${esc(t.trim())}</span>`).join('')); return; }
+    if(f.key==='content'||f.key==='detail'||f.key==='note'||f.key==='result'){ meta += `<div class="meta">${esc(v)}</div>`; return; }
+    meta += `<div class="meta"><b>${f.label}：</b>${esc(v)}</div>`;
+  });
+  let prog = '';
+  if(kind==='goals'){
+    const p = Number(it.progress)||0;
+    prog = `<div class="prog"><span style="width:${p}%"></span></div><div class="prog-label">${p}% 完成</div>`;
+  }
+  return head+meta+prog;
+}
+function addGeneric(id){ openModal('添加 · '+SECTIONS[id].name, SCHEMA[SECTIONS[id].kind], {}, async v=>{ try{ await apiCreate(id,v); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); } }); }
+function editGeneric(id,itemId){
+  const a = cache[id]||[]; const it = a.find(x=>x.id===itemId); if(!it) return;
+  openModal('编辑 · '+SECTIONS[id].name, SCHEMA[SECTIONS[id].kind], it, async v=>{ try{ await apiUpdate(id,itemId,v); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); } });
+}
+async function delGeneric(id,itemId){ if(!confirm('确认删除？')) return; try{ await apiDelete(id,itemId); await render(); }catch(e){ alert('删除失败：'+(e.message||e)); } }
+
+/* ---------- todos ---------- */
+let todoDate = today();
+async function renderTodos(){
+  let arr;
+  try{ arr = await apiList('todos'); }
+  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  cache.todos = arr;
+  const list = arr.filter(t=>t.date===todoDate);
+  const pending = list.filter(t=>!t.done).length;
+  let html = `<div class="card">
+    <div class="h"><div class="t">今日待办 <span class="muted" style="font-weight:500">· 待完成 ${pending}</span></div>
+      <input type="date" value="${todoDate}" onchange="setTodoDate(this.value)" style="border:1px solid var(--line);border-radius:9px;padding:6px 10px;font-family:inherit;"></div>`;
+  if(!list.length){ html += `<div class="empty">${todoDate===today()?'今天还没有待办，添加第一项吧':'这一天没有记录'}</div>`; }
+  list.forEach(t=>{
+    html += `<div class="todo ${t.done?'done':''}">
+      <div class="check ${t.done?'on':''}" onclick="toggleTodo('${t.id}')">✓</div>
+      <div class="todo-text">${esc(t.title)}</div>
+      <button class="btn danger mini" onclick="delTodo('${t.id}')">删</button>
+    </div>`;
+  });
+  html += `<div class="inline-add"><input id="todoInput" placeholder="输入待办，回车添加…" onkeydown="if(event.key==='Enter')addTodo()"/>
+    <button class="btn" onclick="addTodo()">添加</button></div></div>`;
+  view.innerHTML = html;
+}
+function setTodoDate(v){ todoDate=v; render(); }
+async function addTodo(){ const i=document.getElementById('todoInput'); const v=i.value.trim(); if(!v)return; try{ await apiCreate('todos',{title:v,done:false,date:todoDate}); await render(); }catch(e){ alert('添加失败：'+(e.message||e)); } }
+async function toggleTodo(id){ const a=cache.todos||[]; const t=a.find(x=>x.id===id); if(!t) return; t.done=!t.done; try{ await apiUpdate('todos',id,t); await render(); }catch(e){ alert('更新失败：'+(e.message||e)); } }
+async function delTodo(id){ try{ await apiDelete('todos',id); await render(); }catch(e){ alert('删除失败：'+(e.message||e)); } }
+
+/* ---------- habits ---------- */
+function lastNDays(n){ const out=[]; const d=new Date(); for(let i=n-1;i>=0;i--){ const x=new Date(d); x.setDate(d.getDate()-i); out.push(x.toISOString().slice(0,10)); } return out; }
+function streakOf(hist){ let s=0; const d=new Date(); for(let i=0;;i++){ const x=new Date(d); x.setDate(d.getDate()-i); const k=x.toISOString().slice(0,10); if(hist&&hist[k]) s++; else { if(i===0){ continue; } break; } } return s; }
+async function renderHabits(){
+  let arr;
+  try{ arr = await apiHabits(); }
+  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  cache.habits = arr;
+  const days = lastNDays(7);
+  let html = `<div class="card"><div class="h"><div class="t">微习惯打卡</div>
+    <div class="inline-add" style="margin:0;width:auto"><input id="habitInput" placeholder="新增习惯名称…" style="padding:7px 11px"/>
+    <button class="btn" onclick="addHabit()">+ 习惯</button></div></div>`;
+  if(!arr.length){ html += `<div class="empty">还没有习惯，添加一个开始坚持吧 🌱</div></div>`; view.innerHTML=html; return; }
+  arr.forEach(h=>{
+    const st = streakOf(h.history);
+    let cells='';
+    days.forEach(dy=>{
+      const on = h.history && h.history[dy];
+      const lbl = new Date(dy).toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'}).replace('/','/');
+      cells += `<div class="day"><div class="dlabel">${lbl}</div><div class="cell ${on?'on':''}" onclick="toggleHabit('${h.id}','${dy}')">${on?'✓':''}</div></div>`;
+    });
+    html += `<div class="habit"><div class="top"><div class="nm">${esc(h.name)}</div>
+      <div style="display:flex;gap:10px;align-items:center"><span class="streak">🔥 连续 <b>${st}</b> 天</span>
+      <button class="btn danger mini" onclick="delHabit('${h.id}')">删除</button></div></div>
+      <div class="days">${cells}</div></div>`;
+  });
+  html += '</div>';
+  view.innerHTML = html;
+}
+async function addHabit(){ const i=document.getElementById('habitInput'); const v=i.value.trim(); if(!v)return; try{ await apiCreateHabit(v); await render(); }catch(e){ alert('添加失败：'+(e.message||e)); } }
+async function toggleHabit(id,dy){ try{ await apiToggleHabit(id,dy); await render(); }catch(e){ alert('打卡失败：'+(e.message||e)); } }
+async function delHabit(id){ if(!confirm('删除该习惯及其记录？'))return; try{ await apiDeleteHabit(id); await render(); }catch(e){ alert('删除失败：'+(e.message||e)); } }
+
+/* ---------- review ---------- */
+let reviewDate = today();
+async function renderReview(){
+  let all;
+  try{ all = await apiReview(); }
+  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  cache.review = all;
+  const cur = all.find(r=>r.date===reviewDate);
+  let list = all.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6)
+    .map(r=>`<div class="review-item" onclick="setReviewDate('${r.date}')"><div class="rd">${r.date}</div><div class="rs">${esc(r.text)||'（空）'}</div></div>`).join('');
+  let html = `<div class="card">
+    <div class="h"><div class="t">日复盘</div>
+      <input type="date" value="${reviewDate}" onchange="setReviewDate(this.value)" style="border:1px solid var(--line);border-radius:9px;padding:6px 10px;font-family:inherit;"></div>
+    <textarea class="note" id="reviewText" placeholder="今天做了什么？有什么收获与不足？明天最重要的一件事是什么？">${esc(cur?cur.text:'')}</textarea>
+    <div style="margin-top:12px;text-align:right"><button class="btn" onclick="saveReview()">保存复盘</button></div>
+  </div>`;
+  if(list) html += `<div class="card review-list"><div class="t" style="font-weight:700;margin-bottom:10px">历史复盘</div>${list}</div>`;
+  view.innerHTML = html;
+}
+function setReviewDate(v){ reviewDate=v; render(); }
+async function saveReview(){ const t=document.getElementById('reviewText').value; try{ await apiSaveReview(reviewDate,t); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); } }
+
+/* ---------- project ---------- */
+async function renderProject(id){
+  let data;
+  try{ data = await apiProject(id); }
+  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  const s = SECTIONS[id];
+  const tasks = data.tasks||[];
+  cache[id] = tasks;
+  let html = `<div class="card" style="border-left:4px solid ${s.accent}">
+    <div class="t" style="font-weight:700;margin-bottom:10px">📌 项目说明</div>
+    <textarea class="note" id="projDesc" style="min-height:90px" placeholder="这个项目的目标、背景与关键里程碑…" onblur="saveProjDesc('${id}')">${esc(data.desc||'')}</textarea>
+  </div>
+  <div class="card"><div class="h"><div class="t">任务清单（${tasks.length}）</div>
+    <button class="btn" onclick="addGeneric('${id}')">+ 任务</button></div>`;
+  if(!tasks.length) html += `<div class="empty">还没有任务，添加第一个吧</div></div>`;
+  else {
+    html += '<div class="grid cols-2">';
+    tasks.forEach(it=>{ html += `<div class="item"><div class="ops">
+        <button class="btn ghost mini" onclick="editGeneric('${id}','${it.id}')">编辑</button>
+        <button class="btn danger mini" onclick="delGeneric('${id}','${it.id}')">删除</button></div>${genericBody('project',it)}</div>`; });
+    html += '</div></div>';
+  }
+  view.innerHTML = html;
+}
+async function saveProjDesc(id){ const v=document.getElementById('projDesc').value; try{ await apiSaveProjectDesc(id,v); }catch(e){ alert('保存失败：'+(e.message||e)); } }
+
+/* ---------- dashboard ---------- */
+let dashCache = null;
+async function renderDashboard(){
+  let d;
+  try{ d = await fetch(API+'/dashboard').then(r=>r.json()); }
+  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  dashCache = d;
+  const {todayTodos, todoPending, habits, major, projCount, insp, topics, knowledge} = d;
+  const upcoming = major.filter(m=>!m.status||m.status!=='已完成').slice(0,4);
+  const habitDoneToday = habits.filter(h=>h.history&&h.history[today()]).length;
+
+  const stat = (lab,num,desc,target)=>`<div class="stat" onclick="go('${target}')"><div class="lab">${lab}</div><div class="num">${num}</div><div class="desc">${desc}</div></div>`;
+
+  let html = `<div class="grid cols-3" style="margin-bottom:18px">
+    ${stat('📅 今日待办', todoPending, '项待完成 / 共 '+todayTodos.length+' 项', 'todos')}
+    ${stat('🌱 微习惯', habitDoneToday+'/'+habits.length, '今日已打卡', 'habits')}
+    ${stat('🎯 重大事项', major.length, '进行中 '+upcoming.length+' 项', 'major')}
+  </div>
+  <div class="grid cols-3" style="margin-bottom:18px">
+    ${stat('🚀 项目任务', projCount, '跨 4 个项目', 'projects')}
+    ${stat('✍️ 内容资产', insp+topics, '灵感 '+insp+' · 选题 '+topics, 'content')}
+    ${stat('📚 知识沉淀', knowledge, '5 大主题', 'knowledge')}
+  </div>`;
+
+  html += `<div class="grid cols-2">`;
+  html += `<div class="card"><div class="h"><div class="t">⚡ 今日聚焦</div><button class="btn ghost mini" onclick="go('todos')">去待办</button></div>`;
+  if(!todayTodos.length) html += `<div class="empty">今天还没有待办</div>`;
+  else todayTodos.slice(0,6).forEach(t=>{ html += `<div class="todo ${t.done?'done':''}"><div class="check ${t.done?'on':''}" onclick="toggleDashboardTodo('${t.id}')">✓</div><div class="todo-text">${esc(t.title)}</div></div>`; });
+  html += `</div>`;
+
+  html += `<div class="card"><div class="h"><div class="t">🎯 重大事项</div><button class="btn ghost mini" onclick="go('major')">查看全部</button></div>`;
+  if(!upcoming.length) html += `<div class="empty">暂无进行中的重大事项</div>`;
+  else upcoming.forEach(m=>{ html += `<div class="item" style="padding:10px 12px;margin-bottom:8px"><div class="it-title" style="font-size:13.5px">${esc(m.title||'')}</div><div class="meta">${m.date?('<b>日期：</b>'+esc(m.date)+'　'):''}${m.status?('<b>状态：</b>'+esc(m.status)):''}</div></div>`; });
+  html += `</div></div>`;
+
+  view.innerHTML = html;
+}
+async function toggleDashboardTodo(id){ const a=(dashCache&&dashCache.todayTodos)||[]; const t=a.find(x=>x.id===id); if(!t) return; t.done=!t.done; try{ await apiUpdate('todos',id,t); await render(); }catch(e){ alert('更新失败：'+(e.message||e)); } }
+
+/* ---------- main render ---------- */
+const view = document.getElementById('view');
+async function render(){
+  setHeader(current);
+  view.innerHTML = '<div class="empty">⏳ 加载中…</div>';
+  try{
+    if(current==='dashboard') return await renderDashboard();
+    const s = SECTIONS[current];
+    if(!s) return;
+    const kind = s.kind;
+    if(kind==='todos') return await renderTodos();
+    if(kind==='habits') return await renderHabits();
+    if(kind==='review') return await renderReview();
+    if(kind==='project') return await renderProject(current);
+    return await renderList(current, kind);
+  }catch(e){
+    view.innerHTML = `<div class="empty">⚠️ 出错了：${esc(e.message||e)}</div>`;
+  }
+}
+
+/* ---------- 访问密码门 ---------- */
+function showGate(){ const g=document.getElementById('gate'); if(g) g.classList.add('show'); }
+function hideGate(){ const g=document.getElementById('gate'); if(g) g.classList.remove('show'); }
+async function doLogin(){
+  const pwd=document.getElementById('gatePwd').value;
+  const err=document.getElementById('gateErr'); err.textContent='';
+  try{
+    const r=await fetch(API+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})});
+    if(r.ok){ hideGate(); render(); }
+    else { err.textContent='密码错误'; }
+  }catch(e){ err.textContent='网络错误，请重试'; }
+}
+async function checkAuth(){
+  try{
+    const r=await fetch(API+'/api/me');
+    if(r.ok){ hideGate(); render(); return; }
+  }catch(e){}
+  showGate();
+}
+const _gateBtn=document.getElementById('gateBtn');
+if(_gateBtn) _gateBtn.addEventListener('click', doLogin);
+const _gatePwd=document.getElementById('gatePwd');
+if(_gatePwd) _gatePwd.addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+
+checkAuth();
+</script>
+</body>
+</html>
