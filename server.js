@@ -225,7 +225,7 @@ const SECTIONS = {
   monthly:     { table: '目标管理', kind: 'goals',     fix: '月计划' },
   major:       { table: '重大事项', kind: 'events' },
   todos:       { table: '每日待办', kind: 'todos' },
-  inspiration: { table: INSPIRE_TABLE, kind: 'wisdom', base: INSPIRE_BASE, readonly: true },
+  inspiration: { table: INSPIRE_TABLE, kind: 'wisdom', base: INSPIRE_BASE, readonly: true, allowDelete: true },
   topics:      { table: '选题库',   kind: 'topics' },
   publish:     { table: '发布记录', kind: 'publish' },
   wealth:      { table: '知识库',   kind: 'knowledge', fix: '财富' },
@@ -485,7 +485,7 @@ async function route(method, url, body, res, req) {
       const id = m[1], rec = m[2];
       if (!SECTIONS[id]) return send(res, 404, { error: '未知模块: ' + id });
       const cfg = SECTIONS[id];
-      if (cfg.readonly && method !== 'GET') return send(res, 403, { error: '该板块为只读（数据来自外部多维表格，请在飞书中维护）' });
+      if (cfg.readonly && method !== 'GET' && method !== 'DELETE') return send(res, 403, { error: '该板块为只读（数据来自外部多维表格，请在飞书中维护；仅支持删除）' });
       if (method === 'GET') return send(res, 200, await sectionList(id));
       if (method === 'POST') return send(res, 200, await sectionCreate(id, body || {}));
       if (method === 'PUT' && rec) return send(res, 200, await sectionUpdate(id, rec, body || {}));

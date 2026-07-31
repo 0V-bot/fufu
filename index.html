@@ -282,7 +282,7 @@ const SECTIONS = {
   caps:{name:'鸭舌帽',kind:'project',accent:'#14b8a6',hint:'项目目标、任务与进度追踪。'},
   counseling:{name:'心理咨询',kind:'project',accent:'#a855f7',hint:'项目目标、任务与进度追踪。'},
   outfit:{name:'穿搭IP',kind:'project',accent:'#ec4899',hint:'项目目标、任务与进度追踪。'},
-  inspiration:{name:'灵感库',kind:'wisdom',accent:'#f97316',hint:'来自「人生灵感库」的完整文案资产（只读，在飞书中维护）。',readonly:true},
+  inspiration:{name:'灵感库',kind:'wisdom',accent:'#f97316',hint:'来自「人生灵感库」的完整文案资产（只读，在飞书中维护；可删除）。',readonly:true,allowDelete:true},
   topics:{name:'选题库',kind:'topics',accent:'#3b82f6',hint:'把灵感打磨成可发布的选题。'},
   publish:{name:'发布记录',kind:'publish',accent:'#22c55e',hint:'记录每次发布与数据反馈。'},
   wealth:{name:'财富',kind:'knowledge',accent:'#d97706',hint:'投资、理财与金钱观的沉淀。'},
@@ -444,10 +444,13 @@ async function renderList(sectionId, kind){
   if(!arr.length){ html += `<div class="empty">${s.readonly?'这个库还是空的，去飞书「人生灵感库」添加内容吧':'还没有内容，点击「添加」开始记录 ✨'}</div></div>`; view.innerHTML=html; return; }
   html += '<div class="grid cols-2">';
   arr.forEach(it=>{
-    let ops = s.readonly ? '' : `<div class="ops">
-        <button class="btn ghost mini" onclick="editGeneric('${sectionId}','${it.id}')">编辑</button>
-        <button class="btn danger mini" onclick="delGeneric('${sectionId}','${it.id}')">删除</button>
-      </div>`;
+    let ops = '';
+    if(!s.readonly || s.allowDelete){
+      let inner = '';
+      if(!s.readonly) inner += `<button class="btn ghost mini" onclick="editGeneric('${sectionId}','${it.id}')">编辑</button>`;
+      inner += `<button class="btn danger mini" onclick="delGeneric('${sectionId}','${it.id}')">删除</button>`;
+      ops = `<div class="ops">${inner}</div>`;
+    }
     let body = (s.kind==='wisdom') ? wisdomBody(it) : genericBody(kind,it);
     html += `<div class="item">${ops}${body}</div>`;
   });
