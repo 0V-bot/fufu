@@ -1,0 +1,11 @@
+services:
+  workbench:
+    build: .
+    container_name: fufu-workbench
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      - PORT=3000
