@@ -23,9 +23,18 @@ const FEISHU_API = 'https://open.feishu.cn/open-apis';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 function shellQuote(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; }
-const dateOnly = s => (typeof s === 'string' && s.indexOf(' ') > 0) ? s.split(' ')[0] : (s || '');
-// 写飞书日期字段需完整 "YYYY-MM-DD HH:MM:SS"；纯日期补时分秒（避免 DatetimeFieldConvFail）
-const padDate = s => (typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)) ? s + ' 00:00:00' : (s || '');
+const dateOnly = s => {
+  if (typeof s === 'number') { const d = new Date(s), p = n => (n < 10 ? '0' + n : '' + n); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+  if (typeof s === 'string' && s.indexOf(' ') > 0) return s.split(' ')[0];
+  return s || '';
+};
+// 飞书日期字段写入需毫秒时间戳数字（避免 DatetimeFieldConvFail）；纯日期补零时区转时间戳
+const toFeishuDate = s => {
+  if (!s) return s;
+  if (typeof s === 'number') return s;
+  const ms = Date.parse(s.includes(' ') ? s : s + ' 00:00:00');
+  return isNaN(ms) ? s : ms;
+};
 const num = v => { const n = Number(v); return isNaN(n) ? 0 : n; };
 const today = () => new Date().toISOString().slice(0, 10);
 // 飞书单选字段读回可能是字符串/"进行中"/["进行中"]/{text:"进行中"}，统一取可读文本
@@ -239,11 +248,11 @@ function readRec(kind, r) {
 function writeRec(kind, o, fix) {
   switch (kind) {
     case 'goals':     return { '目标': o.title, '类型': fix, '说明': o.detail || '', '进度': num(o.progress), '状态': o.status || '进行中' };
-    case 'events':    return { '事项': o.title, '日期': padDate(o.date), '状态': o.status || '计划中', '备注': o.note || '' };
-    case 'todos':     return { '内容': o.title, '日期': padDate(o.date), '完成': !!o.done };
+    case 'events':    return { '事项': o.title, '日期': toFeishuDate(o.date), '状态': o.status || '计划中', '备注': o.note || '' };
+    case 'todos':     return { '内容': o.title, '日期': toFeishuDate(o.date), '完成': !!o.done };
     case 'cards':     return { '标题': o.title, '内容': o.content, '标签': o.tags || '' };
     case 'topics':    return { '选题': o.title, '平台': o.platform || '', '状态': o.status || '灵感', '备注': o.note || '' };
-    case 'publish':   return { '标题': o.title, '日期': padDate(o.date), '平台': o.platform || '', '链接': o.link || '', '数据反馈': o.result || '' };
+    case 'publish':   return { '标题': o.title, '日期': toFeishuDate(o.date), '平台': o.platform || '', '链接': o.link || '', '数据反馈': o.result || '' };
     case 'knowledge': return { '标题': o.title, '分类': fix, '要点': o.content, '来源': o.source || '', '标签': o.tags || '' };
     case 'ptask':     return { '任务': o.title, '项目': [PROJ_MAP[fix]], '状态': o.status || '待办', '备注': o.note || '' };
   }
@@ -303,7 +312,7 @@ async function toggleHabit(hid, date) {
   const checks = await listTable('习惯打卡');
   const found = checks.find(c => linkId(c['习惯']) === hid && dateOnly(c['打卡日期']) === date);
   if (found) await deleteRecord('习惯打卡', found.record_id);
-  else await createRecord('习惯打卡', { '习惯': [hid], '打卡日期': padDate(date), '打卡': true });
+  else await createRecord('习惯打卡', { '习惯': [hid], '打卡日期': toFeishuDate(date), '打卡': true });
   return { ok: true };
 }
 
@@ -314,7 +323,7 @@ async function getReview() {
 async function saveReview(date, text) {
   const found = (await listTable('日复盘')).find(r => dateOnly(r['日期']) === date);
   if (found) await updateRecord('日复盘', found.record_id, { '内容': text });
-  else await createRecord('日复盘', { '主题': date, '日期': padDate(date), '内容': text });
+  else await createRecord('日复盘', { '主题': date, '日期': toFeishuDate(date), '内容': text });
   return { ok: true };
 }
 async function deleteReview(date) {
