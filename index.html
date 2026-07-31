@@ -186,6 +186,11 @@
   .wisdom-toolbar .inp:focus{border-color:#a5b4fc;box-shadow:0 0 0 3px rgba(99,102,241,.08);}
   .wisdom-toolbar select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:13px;font-family:inherit;color:#475069;outline:none;max-width:160px;cursor:pointer;}
   .wisdom-toolbar select:focus{border-color:#a5b4fc;}
+  /* 搜索框 + 搜索按钮并排；输入不打断，点击/回车才筛选 */
+  .wisdom-toolbar .search-wrap{display:flex;gap:8px;flex:1;min-width:260px;}
+  .wisdom-toolbar .search-wrap .inp{flex:1;min-width:0;}
+  .wisdom-toolbar .search-wrap .btn{flex:0 0 auto;padding:9px 16px;white-space:nowrap;background:var(--brand);color:#fff;border:none;border-radius:10px;font-size:13.5px;cursor:pointer;font-family:inherit;}
+  .wisdom-toolbar .search-wrap .btn:hover{opacity:.92;}
 
   /* modal */
   .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
@@ -525,7 +530,7 @@ function wisdomBody(it){
 }
 
 /* ---- 灵感库：筛选 + 搜索 + 详情编辑 ---- */
-let wisdomFilter = { q:'', cat1:'', cat2:'', emotion:'', ctype:'' };
+let wisdomFilter = { q:'', cat1:'', cat2:'', ctype:'' };
 function wisdomUniq(key){ return [...new Set((cache['inspiration']||[]).map(x=>x[key]).filter(Boolean))]; }
 function wisdomTags(key){ const s=new Set(); (cache['inspiration']||[]).forEach(x=> (x[key]||[]).forEach(v=>{ if(v) s.add(v); })); return [...s]; }
 
@@ -551,10 +556,12 @@ function wisdomToolbar(){
   const f = wisdomFilter;
   const opt = (key,sel)=> `<option value="">全部</option>` + wisdomUniq(key).map(v=>`<option ${v===sel?'selected':''}>${esc(v)}</option>`).join('');
   return `<div class="wisdom-toolbar">
-    <input class="inp" id="wfQ" placeholder="🔍 搜索标题 / 关键词 / 金句 / 原文…" value="${esc(f.q)}" oninput="wisdomSearch(this.value)">
+    <div class="search-wrap">
+      <input class="inp" id="wfQ" placeholder="🔍 搜索标题 / 关键词 / 金句 / 原文…" value="${esc(f.q)}" onkeydown="if(event.key==='Enter') wisdomSearch(this.value)">
+      <button class="btn" onclick="wisdomSearch(document.getElementById('wfQ').value)">搜索</button>
+    </div>
     <select onchange="wisdomSet('cat1',this.value)">${opt('cat1',f.cat1)}</select>
     <select onchange="wisdomSet('cat2',this.value)">${opt('cat2',f.cat2)}</select>
-    <select onchange="wisdomSet('emotion',this.value)">${opt('emotion',f.emotion)}</select>
     <select onchange="wisdomSet('ctype',this.value)">${opt('ctype',f.ctype)}</select>
     <button class="btn soft mini" onclick="wisdomReset()">重置</button>
   </div>`;
@@ -564,7 +571,6 @@ function wisdomFiltered(arr){
   return arr.filter(it=>{
     if(f.cat1 && it.cat1!==f.cat1) return false;
     if(f.cat2 && it.cat2!==f.cat2) return false;
-    if(f.emotion && !(it.emotion||[]).includes(f.emotion)) return false;
     if(f.ctype && it.ctype!==f.ctype) return false;
     if(q){
       const hay = [it.title,it.keywords,it.quote,it.original,it.summary,it.abstract,it.reflection].join(' ').toLowerCase();
@@ -575,7 +581,7 @@ function wisdomFiltered(arr){
 }
 function wisdomSearch(v){ wisdomFilter.q=v; renderWisdom(cache['inspiration']||[]); }
 function wisdomSet(k,v){ wisdomFilter[k]=v; renderWisdom(cache['inspiration']||[]); }
-function wisdomReset(){ wisdomFilter={q:'',cat1:'',cat2:'',emotion:'',ctype:''}; renderWisdom(cache['inspiration']||[]); }
+function wisdomReset(){ wisdomFilter={q:'',cat1:'',cat2:'',ctype:''}; renderWisdom(cache['inspiration']||[]); }
 
 /* 详情：展示并手动编辑/补充全部字段，保存回人生灵感库 */
 let _catCache = null;
