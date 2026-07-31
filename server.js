@@ -24,7 +24,7 @@ const FEISHU_API = 'https://open.feishu.cn/open-apis';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 function shellQuote(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; }
 const dateOnly = s => {
-  if (typeof s === 'number') { const d = new Date(s), p = n => (n < 10 ? '0' + n : '' + n); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+  if (typeof s === 'number') { const d = new Date(s + 8 * 3600 * 1000), p = n => (n < 10 ? '0' + n : '' + n); return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()); }
   if (typeof s === 'string' && s.indexOf(' ') > 0) return s.split(' ')[0];
   return s || '';
 };
@@ -36,7 +36,8 @@ const toFeishuDate = s => {
   return isNaN(ms) ? s : ms;
 };
 const num = v => { const n = Number(v); return isNaN(n) ? 0 : n; };
-const today = () => new Date().toISOString().slice(0, 10);
+// 统一按北京时间(东八区)计算"今天"，避免服务器 UTC 时区导致待办/复盘日期差一天
+const today = () => { const d = new Date(Date.now() + 8 * 3600 * 1000), p = n => (n < 10 ? '0' + n : '' + n); return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()); };
 // 飞书单选字段读回可能是字符串/"进行中"/["进行中"]/{text:"进行中"}，统一取可读文本
 const sel = v => {
   if (Array.isArray(v)) { const e = v[0]; return e && typeof e === 'object' ? e.text : e; }
