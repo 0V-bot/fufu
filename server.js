@@ -13,10 +13,10 @@ const { execFileSync } = require('child_process');
 
 const PORT = Number(process.env.PORT || 3210);
 const BASE_TOKEN = process.env.BASE_TOKEN || 'Wwtfbm66VaJyLOsBQaTcTm1vnHg';
-// 灵感库板块数据源：飞书多维表格「人生研究学院」（登记名「文案素材知识库管理系统」）的「人生灵感库」表
-// 默认指向上面这个已验证可读的 Base/表；如需更换可走环境变量覆盖
-const INSPIRE_BASE = process.env.INSPIRE_BASE_TOKEN || 'LjINbBtuUa2bB3sUcibcjQKmnnb';
-const INSPIRE_TABLE = process.env.INSPIRE_TABLE || 'tblUKE3r7Xx78uM0';
+// 灵感库板块数据源：飞书多维表格「人生研究学院」的「人生灵感库」表
+// 默认 Base/表如下；如需更换可走环境变量 INSPIRE_BASE_TOKEN / INSPIRE_TABLE 覆盖
+const INSPIRE_BASE = process.env.INSPIRE_BASE_TOKEN || 'ARCcbggiUaFqESsV7pRcin8CnUb';
+const INSPIRE_TABLE = process.env.INSPIRE_TABLE || 'tblpI6WqsvA5z0CL';
 const ACCESS_PWD = process.env.ACCESS_PWD || '';           // 空 = 不加密
 const APP_ID = process.env.FEISHU_APP_ID || '';
 const APP_SECRET = process.env.FEISHU_APP_SECRET || '';
