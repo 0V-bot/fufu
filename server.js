@@ -326,6 +326,21 @@ async function sectionDelete(id, rec) {
   return { ok: true };
 }
 
+/* ===================== 文章录入（写入灵感库待分析） ===================== */
+async function createPendingArticle({ title, content, source, sourceLink, reflection }) {
+  const fields = {
+    '文案标题': title || '',
+    '原始文案': content || '',
+    '来源': source || '',
+    '收藏日期': Date.now(),
+    '个人感悟': reflection || '',
+    '使用状态': '待分析'
+  };
+  if (sourceLink && sourceLink.trim()) fields['来源链接'] = { link: sourceLink.trim(), text: sourceLink.trim() };
+  const id = await createRecord(INSPIRE_TABLE, fields, INSPIRE_BASE);
+  return id;
+}
+
 /* ===================== 微习惯 + 打卡 ===================== */
 async function getHabits() {
   const habits = (await listTable('微习惯')).map(h => ({ id: h.record_id, name: h['名称'] || '' }));
@@ -481,6 +496,12 @@ async function route(method, url, body, res, req) {
     if (method === 'DELETE' && (m = url.match(/^\/api\/review\/([\w-]+)$/))) return send(res, 200, await deleteReview(m[1]));
     if (method === 'GET' && (m = url.match(/^\/api\/project\/([\w]+)$/))) return send(res, 200, await getProject(m[1]));
     if (method === 'PUT' && url === '/api/project-desc') return send(res, 200, await saveProjectDesc(body.section, body.desc));
+    if (method === 'POST' && url === '/api/article-input') {
+      const { title, content, source, sourceLink, reflection } = body || {};
+      if (!title || !content) return send(res, 400, { error: '标题和正文不能为空' });
+      const id = await createPendingArticle({ title, content, source, sourceLink, reflection });
+      return send(res, 200, { ok: true, record_id: id });
+    }
     if ((m = url.match(/^\/api\/section\/([\w]+)(?:\/(.+))?$/))) {
       const id = m[1], rec = m[2];
       if (!SECTIONS[id]) return send(res, 404, { error: '未知模块: ' + id });
