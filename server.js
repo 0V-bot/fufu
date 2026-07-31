@@ -247,7 +247,7 @@ function readRec(kind, r) {
     case 'todos':     return { id: r.record_id, title: r['内容'], date: dateOnly(r['日期']), done: !!r['完成'] };
     case 'cards':     return { id: r.record_id, title: r['标题'], content: r['内容'] || '', tags: r['标签'] || '' };
     case 'wisdom': {
-      // 灵感库（人生灵感库）富字段映射：兼容单选/多选/url 对象/空值不返回等情况
+      // 灵感库（人生灵感库）富字段映射：兼容单选/url 对象/空值不返回等情况
       const multi = v => Array.isArray(v) ? v.map(x => x && typeof x === 'object' ? (x.text || x) : x).filter(Boolean) : [];
       const sl = r['来源链接']; const slText = sl && typeof sl === 'object' ? (sl.text || sl.link || '') : (sl || '');
       return {
@@ -255,7 +255,8 @@ function readRec(kind, r) {
         ID: r['ID'] || '',
         title: r['文案标题'] || '',
         cat1: sel(r['一级分类']) || '',
-        cat2: multi(r['二级分类']),
+        cat2: sel(r['二级分类']) || '',
+        cat3: sel(r['三级分类']) || '',
         emotion: multi(r['情绪标签']),
         keywords: r['关键词'] || '',
         summary: r['AI总结'] || '',

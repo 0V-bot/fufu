@@ -108,6 +108,7 @@
   .chip.type{background:#eaf1ff;color:#2563eb;}
   .chip.scene{background:#eafaf1;color:#16a34a;}
   .chip.kw{background:#f1f3f8;color:#64748b;}
+  .chip.sub{background:#f5f0ff;color:#7c3aed;}
   .item .quote{margin:8px 0;padding:9px 13px;border-left:3px solid var(--brand);background:#fbfaff;border-radius:0 9px 9px 0;font-size:13px;color:#3a3f55;line-height:1.65;font-style:italic;}
   .item .meta.orig{background:#f8fafc;padding:8px 11px;border-radius:9px;max-height:120px;overflow:auto;}
   .item .meta.muted{color:#9aa3b2;}
@@ -497,7 +498,8 @@ function wisdomBody(it){
   let h = `<div class="it-title">${esc(it.title||'(无标题)')}</div>`;
   let chips = '';
   if(it.cat1) chips += `<span class="chip cat">${esc(it.cat1)}</span>`;
-  (it.cat2||[]).forEach(c=> chips += `<span class="chip">${esc(c)}</span>`);
+  if(it.cat2) chips += `<span class="chip">${esc(it.cat2)}</span>`;
+  if(it.cat3) chips += `<span class="chip sub">${esc(it.cat3)}</span>`;
   (it.emotion||[]).forEach(c=> chips += `<span class="chip emo">${esc(c)}</span>`);
   if(it.ctype) chips += `<span class="chip type">${esc(it.ctype)}</span>`;
   (it.scenes||[]).forEach(c=> chips += `<span class="chip scene">${esc(c)}</span>`);
