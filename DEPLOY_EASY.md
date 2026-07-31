@@ -65,4 +65,5 @@ bash setup-https.sh
 - **登录后空白 / 接口 401**：`ACCESS_PWD` 没填对或改完没重启；重跑 `bash setup.sh` 会跳过已存在的 .env，可手动 `nano ~/fufu/.env` 改后 `sudo docker compose restart`。
 - **飞书读写报错**：飞书应用需开通 `bitable:app` 权限，并被加为 Base `Wwtfbm66VaJyLOsBQaTcTm1vnHg` 的「可编辑」协作者（和之前 Railway 阶段要求一致）。
 - **更新代码**：终端执行 `cd ~/fufu && git pull && sudo docker compose up -d --build`。
+- **卡在 Docker 安装（报错 `Connection reset by peer` / `no valid OpenPGP data found`）**：是旧版脚本用了被墙的 `download.docker.com`。重新执行第 3 步即可拉到最新脚本（已改用阿里云镜像 `mirrors.aliyun.com/docker-ce`，国内直连）。若第 3 步的 curl 拉不下来，可改用：`curl -fsSL https://gitclone.com/github.com/0V-bot/fufu/raw/main/setup.sh -o setup.sh && bash setup.sh`。
 - **卡住/报错**：把终端里的报错文字发我，我一步步帮你排。

@@ -5,19 +5,20 @@ set -e
 echo "===== 傅傅的工作台 一键部署开始 ====="
 
 # 1) 安装 Docker（Ubuntu / Debian；Alibaba Cloud Linux 请改用对应安装方式或选 Ubuntu 镜像）
+# 重要：中国大陆网络下 download.docker.com 被墙，必须用阿里云镜像，否则会卡在 gpg/apt 报错
 if ! command -v docker >/dev/null 2>&1; then
-  echo "[1/4] 安装 Docker ..."
+  echo "[1/4] 安装 Docker（使用阿里云镜像，适配中国大陆网络）..."
   sudo apt-get update -y
   sudo apt-get install -y ca-certificates curl gnupg lsb-release git
   sudo install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  curl -fsSL --retry 3 https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker-aliyun.gpg
   CODENAME=$(lsb_release -cs 2>/dev/null || echo jammy)
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $CODENAME stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker-aliyun.gpg] https://mirrors.aliyun.com/docker-ce/linux/ubuntu $CODENAME stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
   sudo apt-get update -y
   sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
   sudo systemctl enable --now docker
   sudo usermod -aG docker "$USER" 2>/dev/null || true
-  echo "Docker 安装完成"
+  echo "[1/4] Docker 安装完成"
 else
   echo "[1/4] Docker 已存在，跳过"
 fi
