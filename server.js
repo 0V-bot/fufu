@@ -125,8 +125,9 @@ async function listTableOpen(name) {
 async function createRecordOpen(name, fields) {
   const pre = await basePrefix();
   const id = await tableId(name);
-  const j = await feishuRequest('POST', `${pre}/tables/${encodeURIComponent(id)}/records`, { records: [{ fields }] });
-  return j.data.records[0].record_id;
+  // 单条记录创建：请求体顶层为 { fields }，响应在 data.record
+  const j = await feishuRequest('POST', `${pre}/tables/${encodeURIComponent(id)}/records`, { fields });
+  return j.data.record.record_id;
 }
 async function updateRecordOpen(name, rec, fields) {
   const pre = await basePrefix();
