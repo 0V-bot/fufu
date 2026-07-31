@@ -89,18 +89,33 @@ async function retryFetch(fn) {
   throw lastErr;
 }
 let _tables = null;
+let BASE_PREFIX = null;
+async function basePrefix() {
+  if (BASE_PREFIX) return BASE_PREFIX;
+  // 探测正确的 API 前缀：传统多维表格用 v1/apps，新版 Base 用 v3/bases。两者都试，返回 code:0 的即为真路径。
+  for (const p of [`/bitable/v3/bases/${BASE_TOKEN}`, `/bitable/v1/apps/${BASE_TOKEN}`]) {
+    try {
+      const j = await feishuRequest('GET', p + '/tables?page_size=1');
+      if (j.code === 0) { BASE_PREFIX = p; return p; }
+    } catch (e) { /* 路径不对会抛 JSON 解析异常(如 404 文本)，继续试下一个 */ }
+  }
+  BASE_PREFIX = `/bitable/v1/apps/${BASE_TOKEN}`; // 兜底（最常见形态）
+  return BASE_PREFIX;
+}
 async function tableId(name) {
   if (!_tables) {
-    const j = await feishuRequest('GET', `/bitable/v3/bases/${BASE_TOKEN}/tables?page_size=200`);
+    const pre = await basePrefix();
+    const j = await feishuRequest('GET', `${pre}/tables?page_size=200`);
     _tables = {}; (j.data.items || []).forEach(t => { _tables[t.name] = t.table_id; });
   }
   return _tables[name] || name;   // 找不到就原样（兼容）
 }
 async function listTableOpen(name) {
+  const pre = await basePrefix();
   const id = await tableId(name);
   const out = []; let pageToken = '';
   do {
-    const url = `/bitable/v3/bases/${BASE_TOKEN}/tables/${encodeURIComponent(id)}/records?page_size=100${pageToken ? '&page_token=' + encodeURIComponent(pageToken) : ''}`;
+    const url = `${pre}/tables/${encodeURIComponent(id)}/records?page_size=100${pageToken ? '&page_token=' + encodeURIComponent(pageToken) : ''}`;
     const j = await feishuRequest('GET', url);
     (j.data.items || []).forEach(it => out.push(Object.assign({ record_id: it.record_id }, it.fields || {})));
     pageToken = j.data.has_more ? j.data.page_token : '';
@@ -108,18 +123,21 @@ async function listTableOpen(name) {
   return out;
 }
 async function createRecordOpen(name, fields) {
+  const pre = await basePrefix();
   const id = await tableId(name);
-  const j = await feishuRequest('POST', `/bitable/v3/bases/${BASE_TOKEN}/tables/${encodeURIComponent(id)}/records`, { records: [{ fields }] });
+  const j = await feishuRequest('POST', `${pre}/tables/${encodeURIComponent(id)}/records`, { records: [{ fields }] });
   return j.data.records[0].record_id;
 }
 async function updateRecordOpen(name, rec, fields) {
+  const pre = await basePrefix();
   const id = await tableId(name);
-  await feishuRequest('PUT', `/bitable/v3/bases/${BASE_TOKEN}/tables/${encodeURIComponent(id)}/records/${rec}`, { fields });
+  await feishuRequest('PUT', `${pre}/tables/${encodeURIComponent(id)}/records/${rec}`, { fields });
   return true;
 }
 async function deleteRecordOpen(name, rec) {
+  const pre = await basePrefix();
   const id = await tableId(name);
-  await feishuRequest('DELETE', `/bitable/v3/bases/${BASE_TOKEN}/tables/${encodeURIComponent(id)}/records/${rec}`);
+  await feishuRequest('DELETE', `${pre}/tables/${encodeURIComponent(id)}/records/${rec}`);
   return true;
 }
 
