@@ -121,6 +121,9 @@
   .article-form textarea{resize:vertical;line-height:1.65;}
   .article-form .form-actions{margin-top:18px;}
   .article-form .hint-box{margin-top:16px;padding:12px 14px;background:#f5f3ff;border:1px solid #e9e5ff;border-radius:10px;font-size:12.5px;color:#5b4db2;line-height:1.65;}
+  .multi-toggle{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:#475069;cursor:pointer;user-select:none;}
+  .multi-toggle input{width:18px;height:18px;accent-color:var(--brand);cursor:pointer;}
+  .multi-toggle input:checked + span{color:var(--brand);}
 
   /* progress */
   .prog{height:8px;background:#eef1f7;border-radius:999px;overflow:hidden;margin-top:9px;}
@@ -523,9 +526,15 @@ async function delGeneric(id,itemId){ if(!confirm('确认删除？')) return; tr
 /* ---------- article input ---------- */
 async function renderArticle(){
   view.innerHTML = `<div class="card">
-    <div class="h"><div class="t">文章录入</div></div>
+    <div class="h">
+      <div class="t">文章录入</div>
+      <label class="multi-toggle" title="开启后，AI 会自动把原始文案拆分成多篇文章分别分析">
+        <input type="checkbox" id="aiMulti">
+        <span>多篇</span>
+      </label>
+    </div>
     <div class="article-form">
-      <label>文案标题 / 钩子感标题</label>
+      <label>文案标题 / 钩子感标题（可选，留空由 AI 自动生成）</label>
       <input type="text" id="aiTitle" placeholder="给这篇文章起一个吸引人的标题" class="inp">
       <label>来源（可选）</label>
       <input type="text" id="aiSource" placeholder="小红书 / 公众号 / 书籍 / 对话…" class="inp">
@@ -539,7 +548,7 @@ async function renderArticle(){
         <button class="btn" onclick="submitArticle()">💾 保存到人生灵感库（待分析）</button>
       </div>
       <div class="hint-box">
-        <b>下一步：</b>保存后，在 WorkBuddy 对我说「处理待分析文章」，AI 会自动完成分类、情绪标签、关键词、AI总结、金句等字段分析并写回飞书。
+        <b>下一步：</b>保存后，WorkBuddy 每小时会自动处理「待分析」记录；也可直接对我说「处理待分析文章」。AI 会自动完成分类、情绪标签、关键词、AI总结、金句等字段并写回飞书。开启「多篇」时，AI 会先按文章规律拆成多条再分别分析。
       </div>
     </div>
   </div>`;
@@ -550,17 +559,19 @@ async function submitArticle(){
   const sourceLink = document.getElementById('aiSourceLink').value.trim();
   const content = document.getElementById('aiContent').value.trim();
   const reflection = document.getElementById('aiReflection').value.trim();
-  if(!title || !content){ alert('标题和原始文案不能为空'); return; }
+  const multi = document.getElementById('aiMulti').checked;
+  if(!content){ alert('原始文案不能为空'); return; }
   try{
-    const r = await fetch(API+'/article-input',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content,source,sourceLink,reflection})});
+    const r = await fetch(API+'/article-input',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content,source,sourceLink,reflection,multi})});
     const j = await r.json();
     if(!r.ok) throw new Error(j.error||'保存失败');
-    alert('已保存（record_id: '+j.record_id+'），请在 WorkBuddy 说「处理待分析文章」触发 AI 分析');
+    alert('已保存（record_id: '+j.record_id+'）'+(multi?'，多篇模式已开启，':'，')+'请在 WorkBuddy 说「处理待分析文章」触发 AI 分析');
     document.getElementById('aiTitle').value='';
     document.getElementById('aiSource').value='';
     document.getElementById('aiSourceLink').value='';
     document.getElementById('aiContent').value='';
     document.getElementById('aiReflection').value='';
+    document.getElementById('aiMulti').checked=false;
   }catch(e){ alert('保存失败：'+(e.message||e)); }
 }
 

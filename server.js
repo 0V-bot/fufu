@@ -17,6 +17,8 @@ const BASE_TOKEN = process.env.BASE_TOKEN || 'Wwtfbm66VaJyLOsBQaTcTm1vnHg';
 // 默认 Base/表如下；如需更换可走环境变量 INSPIRE_BASE_TOKEN / INSPIRE_TABLE 覆盖
 const INSPIRE_BASE = process.env.INSPIRE_BASE_TOKEN || 'ARCcbggiUaFqESsV7pRcin8CnUb';
 const INSPIRE_TABLE = process.env.INSPIRE_TABLE || 'tblpI6WqsvA5z0CL';
+// 工作台「文章录入」先写入「录入表」，再由 life-wisdom-content-processor skill 分析后写入「人生灵感库」
+const INPUT_TABLE = process.env.INPUT_TABLE || 'tblxVYnQ8P49qc6Y';
 const ACCESS_PWD = process.env.ACCESS_PWD || '';           // 空 = 不加密
 const APP_ID = process.env.FEISHU_APP_ID || '';
 const APP_SECRET = process.env.FEISHU_APP_SECRET || '';
@@ -326,18 +328,18 @@ async function sectionDelete(id, rec) {
   return { ok: true };
 }
 
-/* ===================== 文章录入（写入灵感库待分析） ===================== */
-async function createPendingArticle({ title, content, source, sourceLink, reflection }) {
+/* ===================== 文章录入（写入「录入表」等待 skill 分析） ===================== */
+async function createPendingArticle({ title, content, source, sourceLink, reflection, multi }) {
   const fields = {
     '文案标题': title || '',
     '原始文案': content || '',
     '来源': source || '',
-    '收藏日期': Date.now(),
+    '录入日期': Date.now(),
     '个人感悟': reflection || '',
-    '使用状态': '待分析'
+    '是否多篇': multi ? '1' : '0'
   };
-  if (sourceLink && sourceLink.trim()) fields['来源链接'] = { link: sourceLink.trim(), text: sourceLink.trim() };
-  const id = await createRecord(INSPIRE_TABLE, fields, INSPIRE_BASE);
+  if (sourceLink && sourceLink.trim()) fields['来源链接'] = sourceLink.trim();
+  const id = await createRecord(INPUT_TABLE, fields, INSPIRE_BASE);
   return id;
 }
 
@@ -497,9 +499,9 @@ async function route(method, url, body, res, req) {
     if (method === 'GET' && (m = url.match(/^\/api\/project\/([\w]+)$/))) return send(res, 200, await getProject(m[1]));
     if (method === 'PUT' && url === '/api/project-desc') return send(res, 200, await saveProjectDesc(body.section, body.desc));
     if (method === 'POST' && url === '/api/article-input') {
-      const { title, content, source, sourceLink, reflection } = body || {};
-      if (!title || !content) return send(res, 400, { error: '标题和正文不能为空' });
-      const id = await createPendingArticle({ title, content, source, sourceLink, reflection });
+      const { title, content, source, sourceLink, reflection, multi } = body || {};
+      if (!content || !content.trim()) return send(res, 400, { error: '原始文案不能为空' });
+      const id = await createPendingArticle({ title, content, source, sourceLink, reflection, multi });
       return send(res, 200, { ok: true, record_id: id });
     }
     if ((m = url.match(/^\/api\/section\/([\w]+)(?:\/(.+))?$/))) {
