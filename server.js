@@ -416,7 +416,9 @@ async function getDashboard() {
   const insp = (await listTable(INSPIRE_TABLE, INSPIRE_BASE)).length;
   const topics = (await listTable('选题库')).length;
   const knowledge = (await listTable('知识库')).length;
-  return { todayTodos, todoPending: todayTodos.filter(x => !x.done).length, habits, major, projCount, insp, topics, knowledge };
+  // 录入表（文章录入）里尚未被 skill 分析写入「人生灵感库」的待处理条数
+  const inputPending = (await listTable(INPUT_TABLE, INSPIRE_BASE)).length;
+  return { todayTodos, todoPending: todayTodos.filter(x => !x.done).length, habits, major, projCount, insp, topics, knowledge, inputPending };
 }
 
 /* ===================== 访问密码门 ===================== */
@@ -490,6 +492,13 @@ async function route(method, url, body, res, req) {
 
     let m;
     if (method === 'GET' && url === '/api/dashboard') return send(res, 200, await getDashboard());
+    if (method === 'GET' && url === '/api/input-pending') {
+      // 录入表待处理条数（文章录入后、被 skill 写入人生灵感库前）。count=-1 表示查询失败。
+      try {
+        const count = (await listTable(INPUT_TABLE, INSPIRE_BASE)).length;
+        return send(res, 200, { count });
+      } catch (e) { return send(res, 200, { count: -1, error: e.message }); }
+    }
     if (method === 'GET' && url === '/api/habits') return send(res, 200, await getHabits());
     if (method === 'POST' && url === '/api/habits') return send(res, 200, await createHabit(body.name));
     if (method === 'DELETE' && (m = url.match(/^\/api\/habits\/(.+)$/))) return send(res, 200, await deleteHabit(m[1]));

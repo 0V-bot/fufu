@@ -170,6 +170,16 @@
   .stat .num{font-size:30px;font-weight:800;margin-top:8px;line-height:1;}
   .stat .desc{font-size:12px;color:var(--muted);margin-top:6px;}
 
+  /* 录入表待处理提醒框 */
+  .pending-banner{display:flex;align-items:center;gap:14px;border-radius:14px;padding:16px 18px;margin-bottom:18px;box-shadow:var(--shadow);transition:.15s;}
+  .pending-banner.warn{background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1px solid #fed7aa;cursor:pointer;}
+  .pending-banner.warn:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(234,88,12,.12);}
+  .pending-banner.ok{background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border:1px solid #bbf7d0;cursor:default;}
+  .pending-banner .pb-ic{font-size:30px;flex:0 0 auto;line-height:1;}
+  .pending-banner .pb-txt{font-size:14px;color:#475069;line-height:1.65;}
+  .pending-banner.warn .pb-txt b{color:#ea580c;font-size:20px;font-weight:800;margin:0 2px;}
+  .pending-banner .pb-link{color:var(--brand);font-weight:600;}
+
   /* modal */
   .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
   .overlay.show{display:flex;}
@@ -694,13 +704,33 @@ async function renderDashboard(){
   try{ d = await fetch(API+'/dashboard').then(r=>r.json()); }
   catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
   dashCache = d;
-  const {todayTodos, todoPending, habits, major, projCount, insp, topics, knowledge} = d;
+  const {todayTodos, todoPending, habits, major, projCount, insp, topics, knowledge, inputPending} = d;
   const upcoming = major.filter(m=>!m.status||m.status!=='已完成').slice(0,4);
   const habitDoneToday = habits.filter(h=>h.history&&h.history[today()]).length;
 
   const stat = (lab,num,desc,target)=>`<div class="stat" onclick="go('${target}')"><div class="lab">${lab}</div><div class="num">${num}</div><div class="desc">${desc}</div></div>`;
 
-  let html = `<div class="grid cols-3" style="margin-bottom:18px">
+  // 录入表待处理提醒框：提示还有多少条文章已录入但未分析写入「人生灵感库」
+  const pend = typeof inputPending === 'number' ? inputPending : -1;
+  let pendingBanner;
+  if (pend > 0) {
+    pendingBanner = `<div class="pending-banner warn" onclick="go('articleInput')" title="点击前往「文章录入」">
+      <div class="pb-ic">📥</div>
+      <div class="pb-txt">录入表还有 <b>${pend}</b> 条文章待分析，尚未写入「人生灵感库」。在 WorkBuddy 说「处理待分析文章」即可触发 AI 分析，或点此前往「文章录入」查看。<span class="pb-link">去处理 →</span></div>
+    </div>`;
+  } else if (pend === 0) {
+    pendingBanner = `<div class="pending-banner ok">
+      <div class="pb-ic">✅</div>
+      <div class="pb-txt">录入表已清空，所有文章都已完成分析并写入「人生灵感库」。</div>
+    </div>`;
+  } else {
+    pendingBanner = `<div class="pending-banner ok">
+      <div class="pb-ic">ℹ️</div>
+      <div class="pb-txt">录入表状态暂不可用（飞书连接异常），稍后刷新重试。</div>
+    </div>`;
+  }
+
+  let html = pendingBanner + `<div class="grid cols-3" style="margin-bottom:18px">
     ${stat('📅 今日待办', todoPending, '项待完成 / 共 '+todayTodos.length+' 项', 'todos')}
     ${stat('🌱 微习惯', habitDoneToday+'/'+habits.length, '今日已打卡', 'habits')}
     ${stat('🎯 重大事项', major.length, '进行中 '+upcoming.length+' 项', 'major')}
