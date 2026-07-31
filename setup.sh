@@ -23,6 +23,29 @@ else
   echo "[1/4] Docker 已存在，跳过"
 fi
 
+# 1b) 配置 Docker 国内镜像加速器（避免 docker.io 被墙导致拉镜像超时 i/o timeout）
+# 说明：以下为公开代理源；若你在阿里云，更推荐用阿里云「容器镜像服务-镜像加速器」给你的专属地址，
+#      在控制台 cr.console.aliyun.com 获取后，把下面任一地址替换成 https://<你的ID>.mirror.aliyuncs.com 即可。
+if [ ! -f /etc/docker/daemon.json ]; then
+  echo "[1b] 配置 Docker 国内镜像加速器 ..."
+  sudo mkdir -p /etc/docker
+  sudo tee /etc/docker/daemon.json >/dev/null <<'EOF'
+{
+  "registry-mirrors": [
+    "https://docker.m.daocloud.io",
+    "https://hub-mirror.c.163.com",
+    "https://mirror.baidubce.com",
+    "https://ccr.ccs.tencentyun.com"
+  ]
+}
+EOF
+  sudo systemctl restart docker
+  sleep 2
+  echo "[1b] 镜像加速器已配置"
+else
+  echo "[1b] 已有 daemon.json，跳过镜像配置"
+fi
+
 # 2) 拉取代码（国内镜像兜底，避免 github 直连慢）
 cd ~
 if [ ! -d fufu ]; then
