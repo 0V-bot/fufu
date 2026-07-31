@@ -50,6 +50,7 @@ async function tenantToken() {
   }));
   const j = await r.json();
   if (j.code !== 0) throw new Error('获取 tenant_access_token 失败: ' + JSON.stringify(j).slice(0, 200));
+  if (!j.data || !j.data.tenant_access_token) throw new Error('获取 tenant_access_token 响应异常(无 data): ' + JSON.stringify(j).slice(0, 200));
   _tok = j.data.tenant_access_token;
   _exp = now + (j.data.expire * 1000);
   return _tok;
