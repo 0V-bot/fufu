@@ -50,9 +50,11 @@ async function tenantToken() {
   }));
   const j = await r.json();
   if (j.code !== 0) throw new Error('获取 tenant_access_token 失败: ' + JSON.stringify(j).slice(0, 200));
-  if (!j.data || !j.data.tenant_access_token) throw new Error('获取 tenant_access_token 响应异常(无 data): ' + JSON.stringify(j).slice(0, 200));
-  _tok = j.data.tenant_access_token;
-  _exp = now + (j.data.expire * 1000);
+  // 飞书内部 token 接口返回扁平结构 {code,msg,tenant_access_token,expire}，也可能带 data 包裹层，两种都兼容
+  const tok = (j.data && j.data.tenant_access_token) || j.tenant_access_token;
+  if (!tok) throw new Error('获取 tenant_access_token 响应异常(无 token): ' + JSON.stringify(j).slice(0, 200));
+  _tok = tok;
+  _exp = now + ((j.data && j.data.expire) || j.expire || 7200) * 1000;
   return _tok;
 }
 async function feishuRequest(method, path, body) {
