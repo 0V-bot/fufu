@@ -102,6 +102,15 @@
   .item .ops{position:absolute;top:11px;right:11px;display:flex;gap:6px;opacity:0;transition:.15s;}
   .item:hover .ops{opacity:1;}
   .chip{display:inline-block;font-size:11px;padding:2px 9px;border-radius:999px;background:var(--brand-soft);color:var(--brand);margin:3px 4px 0 0;}
+  .item .chips{margin-top:2px;}
+  .chip.cat{background:#fff1e6;color:#d97706;}
+  .chip.emo{background:#fdeaf3;color:#db2777;}
+  .chip.type{background:#eaf1ff;color:#2563eb;}
+  .chip.scene{background:#eafaf1;color:#16a34a;}
+  .chip.kw{background:#f1f3f8;color:#64748b;}
+  .item .quote{margin:8px 0;padding:9px 13px;border-left:3px solid var(--brand);background:#fbfaff;border-radius:0 9px 9px 0;font-size:13px;color:#3a3f55;line-height:1.65;font-style:italic;}
+  .item .meta.orig{background:#f8fafc;padding:8px 11px;border-radius:9px;max-height:120px;overflow:auto;}
+  .item .meta.muted{color:#9aa3b2;}
 
   /* progress */
   .prog{height:8px;background:#eef1f7;border-radius:999px;overflow:hidden;margin-top:9px;}
@@ -273,7 +282,7 @@ const SECTIONS = {
   caps:{name:'鸭舌帽',kind:'project',accent:'#14b8a6',hint:'项目目标、任务与进度追踪。'},
   counseling:{name:'心理咨询',kind:'project',accent:'#a855f7',hint:'项目目标、任务与进度追踪。'},
   outfit:{name:'穿搭IP',kind:'project',accent:'#ec4899',hint:'项目目标、任务与进度追踪。'},
-  inspiration:{name:'灵感库',kind:'cards',accent:'#f97316',hint:'随手收藏每一个闪光的念头。'},
+  inspiration:{name:'灵感库',kind:'wisdom',accent:'#f97316',hint:'来自「人生灵感库」的完整文案资产（只读，在飞书中维护）。',readonly:true},
   topics:{name:'选题库',kind:'topics',accent:'#3b82f6',hint:'把灵感打磨成可发布的选题。'},
   publish:{name:'发布记录',kind:'publish',accent:'#22c55e',hint:'记录每次发布与数据反馈。'},
   wealth:{name:'财富',kind:'knowledge',accent:'#d97706',hint:'投资、理财与金钱观的沉淀。'},
@@ -428,18 +437,19 @@ async function renderList(sectionId, kind){
   try{ arr = await apiList(sectionId); }
   catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
   cache[sectionId] = arr;
-  let html = `<div class="card"><div class="h"><div class="t">${s.name}（${arr.length}）</div>
-    <button class="btn" onclick="addGeneric('${sectionId}')">+ 添加</button></div>`;
-  if(!arr.length){ html += `<div class="empty">还没有内容，点击「添加」开始记录 ✨</div></div>`; view.innerHTML=html; return; }
+  if(s.kind==='wisdom') arr = arr.slice().sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+  let html = `<div class="card"><div class="h"><div class="t">${s.name}（${arr.length}）</div>`;
+  if(!s.readonly) html += `<button class="btn" onclick="addGeneric('${sectionId}')">+ 添加</button>`;
+  html += `</div>`;
+  if(!arr.length){ html += `<div class="empty">${s.readonly?'这个库还是空的，去飞书「人生灵感库」添加内容吧':'还没有内容，点击「添加」开始记录 ✨'}</div></div>`; view.innerHTML=html; return; }
   html += '<div class="grid cols-2">';
   arr.forEach(it=>{
-    html += `<div class="item">
-      <div class="ops">
+    let ops = s.readonly ? '' : `<div class="ops">
         <button class="btn ghost mini" onclick="editGeneric('${sectionId}','${it.id}')">编辑</button>
         <button class="btn danger mini" onclick="delGeneric('${sectionId}','${it.id}')">删除</button>
-      </div>
-      ${genericBody(kind,it)}
-    </div>`;
+      </div>`;
+    let body = (s.kind==='wisdom') ? wisdomBody(it) : genericBody(kind,it);
+    html += `<div class="item">${ops}${body}</div>`;
   });
   html += '</div></div>';
   view.innerHTML = html;
@@ -462,6 +472,31 @@ function genericBody(kind,it){
     prog = `<div class="prog"><span style="width:${p}%"></span></div><div class="prog-label">${p}% 完成</div>`;
   }
   return head+meta+prog;
+}
+/* 灵感库（人生灵感库）富内容卡片：标题 + 分类/情绪/类型/场景/关键词 chips + 摘要/金句/原文/来源等 */
+function wisdomBody(it){
+  const splitKw = s => (s||'').split(/[,，]/).map(t=>t.trim()).filter(Boolean);
+  let h = `<div class="it-title">${esc(it.title||'(无标题)')}</div>`;
+  let chips = '';
+  if(it.cat1) chips += `<span class="chip cat">${esc(it.cat1)}</span>`;
+  (it.cat2||[]).forEach(c=> chips += `<span class="chip">${esc(c)}</span>`);
+  (it.emotion||[]).forEach(c=> chips += `<span class="chip emo">${esc(c)}</span>`);
+  if(it.ctype) chips += `<span class="chip type">${esc(it.ctype)}</span>`;
+  (it.scenes||[]).forEach(c=> chips += `<span class="chip scene">${esc(c)}</span>`);
+  splitKw(it.keywords).forEach(t=> chips += `<span class="chip kw">${esc(t)}</span>`);
+  if(chips) h += `<div class="chips">${chips}</div>`;
+  if(it.date) h += `<div class="meta muted">📅 ${esc(it.date)}</div>`;
+  if(it.summary) h += `<div class="meta"><b>AI 总结：</b>${esc(it.summary)}</div>`;
+  if(it.quote) h += `<div class="quote">“${esc(it.quote)}”</div>`;
+  if(it.original) h += `<div class="meta orig"><b>原文：</b>${esc(it.original)}</div>`;
+  if(it.abstract) h += `<div class="meta"><b>搜索摘要：</b>${esc(it.abstract)}</div>`;
+  if(it.rewrite) h += `<div class="meta"><b>改写方向：</b>${esc(it.rewrite)}</div>`;
+  if(it.reflection) h += `<div class="meta"><b>个人感悟：</b>${esc(it.reflection)}</div>`;
+  let src=''; if(it.source) src+=esc(it.source);
+  if(it.sourceLink) src += (src?' · ':'')+`<a href="${esc(it.sourceLink)}" target="_blank" rel="noopener">来源链接</a>`;
+  if(src) h += `<div class="meta muted">来源：${src}</div>`;
+  if(it.status) h += `<div class="meta muted">使用状态：${esc(it.status)}</div>`;
+  return h;
 }
 function addGeneric(id){ openModal('添加 · '+SECTIONS[id].name, SCHEMA[SECTIONS[id].kind], {}, async v=>{ try{ await apiCreate(id,v); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); } }); }
 function editGeneric(id,itemId){

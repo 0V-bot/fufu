@@ -13,6 +13,10 @@ const { execFileSync } = require('child_process');
 
 const PORT = Number(process.env.PORT || 3210);
 const BASE_TOKEN = process.env.BASE_TOKEN || 'Wwtfbm66VaJyLOsBQaTcTm1vnHg';
+// 灵感库板块数据源：飞书多维表格「人生研究学院」（登记名「文案素材知识库管理系统」）的「人生灵感库」表
+// 默认指向上面这个已验证可读的 Base/表；如需更换可走环境变量覆盖
+const INSPIRE_BASE = process.env.INSPIRE_BASE_TOKEN || 'LjINbBtuUa2bB3sUcibcjQKmnnb';
+const INSPIRE_TABLE = process.env.INSPIRE_TABLE || 'tblUKE3r7Xx78uM0';
 const ACCESS_PWD = process.env.ACCESS_PWD || '';           // 空 = 不加密
 const APP_ID = process.env.FEISHU_APP_ID || '';
 const APP_SECRET = process.env.FEISHU_APP_SECRET || '';
@@ -100,31 +104,32 @@ async function retryFetch(fn) {
   }
   throw lastErr;
 }
-let _tables = null;
-let BASE_PREFIX = null;
-async function basePrefix() {
-  if (BASE_PREFIX) return BASE_PREFIX;
-  // 探测正确的 API 前缀：传统多维表格用 v1/apps，新版 Base 用 v3/bases。两者都试，返回 code:0 的即为真路径。
-  for (const p of [`/bitable/v3/bases/${BASE_TOKEN}`, `/bitable/v1/apps/${BASE_TOKEN}`]) {
+let _prefixCache = {};   // baseToken -> API 前缀
+let _tableCache = {};    // baseToken -> { 表名: table_id }
+// 探测正确的 API 前缀：传统多维表格用 v1/apps，新版 Base 用 v3/bases。两者都试，返回 code:0 的即为真路径。
+// 按 baseToken 分别缓存，支持「主 Base + 灵感库独立 Base」并存。
+async function basePrefix(baseToken = BASE_TOKEN) {
+  if (_prefixCache[baseToken]) return _prefixCache[baseToken];
+  for (const p of [`/bitable/v3/bases/${baseToken}`, `/bitable/v1/apps/${baseToken}`]) {
     try {
       const j = await feishuRequest('GET', p + '/tables?page_size=1');
-      if (j.code === 0) { BASE_PREFIX = p; return p; }
+      if (j.code === 0) { _prefixCache[baseToken] = p; return p; }
     } catch (e) { /* 路径不对会抛 JSON 解析异常(如 404 文本)，继续试下一个 */ }
   }
-  BASE_PREFIX = `/bitable/v1/apps/${BASE_TOKEN}`; // 兜底（最常见形态）
-  return BASE_PREFIX;
+  _prefixCache[baseToken] = `/bitable/v1/apps/${baseToken}`; // 兜底（最常见形态）
+  return _prefixCache[baseToken];
 }
-async function tableId(name) {
-  if (!_tables) {
-    const pre = await basePrefix();
+async function tableId(name, baseToken = BASE_TOKEN) {
+  if (!_tableCache[baseToken]) {
+    const pre = await basePrefix(baseToken);
     const j = await feishuRequest('GET', `${pre}/tables?page_size=200`);
-    _tables = {}; (j.data.items || []).forEach(t => { _tables[t.name] = t.table_id; });
+    _tableCache[baseToken] = {}; (j.data.items || []).forEach(t => { _tableCache[baseToken][t.name] = t.table_id; });
   }
-  return _tables[name] || name;   // 找不到就原样（兼容）
+  return _tableCache[baseToken][name] || name;   // 找不到就原样（兼容；也可直接传 table_id）
 }
-async function listTableOpen(name) {
-  const pre = await basePrefix();
-  const id = await tableId(name);
+async function listTableOpen(name, baseToken = BASE_TOKEN) {
+  const pre = await basePrefix(baseToken);
+  const id = await tableId(name, baseToken);
   const out = []; let pageToken = '';
   do {
     const url = `${pre}/tables/${encodeURIComponent(id)}/records?page_size=100${pageToken ? '&page_token=' + encodeURIComponent(pageToken) : ''}`;
@@ -134,29 +139,29 @@ async function listTableOpen(name) {
   } while (pageToken);
   return out;
 }
-async function createRecordOpen(name, fields) {
-  const pre = await basePrefix();
-  const id = await tableId(name);
+async function createRecordOpen(name, fields, baseToken = BASE_TOKEN) {
+  const pre = await basePrefix(baseToken);
+  const id = await tableId(name, baseToken);
   // 单条记录创建：请求体顶层为 { fields }，响应在 data.record
   const j = await feishuRequest('POST', `${pre}/tables/${encodeURIComponent(id)}/records`, { fields });
   return j.data.record.record_id;
 }
-async function updateRecordOpen(name, rec, fields) {
-  const pre = await basePrefix();
-  const id = await tableId(name);
+async function updateRecordOpen(name, rec, fields, baseToken = BASE_TOKEN) {
+  const pre = await basePrefix(baseToken);
+  const id = await tableId(name, baseToken);
   await feishuRequest('PUT', `${pre}/tables/${encodeURIComponent(id)}/records/${rec}`, { fields });
   return true;
 }
-async function deleteRecordOpen(name, rec) {
-  const pre = await basePrefix();
-  const id = await tableId(name);
+async function deleteRecordOpen(name, rec, baseToken = BASE_TOKEN) {
+  const pre = await basePrefix(baseToken);
+  const id = await tableId(name, baseToken);
   await feishuRequest('DELETE', `${pre}/tables/${encodeURIComponent(id)}/records/${rec}`);
   return true;
 }
 
 /* ===================== 后端 B：本机 lark-cli（本地回退） ===================== */
-async function larkCli(args, input) {
-  const parts = ['base', ...args, '--as', 'user', '--base-token', BASE_TOKEN];
+async function larkCli(args, input, baseToken = BASE_TOKEN) {
+  const parts = ['base', ...args, '--as', 'user', '--base-token', baseToken];
   if (input) parts.push('--json', JSON.stringify(input));
   parts.push('--format', 'json');
   const cmd = LARK_CLI + ' ' + parts.map(shellQuote).join(' ');
@@ -177,24 +182,24 @@ async function larkCli(args, input) {
   }
   throw lastErr;
 }
-async function listTableCli(name) {
-  const raw = await larkCli(['+record-list', '--table-id', name]);
+async function listTableCli(name, baseToken = BASE_TOKEN) {
+  const raw = await larkCli(['+record-list', '--table-id', name], null, baseToken);
   if (!raw || !raw.ok) throw new Error('list 失败: ' + JSON.stringify(raw && raw.error));
   const d = raw.data;
   return (d.data || []).map((row, i) => { const o = { record_id: d.record_id_list[i] }; d.fields.forEach((f, idx) => o[f] = row[idx]); return o; });
 }
-async function createRecordCli(name, fields) {
-  const raw = await larkCli(['+record-batch-create', '--table-id', name], { create_records: [fields] });
+async function createRecordCli(name, fields, baseToken = BASE_TOKEN) {
+  const raw = await larkCli(['+record-batch-create', '--table-id', name], { create_records: [fields] }, baseToken);
   if (!raw.ok) throw new Error('create 失败: ' + JSON.stringify(raw.error));
   return raw.data.record_id_list[0];
 }
-async function updateRecordCli(name, rec, fields) {
-  const raw = await larkCli(['+record-batch-update', '--table-id', name], { update_records: { [rec]: fields } });
+async function updateRecordCli(name, rec, fields, baseToken = BASE_TOKEN) {
+  const raw = await larkCli(['+record-batch-update', '--table-id', name], { update_records: { [rec]: fields } }, baseToken);
   if (!raw.ok) throw new Error('update 失败: ' + JSON.stringify(raw.error));
   return true;
 }
-async function deleteRecordCli(name, rec) {
-  const raw = await larkCli(['+record-delete', '--table-id', name, '--record-id', rec, '--yes']);
+async function deleteRecordCli(name, rec, baseToken = BASE_TOKEN) {
+  const raw = await larkCli(['+record-delete', '--table-id', name, '--record-id', rec, '--yes'], null, baseToken);
   if (!raw.ok) throw new Error('delete 失败: ' + JSON.stringify(raw.error));
   return true;
 }
@@ -220,7 +225,7 @@ const SECTIONS = {
   monthly:     { table: '目标管理', kind: 'goals',     fix: '月计划' },
   major:       { table: '重大事项', kind: 'events' },
   todos:       { table: '每日待办', kind: 'todos' },
-  inspiration: { table: '灵感库',   kind: 'cards' },
+  inspiration: { table: INSPIRE_TABLE, kind: 'wisdom', base: INSPIRE_BASE, readonly: true },
   topics:      { table: '选题库',   kind: 'topics' },
   publish:     { table: '发布记录', kind: 'publish' },
   wealth:      { table: '知识库',   kind: 'knowledge', fix: '财富' },
@@ -239,6 +244,33 @@ function readRec(kind, r) {
     case 'events':    return { id: r.record_id, title: r['事项'], date: dateOnly(r['日期']), status: sel(r['状态']) || '', note: r['备注'] || '' };
     case 'todos':     return { id: r.record_id, title: r['内容'], date: dateOnly(r['日期']), done: !!r['完成'] };
     case 'cards':     return { id: r.record_id, title: r['标题'], content: r['内容'] || '', tags: r['标签'] || '' };
+    case 'wisdom': {
+      // 灵感库（人生灵感库）富字段映射：兼容单选/多选/url 对象/空值不返回等情况
+      const multi = v => Array.isArray(v) ? v.map(x => x && typeof x === 'object' ? (x.text || x) : x).filter(Boolean) : [];
+      const sl = r['来源链接']; const slText = sl && typeof sl === 'object' ? (sl.text || sl.link || '') : (sl || '');
+      return {
+        id: r.record_id,
+        ID: r['ID'] || '',
+        title: r['文案标题'] || '',
+        cat1: sel(r['一级分类']) || '',
+        cat2: multi(r['二级分类']),
+        emotion: multi(r['情绪标签']),
+        keywords: r['关键词'] || '',
+        summary: r['AI总结'] || '',
+        quote: r['金句提炼'] || '',
+        scenes: multi(r['适用场景']),
+        rewrite: r['改写方向'] || '',
+        original: r['原始文案'] || '',
+        date: dateOnly(r['收藏日期']),
+        abstract: r['AI搜索摘要'] || '',
+        ctype: sel(r['内容类型']) || '',
+        status: sel(r['使用状态']) || '',
+        source: r['来源'] || '',
+        sourceLink: slText,
+        reflection: r['个人感悟'] || '',
+        copyright: r['版权备注'] || ''
+      };
+    }
     case 'topics':    return { id: r.record_id, title: r['选题'], platform: r['平台'] || '', status: sel(r['状态']) || '', note: r['备注'] || '' };
     case 'publish':   return { id: r.record_id, date: dateOnly(r['日期']), platform: r['平台'] || '', title: r['标题'], link: r['链接'] || '', result: r['数据反馈'] || '' };
     case 'knowledge': return { id: r.record_id, title: r['标题'], content: r['要点'] || '', source: r['来源'] || '', tags: r['标签'] || '' };
@@ -252,6 +284,7 @@ function writeRec(kind, o, fix) {
     case 'events':    return { '事项': o.title, '日期': toFeishuDate(o.date), '状态': o.status || '计划中', '备注': o.note || '' };
     case 'todos':     return { '内容': o.title, '日期': toFeishuDate(o.date), '完成': !!o.done };
     case 'cards':     return { '标题': o.title, '内容': o.content, '标签': o.tags || '' };
+    case 'wisdom':    return {};
     case 'topics':    return { '选题': o.title, '平台': o.platform || '', '状态': o.status || '灵感', '备注': o.note || '' };
     case 'publish':   return { '标题': o.title, '日期': toFeishuDate(o.date), '平台': o.platform || '', '链接': o.link || '', '数据反馈': o.result || '' };
     case 'knowledge': return { '标题': o.title, '分类': fix, '要点': o.content, '来源': o.source || '', '标签': o.tags || '' };
@@ -269,23 +302,27 @@ function passFilter(kind, r, fix) {
 /* ===================== 通用 section CRUD ===================== */
 async function sectionList(id) {
   const cfg = SECTIONS[id];
+  const base = cfg.base || BASE_TOKEN;
   if (cfg.kind === 'ptask') await ensureProjects();
-  return (await listTable(cfg.table)).filter(r => passFilter(cfg.kind, r, cfg.fix || cfg.proj)).map(r => readRec(cfg.kind, r));
+  return (await listTable(cfg.table, base)).filter(r => passFilter(cfg.kind, r, cfg.fix || cfg.proj)).map(r => readRec(cfg.kind, r));
 }
 async function sectionCreate(id, o) {
   const cfg = SECTIONS[id];
+  const base = cfg.base || BASE_TOKEN;
   if (cfg.kind === 'ptask') await ensureProjects();
-  return { id: await createRecord(cfg.table, writeRec(cfg.kind, o, cfg.fix || cfg.proj)) };
+  return { id: await createRecord(cfg.table, writeRec(cfg.kind, o, cfg.fix || cfg.proj), base) };
 }
 async function sectionUpdate(id, rec, o) {
   const cfg = SECTIONS[id];
+  const base = cfg.base || BASE_TOKEN;
   if (cfg.kind === 'ptask') await ensureProjects();
-  await updateRecord(cfg.table, rec, writeRec(cfg.kind, o, cfg.fix || cfg.proj));
+  await updateRecord(cfg.table, rec, writeRec(cfg.kind, o, cfg.fix || cfg.proj), base);
   return { ok: true };
 }
 async function sectionDelete(id, rec) {
   const cfg = SECTIONS[id];
-  await deleteRecord(cfg.table, rec);
+  const base = cfg.base || BASE_TOKEN;
+  await deleteRecord(cfg.table, rec, base);
   return { ok: true };
 }
 
@@ -358,7 +395,7 @@ async function getDashboard() {
   const habits = await getHabits();
   const major = (await listTable('重大事项')).map(r => readRec('events', r));
   const projCount = (await listTable('项目任务')).length;
-  const insp = (await listTable('灵感库')).length;
+  const insp = (await listTable(INSPIRE_TABLE, INSPIRE_BASE)).length;
   const topics = (await listTable('选题库')).length;
   const knowledge = (await listTable('知识库')).length;
   return { todayTodos, todoPending: todayTodos.filter(x => !x.done).length, habits, major, projCount, insp, topics, knowledge };
@@ -447,6 +484,8 @@ async function route(method, url, body, res, req) {
     if ((m = url.match(/^\/api\/section\/([\w]+)(?:\/(.+))?$/))) {
       const id = m[1], rec = m[2];
       if (!SECTIONS[id]) return send(res, 404, { error: '未知模块: ' + id });
+      const cfg = SECTIONS[id];
+      if (cfg.readonly && method !== 'GET') return send(res, 403, { error: '该板块为只读（数据来自外部多维表格，请在飞书中维护）' });
       if (method === 'GET') return send(res, 200, await sectionList(id));
       if (method === 'POST') return send(res, 200, await sectionCreate(id, body || {}));
       if (method === 'PUT' && rec) return send(res, 200, await sectionUpdate(id, rec, body || {}));
