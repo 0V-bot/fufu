@@ -180,6 +180,13 @@
   .pending-banner.warn .pb-txt b{color:#ea580c;font-size:20px;font-weight:800;margin:0 2px;}
   .pending-banner .pb-link{color:var(--brand);font-weight:600;}
 
+  /* 灵感库：筛选 + 搜索工具栏 */
+  .wisdom-toolbar{display:flex;flex-wrap:wrap;gap:10px;margin:4px 0 6px;align-items:center;}
+  .wisdom-toolbar .inp{flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:13.5px;outline:none;font-family:inherit;box-sizing:border-box;}
+  .wisdom-toolbar .inp:focus{border-color:#a5b4fc;box-shadow:0 0 0 3px rgba(99,102,241,.08);}
+  .wisdom-toolbar select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:13px;font-family:inherit;color:#475069;outline:none;max-width:160px;cursor:pointer;}
+  .wisdom-toolbar select:focus{border-color:#a5b4fc;}
+
   /* modal */
   .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
   .overlay.show{display:flex;}
@@ -308,7 +315,7 @@ const SECTIONS = {
   counseling:{name:'心理咨询',kind:'project',accent:'#a855f7',hint:'项目目标、任务与进度追踪。'},
   outfit:{name:'穿搭IP',kind:'project',accent:'#ec4899',hint:'项目目标、任务与进度追踪。'},
   articleInput:{name:'文章录入',kind:'article',accent:'#8b5cf6',hint:'粘贴文章原文，保存到「人生灵感库」等待 AI 分析。'},
-  inspiration:{name:'灵感库',kind:'wisdom',accent:'#f97316',hint:'来自「人生灵感库」的完整文案资产（只读，在飞书中维护；可删除）。',readonly:true,allowDelete:true},
+  inspiration:{name:'灵感库',kind:'wisdom',accent:'#f97316',hint:'来自「人生灵感库」的完整文案资产（在飞书中维护；可删除，也可点「详情」手动编辑补充）。',readonly:true,allowDelete:true,allowEdit:true},
   topics:{name:'选题库',kind:'topics',accent:'#3b82f6',hint:'把灵感打磨成可发布的选题。'},
   publish:{name:'发布记录',kind:'publish',accent:'#22c55e',hint:'记录每次发布与数据反馈。'},
   wealth:{name:'财富',kind:'knowledge',accent:'#d97706',hint:'投资、理财与金钱观的沉淀。'},
@@ -463,7 +470,7 @@ async function renderList(sectionId, kind){
   try{ arr = await apiList(sectionId); }
   catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
   cache[sectionId] = arr;
-  if(s.kind==='wisdom') arr = arr.slice().sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+  if(s.kind==='wisdom') return renderWisdom(arr);
   let html = `<div class="card"><div class="h"><div class="t">${s.name}（${arr.length}）</div>`;
   if(!s.readonly) html += `<button class="btn" onclick="addGeneric('${sectionId}')">+ 添加</button>`;
   html += `</div>`;
@@ -477,7 +484,7 @@ async function renderList(sectionId, kind){
       inner += `<button class="btn danger mini" onclick="delGeneric('${sectionId}','${it.id}')">删除</button>`;
       ops = `<div class="ops">${inner}</div>`;
     }
-    let body = (s.kind==='wisdom') ? wisdomBody(it) : genericBody(kind,it);
+    let body = genericBody(kind,it);
     html += `<div class="item">${ops}${body}</div>`;
   });
   html += '</div></div>';
@@ -502,31 +509,136 @@ function genericBody(kind,it){
   }
   return head+meta+prog;
 }
-/* 灵感库（人生灵感库）富内容卡片：标题 + 分类/情绪/类型/场景/关键词 chips + 摘要/金句/原文/来源等 */
+/* 灵感库卡片：只展示核心 5 项（标题 / 一级分类 / 情绪标签 / 内容类型 / 金句提炼） */
 function wisdomBody(it){
-  const splitKw = s => (s||'').split(/[,，]/).map(t=>t.trim()).filter(Boolean);
   let h = `<div class="it-title">${esc(it.title||'(无标题)')}</div>`;
   let chips = '';
   if(it.cat1) chips += `<span class="chip cat">${esc(it.cat1)}</span>`;
-  if(it.cat2) chips += `<span class="chip">${esc(it.cat2)}</span>`;
-  if(it.cat3) chips += `<span class="chip sub">${esc(it.cat3)}</span>`;
   (it.emotion||[]).forEach(c=> chips += `<span class="chip emo">${esc(c)}</span>`);
   if(it.ctype) chips += `<span class="chip type">${esc(it.ctype)}</span>`;
-  (it.scenes||[]).forEach(c=> chips += `<span class="chip scene">${esc(c)}</span>`);
-  splitKw(it.keywords).forEach(t=> chips += `<span class="chip kw">${esc(t)}</span>`);
   if(chips) h += `<div class="chips">${chips}</div>`;
-  if(it.date) h += `<div class="meta muted">📅 ${esc(it.date)}</div>`;
-  if(it.summary) h += `<div class="meta"><b>AI 总结：</b>${esc(it.summary)}</div>`;
   if(it.quote) h += `<div class="quote">“${esc(it.quote)}”</div>`;
-  if(it.original) h += `<div class="meta orig"><b>原文：</b>${esc(it.original)}</div>`;
-  if(it.abstract) h += `<div class="meta"><b>搜索摘要：</b>${esc(it.abstract)}</div>`;
-  if(it.rewrite) h += `<div class="meta"><b>改写方向：</b>${esc(it.rewrite)}</div>`;
-  if(it.reflection) h += `<div class="meta"><b>个人感悟：</b>${esc(it.reflection)}</div>`;
-  let src=''; if(it.source) src+=esc(it.source);
-  if(it.sourceLink) src += (src?' · ':'')+`<a href="${esc(it.sourceLink)}" target="_blank" rel="noopener">来源链接</a>`;
-  if(src) h += `<div class="meta muted">来源：${src}</div>`;
-  if(it.status) h += `<div class="meta muted">使用状态：${esc(it.status)}</div>`;
   return h;
+}
+
+/* ---- 灵感库：筛选 + 搜索 + 详情编辑 ---- */
+let wisdomFilter = { q:'', cat1:'', cat2:'', emotion:'', ctype:'' };
+function wisdomUniq(key){ return [...new Set((cache['inspiration']||[]).map(x=>x[key]).filter(Boolean))]; }
+function wisdomTags(key){ const s=new Set(); (cache['inspiration']||[]).forEach(x=> (x[key]||[]).forEach(v=>{ if(v) s.add(v); })); return [...s]; }
+
+function renderWisdom(arr){
+  const s = SECTIONS['inspiration'];
+  arr = arr.slice().sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+  let html = `<div class="card"><div class="h"><div class="t">${s.name}（${arr.length}）</div></div>`;
+  html += wisdomToolbar();
+  const filtered = wisdomFiltered(arr);
+  html += `<div class="muted" style="font-size:12.5px;margin:2px 2px 12px">匹配 <b>${filtered.length}</b> / ${arr.length} 条</div>`;
+  if(!filtered.length){ html += `<div class="empty">没有符合条件的文章，试试调整筛选或搜索词</div></div>`; view.innerHTML=html; return; }
+  html += '<div class="grid cols-2">';
+  filtered.forEach(it=>{
+    let inner = `<button class="btn ghost mini" onclick="editWisdom('${it.id}')">详情</button>`;
+    if(s.allowDelete) inner += `<button class="btn danger mini" onclick="delGeneric('inspiration','${it.id}')">删除</button>`;
+    const ops = `<div class="ops">${inner}</div>`;
+    html += `<div class="item">${ops}${wisdomBody(it)}</div>`;
+  });
+  html += '</div></div>';
+  view.innerHTML = html;
+}
+function wisdomToolbar(){
+  const f = wisdomFilter;
+  const opt = (key,sel)=> `<option value="">全部</option>` + wisdomUniq(key).map(v=>`<option ${v===sel?'selected':''}>${esc(v)}</option>`).join('');
+  return `<div class="wisdom-toolbar">
+    <input class="inp" id="wfQ" placeholder="🔍 搜索标题 / 关键词 / 金句 / 原文…" value="${esc(f.q)}" oninput="wisdomSearch(this.value)">
+    <select onchange="wisdomSet('cat1',this.value)">${opt('cat1',f.cat1)}</select>
+    <select onchange="wisdomSet('cat2',this.value)">${opt('cat2',f.cat2)}</select>
+    <select onchange="wisdomSet('emotion',this.value)">${opt('emotion',f.emotion)}</select>
+    <select onchange="wisdomSet('ctype',this.value)">${opt('ctype',f.ctype)}</select>
+    <button class="btn soft mini" onclick="wisdomReset()">重置</button>
+  </div>`;
+}
+function wisdomFiltered(arr){
+  const f = wisdomFilter; const q = f.q.trim().toLowerCase();
+  return arr.filter(it=>{
+    if(f.cat1 && it.cat1!==f.cat1) return false;
+    if(f.cat2 && it.cat2!==f.cat2) return false;
+    if(f.emotion && !(it.emotion||[]).includes(f.emotion)) return false;
+    if(f.ctype && it.ctype!==f.ctype) return false;
+    if(q){
+      const hay = [it.title,it.keywords,it.quote,it.original,it.summary,it.abstract,it.reflection].join(' ').toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+function wisdomSearch(v){ wisdomFilter.q=v; renderWisdom(cache['inspiration']||[]); }
+function wisdomSet(k,v){ wisdomFilter[k]=v; renderWisdom(cache['inspiration']||[]); }
+function wisdomReset(){ wisdomFilter={q:'',cat1:'',cat2:'',emotion:'',ctype:''}; renderWisdom(cache['inspiration']||[]); }
+
+/* 详情：展示并手动编辑/补充全部字段，保存回人生灵感库 */
+async function editWisdom(recId){
+  const all = cache['inspiration']||[];
+  const it = all.find(x=>x.id===recId); if(!it) return;
+  const dl = (id,vals)=> `<datalist id="${id}">${vals.map(v=>`<option value="${esc(v)}">`).join('')}</datalist>`;
+  const cat1List=dl('dlCat1',wisdomUniq('cat1')), cat2List=dl('dlCat2',wisdomUniq('cat2')), cat3List=dl('dlCat3',wisdomUniq('cat3'));
+  const ctypeList=dl('dlCtype',wisdomUniq('ctype')), statusList=dl('dlStatus',wisdomUniq('status'));
+  const emoList=dl('dlEmo',wisdomTags('emotion')), sceneList=dl('dlScene',wisdomTags('scenes'));
+  const F = (k,label,val,list)=> `<div class="field"><label>${label}</label><input data-k="${k}" ${list?`list="${list}"`:''} value="${esc(val||'')}"></div>`;
+  const T = (k,label,val)=> `<div class="field"><label>${label}</label><textarea data-k="${k}">${esc(val||'')}</textarea></div>`;
+  modal.innerHTML = `<h3>编辑 · 人生灵感库</h3>
+    ${F('title','文案标题',it.title)}
+    ${F('cat1','一级分类',it.cat1,'dlCat1')}
+    ${F('cat2','二级分类',it.cat2,'dlCat2')}
+    ${F('cat3','三级分类',it.cat3,'dlCat3')}
+    ${F('emotion','情绪标签（逗号分隔）',(it.emotion||[]).join('，'),'dlEmo')}
+    ${F('ctype','内容类型',it.ctype,'dlCtype')}
+    ${F('scenes','适用场景（逗号分隔）',(it.scenes||[]).join('，'),'dlScene')}
+    ${F('keywords','关键词',it.keywords)}
+    ${F('status','使用状态',it.status,'dlStatus')}
+    ${F('date','收藏日期',it.date)}
+    ${F('source','来源',it.source)}
+    ${F('sourceLink','来源链接',it.sourceLink)}
+    ${T('summary','AI 总结',it.summary)}
+    ${T('quote','金句提炼',it.quote)}
+    ${T('original','原始文案',it.original)}
+    ${T('abstract','AI 搜索摘要',it.abstract)}
+    ${T('rewrite','改写方向',it.rewrite)}
+    ${T('reflection','个人感悟',it.reflection)}
+    ${F('copyright','版权备注',it.copyright)}
+    ${cat1List}${cat2List}${cat3List}${ctypeList}${statusList}${emoList}${sceneList}
+    <div class="modal-ops">
+      <button class="btn soft" onclick="closeModal()">取消</button>
+      <button class="btn" onclick="saveWisdom('${recId}')">保存</button>
+    </div>`;
+  overlay.classList.add('show');
+}
+async function saveWisdom(recId){
+  const g = k => { const el = modal.querySelector(`[data-k="${k}"]`); return el ? el.value : ''; };
+  const splitList = v => v.split(/[,，]/).map(t=>t.trim()).filter(Boolean);
+  const sel = v => v ? {text:v} : null;
+  const msel = arr => arr.length ? arr.map(v=>({text:v})) : [];
+  const fields = {
+    '文案标题': g('title'),
+    '一级分类': sel(g('cat1')),
+    '二级分类': sel(g('cat2')),
+    '三级分类': sel(g('cat3')),
+    '情绪标签': msel(splitList(g('emotion'))),
+    '内容类型': sel(g('ctype')),
+    '适用场景': msel(splitList(g('scenes'))),
+    '关键词': g('keywords'),
+    '使用状态': sel(g('status')),
+    '收藏日期': g('date') ? g('date') : null,
+    '来源': g('source'),
+    '来源链接': g('sourceLink'),
+    'AI总结': g('summary'),
+    '金句提炼': g('quote'),
+    '原始文案': g('original'),
+    'AI搜索摘要': g('abstract'),
+    '改写方向': g('rewrite'),
+    '个人感悟': g('reflection'),
+    '版权备注': g('copyright')
+  };
+  try{ await apiUpdate('inspiration', recId, fields); closeModal(); await render(); }
+  catch(e){ alert('保存失败：'+(e.message||e)); }
 }
 function addGeneric(id){ openModal('添加 · '+SECTIONS[id].name, SCHEMA[SECTIONS[id].kind], {}, async v=>{ try{ await apiCreate(id,v); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); } }); }
 function editGeneric(id,itemId){

@@ -287,7 +287,7 @@ function writeRec(kind, o, fix) {
     case 'events':    return { '事项': o.title, '日期': toFeishuDate(o.date), '状态': o.status || '计划中', '备注': o.note || '' };
     case 'todos':     return { '内容': o.title, '日期': toFeishuDate(o.date), '完成': !!o.done };
     case 'cards':     return { '标题': o.title, '内容': o.content, '标签': o.tags || '' };
-    case 'wisdom':    return {};
+    case 'wisdom':    return o || {};   // 灵感库详情编辑：前端已按飞书字段名组装好，直接透传
     case 'topics':    return { '选题': o.title, '平台': o.platform || '', '状态': o.status || '灵感', '备注': o.note || '' };
     case 'publish':   return { '标题': o.title, '日期': toFeishuDate(o.date), '平台': o.platform || '', '链接': o.link || '', '数据反馈': o.result || '' };
     case 'knowledge': return { '标题': o.title, '分类': fix, '要点': o.content, '来源': o.source || '', '标签': o.tags || '' };
@@ -518,7 +518,7 @@ async function route(method, url, body, res, req) {
       const id = m[1], rec = m[2];
       if (!SECTIONS[id]) return send(res, 404, { error: '未知模块: ' + id });
       const cfg = SECTIONS[id];
-      if (cfg.readonly && method !== 'GET' && method !== 'DELETE') return send(res, 403, { error: '该板块为只读（数据来自外部多维表格，请在飞书中维护；仅支持删除）' });
+      if (cfg.readonly && method !== 'GET' && method !== 'DELETE' && !(cfg.allowEdit && method === 'PUT')) return send(res, 403, { error: '该板块为只读（数据来自外部多维表格，请在飞书中维护；仅支持删除与编辑）' });
       if (method === 'GET') return send(res, 200, await sectionList(id));
       if (method === 'POST') return send(res, 200, await sectionCreate(id, body || {}));
       if (method === 'PUT' && rec) return send(res, 200, await sectionUpdate(id, rec, body || {}));
