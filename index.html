@@ -199,6 +199,9 @@
   }
   .field input:focus,.field textarea:focus,.field select:focus{border-color:var(--brand);}
   .field textarea{min-height:84px;resize:vertical;}
+  /* 灵感库详情：原始文案上移并加宽一倍（弹窗整体加宽） */
+  .modal.wide{width:min(720px,100%);}
+  .field.fullw textarea{min-height:220px;font-size:14px;line-height:1.7;}
   .modal-ops{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;}
   .muted{color:var(--muted);}
   @media(max-width:900px){.cols-2,.cols-3{grid-template-columns:1fr;}.sidebar{display:none;}}
@@ -447,7 +450,7 @@ function openModal(title, schema, values, onSave){
   modal._schema = schema; modal._onSave = onSave; modal._values = values;
   overlay.classList.add('show');
 }
-function closeModal(){ overlay.classList.remove('show'); }
+function closeModal(){ overlay.classList.remove('show'); modal.classList.remove('wide'); }
 overlay.addEventListener('click', e=>{ if(e.target===overlay) closeModal(); });
 async function submitModal(){
   const schema = modal._schema, vals = modal._values;
@@ -575,41 +578,63 @@ function wisdomSet(k,v){ wisdomFilter[k]=v; renderWisdom(cache['inspiration']||[
 function wisdomReset(){ wisdomFilter={q:'',cat1:'',cat2:'',emotion:'',ctype:''}; renderWisdom(cache['inspiration']||[]); }
 
 /* 详情：展示并手动编辑/补充全部字段，保存回人生灵感库 */
+let _catCache = null;
+async function getCategory(){
+  if(_catCache) return _catCache;
+  try{ _catCache = await apiJson('/category'); }catch(e){ _catCache = {cat1:[], tree:{}}; }
+  return _catCache;
+}
+// 生成下拉选项；cur 不在列表里时也补上（保留旧数据里不在分类表中的值）
+function optList(list, cur){
+  const opts = (list||[]).slice();
+  if(cur && !opts.includes(cur)) opts.unshift(cur);
+  return ['<option value="">（不选）</option>'].concat(
+    opts.map(v=>`<option value="${esc(v)}" ${v===cur?'selected':''}>${esc(v)}</option>`)
+  ).join('');
+}
 async function editWisdom(recId){
   const all = cache['inspiration']||[];
   const it = all.find(x=>x.id===recId); if(!it) return;
-  const dl = (id,vals)=> `<datalist id="${id}">${vals.map(v=>`<option value="${esc(v)}">`).join('')}</datalist>`;
-  const cat1List=dl('dlCat1',wisdomUniq('cat1')), cat2List=dl('dlCat2',wisdomUniq('cat2')), cat3List=dl('dlCat3',wisdomUniq('cat3'));
-  const ctypeList=dl('dlCtype',wisdomUniq('ctype')), statusList=dl('dlStatus',wisdomUniq('status'));
-  const emoList=dl('dlEmo',wisdomTags('emotion')), sceneList=dl('dlScene',wisdomTags('scenes'));
-  const F = (k,label,val,list)=> `<div class="field"><label>${label}</label><input data-k="${k}" ${list?`list="${list}"`:''} value="${esc(val||'')}"></div>`;
-  const T = (k,label,val)=> `<div class="field"><label>${label}</label><textarea data-k="${k}">${esc(val||'')}</textarea></div>`;
+  const cat = await getCategory();
+  const tree = cat.tree||{};
+  const cur1 = it.cat1||'', cur2 = it.cat2||'', cur3 = it.cat3||'';
+  const list2 = tree[cur1] ? Object.keys(tree[cur1]) : [];
+  const list3 = (tree[cur1]&&tree[cur1][cur2]) ? tree[cur1][cur2] : [];
+  const sel = (k,label,opts,cur)=> `<div class="field"><label>${label}</label><select data-k="${k}">${optList(opts,cur)}</select></div>`;
+  const F = (k,label,val)=> `<div class="field"><label>${label}</label><input data-k="${k}" value="${esc(val||'')}"></div>`;
+  const T = (k,label,val,cls)=> `<div class="field ${cls||''}"><label>${label}</label><textarea data-k="${k}">${esc(val||'')}</textarea></div>`;
   modal.innerHTML = `<h3>编辑 · 人生灵感库</h3>
     ${F('title','文案标题',it.title)}
-    ${F('cat1','一级分类',it.cat1,'dlCat1')}
-    ${F('cat2','二级分类',it.cat2,'dlCat2')}
-    ${F('cat3','三级分类',it.cat3,'dlCat3')}
-    ${F('emotion','情绪标签（逗号分隔）',(it.emotion||[]).join('，'),'dlEmo')}
-    ${F('ctype','内容类型',it.ctype,'dlCtype')}
-    ${F('scenes','适用场景（逗号分隔）',(it.scenes||[]).join('，'),'dlScene')}
+    ${T('original','原始文案',it.original,'fullw')}
+    ${sel('cat1','一级分类',cat.cat1,cur1)}
+    ${sel('cat2','二级分类',list2,cur2)}
+    ${sel('cat3','三级分类',list3,cur3)}
+    ${F('emotion','情绪标签（逗号分隔）',(it.emotion||[]).join('，'))}
+    ${F('ctype','内容类型',it.ctype)}
+    ${F('scenes','适用场景（逗号分隔）',(it.scenes||[]).join('，'))}
     ${F('keywords','关键词',it.keywords)}
-    ${F('status','使用状态',it.status,'dlStatus')}
+    ${sel('status','使用状态',['未使用','已使用'],it.status)}
     ${F('date','收藏日期',it.date)}
     ${F('source','来源',it.source)}
     ${F('sourceLink','来源链接',it.sourceLink)}
     ${T('summary','AI 总结',it.summary)}
     ${T('quote','金句提炼',it.quote)}
-    ${T('original','原始文案',it.original)}
     ${T('abstract','AI 搜索摘要',it.abstract)}
     ${T('rewrite','改写方向',it.rewrite)}
     ${T('reflection','个人感悟',it.reflection)}
     ${F('copyright','版权备注',it.copyright)}
-    ${cat1List}${cat2List}${cat3List}${ctypeList}${statusList}${emoList}${sceneList}
     <div class="modal-ops">
       <button class="btn soft" onclick="closeModal()">取消</button>
       <button class="btn" onclick="saveWisdom('${recId}')">保存</button>
     </div>`;
   overlay.classList.add('show');
+  modal.classList.add('wide');
+  // 级联：改一级→重置二级/三级；改二级→重置三级
+  const wc1 = modal.querySelector('[data-k="cat1"]');
+  const wc2 = modal.querySelector('[data-k="cat2"]');
+  const wc3 = modal.querySelector('[data-k="cat3"]');
+  wc1.addEventListener('change', ()=>{ wc2.innerHTML = optList(Object.keys(tree[wc1.value]||{}), ''); wc3.innerHTML = optList([], ''); });
+  wc2.addEventListener('change', ()=>{ wc3.innerHTML = optList((tree[wc1.value]||{})[wc2.value]||[], ''); });
 }
 async function saveWisdom(recId){
   const g = k => { const el = modal.querySelector(`[data-k="${k}"]`); return el ? el.value : ''; };

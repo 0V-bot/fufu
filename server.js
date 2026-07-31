@@ -19,6 +19,8 @@ const INSPIRE_BASE = process.env.INSPIRE_BASE_TOKEN || 'ARCcbggiUaFqESsV7pRcin8C
 const INSPIRE_TABLE = process.env.INSPIRE_TABLE || 'tblpI6WqsvA5z0CL';
 // 工作台「文章录入」先写入「录入表」，再由 life-wisdom-content-processor skill 分析后写入「人生灵感库」
 const INPUT_TABLE = process.env.INPUT_TABLE || 'tblxVYnQ8P49qc6Y';
+// 分类表（人生研究学院 Base 内）：详情编辑界面的「一级/二级/三级分类」级联下拉数据源
+const CATEGORY_TABLE = process.env.CATEGORY_TABLE_TOKEN || 'tblfMizz0bw1juvw';
 const ACCESS_PWD = process.env.ACCESS_PWD || '';           // 空 = 不加密
 const APP_ID = process.env.FEISHU_APP_ID || '';
 const APP_SECRET = process.env.FEISHU_APP_SECRET || '';
@@ -421,6 +423,35 @@ async function getDashboard() {
   return { todayTodos, todoPending: todayTodos.filter(x => !x.done).length, habits, major, projCount, insp, topics, knowledge, inputPending };
 }
 
+/* ===================== 分类表（级联下拉数据源） ===================== */
+let _catCache = null, _catTime = 0;
+async function getCategory() {
+  const now = Date.now();
+  if (_catCache && now - _catTime < 3600 * 1000) return _catCache;   // 1 小时缓存
+  let result = null;
+  try {
+    const rows = await listTable(CATEGORY_TABLE, INSPIRE_BASE);   // 原始 select 字段，需 sel() 取文本
+    const cat1 = [], tree = {};
+    rows.forEach(r => {
+      const a = sel(r['一级分类']) || '', b = sel(r['二级分类']) || '', c = sel(r['三级分类']) || '';
+      if (!a) return;
+      if (!cat1.includes(a)) cat1.push(a);
+      tree[a] = tree[a] || {};
+      tree[a][b] = tree[a][b] || [];
+      if (c && !tree[a][b].includes(c)) tree[a][b].push(c);
+    });
+    result = { cat1, tree };
+  } catch (e) {
+    // 飞书抖动时回退到仓库内置 category.json，保证下拉始终可用
+    try {
+      const raw = JSON.parse(fs.readFileSync(path.join(__dirname, 'category.json'), 'utf8'));
+      result = { cat1: raw.cat1 || [], tree: raw.tree || {} };
+    } catch (e2) { result = { cat1: [], tree: {} }; }
+  }
+  _catCache = result; _catTime = now;
+  return result;
+}
+
 /* ===================== 访问密码门 ===================== */
 function authed(req) {
   if (!ACCESS_PWD) return true;
@@ -499,6 +530,7 @@ async function route(method, url, body, res, req) {
         return send(res, 200, { count });
       } catch (e) { return send(res, 200, { count: -1, error: e.message }); }
     }
+    if (method === 'GET' && url === '/api/category') return send(res, 200, await getCategory());
     if (method === 'GET' && url === '/api/habits') return send(res, 200, await getHabits());
     if (method === 'POST' && url === '/api/habits') return send(res, 200, await createHabit(body.name));
     if (method === 'DELETE' && (m = url.match(/^\/api\/habits\/(.+)$/))) return send(res, 200, await deleteHabit(m[1]));
