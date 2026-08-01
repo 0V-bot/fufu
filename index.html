@@ -201,6 +201,14 @@
   .field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#475069;}
   .field input,.field textarea,.field select{
     width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;outline:none;background:#fff;color:var(--ink);
+  /* ---------- 类 Excel 表格 ---------- */
+  .grid-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:11px 13px;border-bottom:1px solid var(--line);}
+  .grid-scroll{overflow:auto;padding:14px;}
+  table.xls{border-collapse:collapse;width:100%;table-layout:fixed;background:#fff;}
+  table.xls td.xc{border:1px solid #cbd5e1;padding:0;vertical-align:top;min-width:96px;height:36px;background:#fff;position:relative;}
+  table.xls td.xc .xc-t{padding:7px 9px;min-height:20px;white-space:pre-wrap;word-break:break-word;outline:none;font-size:13.5px;line-height:1.5;}
+  table.xls td.xc.sel{background:#dbeafe;box-shadow:inset 0 0 0 2px #3b82f6;}
+  table.xls td.xc .xc-t.editing{background:#fffbe6;box-shadow:inset 0 0 0 1px #f59e0b;}
   }
   .field input:focus,.field textarea:focus,.field select:focus{border-color:var(--brand);}
   .field textarea{min-height:84px;resize:vertical;}
@@ -313,8 +321,8 @@ const NAV = [
 ];
 
 const SECTIONS = {
-  annual:{name:'年计划',kind:'goals',accent:'#e11d48',hint:'设定今年的核心目标，跟踪完成进度。'},
-  monthly:{name:'月计划',kind:'goals',accent:'#f59e0b',hint:'把年度目标拆解为每月的关键动作。'},
+  annual:{name:'年计划',kind:'grid',accent:'#e11d48',hint:'像 Excel 一样规划全年：可加/删行列、合并拆分单元格、直接录入文字，记得点「保存」。'},
+  monthly:{name:'月计划',kind:'grid',accent:'#f59e0b',hint:'像 Excel 一样拆解每月动作：可加/删行列、合并拆分单元格、直接录入文字，记得点「保存」。'},
   major:{name:'重大事项',kind:'events',accent:'#8b5cf6',hint:'记录人生关键节点与重要安排。'},
   todos:{name:'今日待办',kind:'todos',accent:'#0ea5e9',hint:'聚焦当下，完成今天最重要的几件事。'},
   habits:{name:'微习惯',kind:'habits',accent:'#10b981',hint:'每天一点点，用复利改变自己。'},
@@ -826,6 +834,116 @@ async function renderReview(){
 function setReviewDate(v){ reviewDate=v; render(); }
 async function saveReview(){ const t=document.getElementById('reviewText').value; try{ await apiSaveReview(reviewDate,t); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); } }
 
+/* ---------- 类 Excel 表格编辑器（年计划 / 月计划） ---------- */
+let gridSectionId = null;
+let gridState = null;        // {rows, cols, data:[[{t,rs,cs}]]}
+let gridSel = null;          // {r1,c1,r2,c2}
+let gridSelecting = false;
+
+function gCell(t){ return { t: (t==null?'':String(t)), rs:1, cs:1 }; }
+function gBlank(rows,cols){ const d=[]; for(let r=0;r<rows;r++){ const row=[]; for(let c=0;c<cols;c++) row.push(gCell('')); d.push(row); } return d; }
+function gNorm(g){
+  g=g||{}; g.rows=Number(g.rows)||6; g.cols=Number(g.cols)||4; g.data=Array.isArray(g.data)?g.data:[];
+  for(let r=0;r<g.rows;r++){ if(!g.data[r]) g.data[r]=[]; for(let c=0;c<g.cols;c++){ const x=g.data[r][c]||{}; g.data[r][c]={t:x.t==null?'':String(x.t), rs:Number(x.rs)||1, cs:Number(x.cs)||1}; } g.data[r].length=g.cols; }
+  g.data.length=g.rows; return g;
+}
+function gNormSel(){ if(!gridSel) return null; const {r1,c1,r2,c2}=gridSel; return {r1:Math.min(r1,r2),c1:Math.min(c1,c2),r2:Math.max(r1,r2),c2:Math.max(c1,c2)}; }
+function gInSel(r,c){ const s=gNormSel(); return s && r>=s.r1&&r<=s.r2&&c>=s.c1&&c<=s.c2; }
+
+async function renderGrid(sectionId){
+  const s = SECTIONS[sectionId];
+  gridSectionId = sectionId;
+  let g;
+  try{ g = await apiJson('/grid/'+sectionId); }
+  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  gridState = gNorm(g && g.data ? g : {rows:6,cols:4,data:gBlank(6,4)});
+  gridSel = null;
+  let html = `<div class="card"><div class="h"><div class="t">${s.name}</div></div>`;
+  html += `<div class="grid-toolbar">
+    <button class="btn" onclick="gridAddRow()">＋ 行</button>
+    <button class="btn" onclick="gridAddCol()">＋ 列</button>
+    <button class="btn soft" onclick="gridDelRow()">删除行</button>
+    <button class="btn soft" onclick="gridDelCol()">删除列</button>
+    <button class="btn" onclick="gridMerge()">合并单元格</button>
+    <button class="btn" onclick="gridSplit()">拆分单元格</button>
+    <button class="btn primary" onclick="gridSave()">💾 保存</button>
+    <span class="muted" style="font-size:12px;margin-left:6px">单击选中 · 拖动框选 · 双击单元格编辑文字</span>
+  </div>`;
+  html += `<div class="grid-scroll"><table class="xls" id="xls">${gTableHTML()}</table></div></div>`;
+  view.innerHTML = html;
+  bindGrid();
+}
+function gTableHTML(){
+  const g = gridState; const covered = {};
+  let h = '<tbody>';
+  for(let r=0;r<g.rows;r++){
+    h += '<tr>';
+    for(let c=0;c<g.cols;c++){
+      const key = r+'-'+c; if(covered[key]) continue;
+      const cl = g.data[r][c] || gCell('');
+      const rs = Math.min(cl.rs||1, g.rows-r);
+      const cs = Math.min(cl.cs||1, g.cols-c);
+      for(let i=0;i<rs;i++) for(let j=0;j<cs;j++){ if(i!==0||j!==0) covered[(r+i)+'-'+(c+j)] = true; }
+      const sel = gInSel(r,c) ? ' sel' : '';
+      h += `<td class="xc${sel}" data-r="${r}" data-c="${c}" rowspan="${rs}" colspan="${cs}"><div class="xc-t">${esc(cl.t)}</div></td>`;
+    }
+    h += '</tr>';
+  }
+  return h + '</tbody>';
+}
+function paintGrid(){ const t = document.getElementById('xls'); if(t) t.innerHTML = gTableHTML(); paintSel(); }
+function paintSel(){ const t = document.getElementById('xls'); if(!t) return; t.querySelectorAll('td.xc').forEach(td=>{ const r=+td.dataset.r,c=+td.dataset.c; td.classList.toggle('sel', !!gInSel(r,c)); }); }
+function bindGrid(){
+  const t = document.getElementById('xls'); if(!t) return;
+  let start=null;
+  t.addEventListener('mousedown', e=>{
+    const td = e.target.closest('td'); if(!td) return;
+    if(td.isContentEditable || (e.target.closest('.xc-t') && e.target.closest('.xc-t').isContentEditable)) return;
+    e.preventDefault();
+    start = { r:+td.dataset.r, c:+td.dataset.c };
+    gridSel = { r1:start.r, c1:start.c, r2:start.r, c2:start.c };
+    gridSelecting = true; paintSel();
+  });
+  t.addEventListener('mouseover', e=>{
+    if(!gridSelecting || !start) return;
+    const td = e.target.closest('td'); if(!td) return;
+    gridSel = { r1:start.r, c1:start.c, r2:+td.dataset.r, c2:+td.dataset.c };
+    paintSel();
+  });
+  document.addEventListener('mouseup', ()=>{ gridSelecting=false; });
+  t.addEventListener('dblclick', e=>{
+    const td = e.target.closest('td'); if(!td) return;
+    gEditCell(td);
+  });
+}
+function gEditCell(td){
+  const r=+td.dataset.r, c=+td.dataset.c;
+  const div = td.querySelector('.xc-t'); if(!div) return;
+  div.setAttribute('contenteditable','true'); div.classList.add('editing'); div.focus();
+  const range=document.createRange(); range.selectNodeContents(div);
+  const seln=window.getSelection(); seln.removeAllRanges(); seln.addRange(range);
+  const finish=()=>{ div.removeAttribute('contenteditable'); div.classList.remove('editing'); gridState.data[r][c].t = div.innerText.replace(/\n+$/,''); div.removeEventListener('blur',finish); div.removeEventListener('keydown',onKey); };
+  const onKey=ev=>{ if(ev.key==='Enter'&&!ev.shiftKey){ ev.preventDefault(); div.blur(); } else if(ev.key==='Escape'){ ev.preventDefault(); div.blur(); } };
+  div.addEventListener('blur',finish); div.addEventListener('keydown',onKey);
+}
+function gridAddRow(){ const g=gridState; g.data.push(Array.from({length:g.cols},()=>gCell(''))); g.rows++; paintGrid(); }
+function gridAddCol(){ const g=gridState; g.data.forEach(row=>row.push(gCell(''))); g.cols++; paintGrid(); }
+function gridDelRow(){ const s=gNormSel(); if(!s){ alert('请先选中要删除的行'); return; } const g=gridState; const keep=[]; for(let r=0;r<g.rows;r++){ if(r<s.r1||r>s.r2) keep.push(g.data[r]); } g.data=keep; g.rows=keep.length; paintGrid(); }
+function gridDelCol(){ const s=gNormSel(); if(!s){ alert('请先选中要删除的列'); return; } const g=gridState; g.data.forEach(row=>row.splice(s.c1, s.c2-s.c1+1)); g.cols=g.data[0]?g.data[0].length:0; paintGrid(); }
+function gridMerge(){
+  const s=gNormSel(); if(!s || (s.r1===s.r2 && s.c1===s.c2)){ alert('请先框选一个大于 1 个单元格的区域再合并'); return; }
+  const g=gridState; const txt=[];
+  for(let r=s.r1;r<=s.r2;r++) for(let c=s.c1;c<=s.c2;c++){ const t=g.data[r][c].t; if(t&&t.trim()) txt.push(t.trim()); }
+  for(let r=s.r1;r<=s.r2;r++) for(let c=s.c1;c<=s.c2;c++) g.data[r][c]=gCell('');
+  g.data[s.r1][s.c1] = { t: txt.join(' / '), rs:s.r2-s.r1+1, cs:s.c2-s.c1+1 };
+  gridSel = { r1:s.r1, c1:s.c1, r2:s.r1, c2:s.c1 }; paintGrid();
+}
+function gridSplit(){ const s=gNormSel(); if(!s){ alert('请先选中要拆分的合并单元格'); return; } const g=gridState; for(let r=s.r1;r<=s.r2;r++) for(let c=s.c1;c<=s.c2;c++){ const cl=g.data[r][c]; if(cl.rs>1||cl.cs>1){ cl.rs=1; cl.cs=1; } } paintGrid(); }
+async function gridSave(){
+  try{ await apiJson('/grid/'+gridSectionId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({grid:gridState})}); alert('已保存 ✅'); }
+  catch(e){ alert('保存失败：'+(e.message||e)); }
+}
+
 /* ---------- project ---------- */
 async function renderProject(id){
   let data;
@@ -926,6 +1044,7 @@ async function render(){
     if(kind==='review') return await renderReview();
     if(kind==='project') return await renderProject(current);
     if(kind==='article') return await renderArticle();
+    if(kind==='grid') return await renderGrid(current);
     return await renderList(current, kind);
   }catch(e){
     view.innerHTML = `<div class="empty">⚠️ 出错了：${esc(e.message||e)}</div>`;
