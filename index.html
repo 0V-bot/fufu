@@ -142,6 +142,21 @@
   .inline-add input{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px 13px;font-size:14px;font-family:inherit;outline:none;background:#fff;}
   .inline-add input:focus{border-color:var(--brand);}
 
+  /* todo 卡片式 */
+  .todo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:13px;margin-top:12px;}
+  .tcard{background:#fff;border:1px solid var(--line);border-radius:13px;padding:12px;display:flex;flex-direction:column;gap:9px;box-shadow:0 1px 2px rgba(15,23,42,.04);}
+  .tcard.done{opacity:.6;background:#f8fafc;}
+  .tcard.done .tcontent{text-decoration:line-through;}
+  .tcard-top{display:flex;align-items:center;gap:9px;}
+  .tcheck{width:20px;height:20px;border-radius:6px;border:2px solid #cbd5e1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;flex:0 0 auto;transition:.15s;}
+  .tcheck.on{background:#22c55e;border-color:#22c55e;}
+  .tcontent{width:100%;border:none;resize:vertical;font-family:inherit;font-size:14px;line-height:1.55;min-height:44px;background:transparent;outline:none;color:#0f172a;}
+  .tcontent:focus{background:#f1f5f9;border-radius:8px;padding:6px 8px;}
+  .tdeadline{display:flex;align-items:center;gap:7px;font-size:12px;color:#64748b;}
+  .tdeadline input{font-family:inherit;border:1px solid var(--line);border-radius:8px;padding:4px 7px;font-size:12px;color:#334155;background:#f8fafc;}
+  .tnote{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:13px;line-height:1.55;min-height:50px;resize:vertical;background:#f8fafc;color:#334155;outline:none;}
+  .tnote:focus{background:#fff;border-color:#93c5fd;}
+
   /* habits */
   .habit{background:#fbfcfe;border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:10px;}
   .habit .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
@@ -750,34 +765,88 @@ async function submitArticle(){
   }catch(e){ alert('保存失败：'+(e.message||e)); }
 }
 
-/* ---------- todos ---------- */
+/* ---------- todos（卡片式，可自由编辑） ---------- */
 let todoDate = today();
+// 把飞书回传的截止时间（UTC 毫秒或字符串）归一为 datetime-local 值 "YYYY-MM-DDTHH:MM"
+function fmtDeadline(v){
+  if(!v) return '';
+  if(typeof v === 'number'){
+    const d = new Date(v + 8*3600*1000), p = n => (n<10?'0'+n:''+n);
+    return `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())}T${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+  }
+  return String(v).replace(' ','T').slice(0,16);
+}
 async function renderTodos(){
   let arr;
   try{ arr = await apiList('todos'); }
   catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
   cache.todos = arr;
+  arr.forEach(t => { if (t.deadline) t.deadline = fmtDeadline(t.deadline); });
   const list = arr.filter(t=>t.date===todoDate);
   const pending = list.filter(t=>!t.done).length;
   let html = `<div class="card">
     <div class="h"><div class="t">今日待办 <span class="muted" style="font-weight:500">· 待完成 ${pending}</span></div>
-      <input type="date" value="${todoDate}" onchange="setTodoDate(this.value)" style="border:1px solid var(--line);border-radius:9px;padding:6px 10px;font-family:inherit;"></div>`;
-  if(!list.length){ html += `<div class="empty">${todoDate===today()?'今天还没有待办，添加第一项吧':'这一天没有记录'}</div>`; }
+      <input type="date" value="${todoDate}" onchange="setTodoDate(this.value)" style="border:1px solid var(--line);border-radius:9px;padding:6px 10px;font-family:inherit;"></div>
+    <div class="todo-grid">`;
+  if(!list.length){ html += `<div class="empty" style="grid-column:1/-1">${todoDate===today()?'今天还没有待办，点下面「+ 添加卡片」开始吧':'这一天没有记录'}</div>`; }
   list.forEach(t=>{
-    html += `<div class="todo ${t.done?'done':''}">
-      <div class="check ${t.done?'on':''}" onclick="toggleTodo('${t.id}')">✓</div>
-      <div class="todo-text">${esc(t.title)}</div>
-      <button class="btn danger mini" onclick="delTodo('${t.id}')">删</button>
+    const did = t.id;
+    html += `<div class="tcard ${t.done?'done':''}" id="tcard-${did}">
+      <div class="tcard-top">
+        <div class="tcheck ${t.done?'on':''}" onclick="toggleTodo('${did}')" title="完成">✓</div>
+        <span class="muted" style="font-size:12px">${esc(t.date)}</span>
+        <button class="btn danger mini" style="margin-left:auto" onclick="delTodo('${did}')">删</button>
+      </div>
+      <textarea class="tcontent" placeholder="待办内容，点击直接输入…" onblur="saveTodoField('${did}','title',this.value)">${esc(t.title||'')}</textarea>
+      <div class="tdeadline"><span>⏰ 截止</span>
+        <input type="datetime-local" value="${fmtDeadline(t.deadline)}" onchange="saveTodoField('${did}','deadline',this.value)"></div>
+      <textarea class="tnote" placeholder="备注（可编辑）…" onblur="saveTodoField('${did}','note',this.value)">${esc(t.note||'')}</textarea>
     </div>`;
   });
-  html += `<div class="inline-add"><input id="todoInput" placeholder="输入待办，回车添加…" onkeydown="if(event.key==='Enter')addTodo()"/>
-    <button class="btn" onclick="addTodo()">添加</button></div></div>`;
+  html += `</div>
+    <div class="inline-add"><input id="todoInput" placeholder="输入待办标题，回车添加卡片…" onkeydown="if(event.key==='Enter')addTodo()"/>
+      <button class="btn" onclick="addTodo()">+ 添加卡片</button></div></div>`;
   view.innerHTML = html;
 }
 function setTodoDate(v){ todoDate=v; render(); }
-async function addTodo(){ const i=document.getElementById('todoInput'); const v=i.value.trim(); if(!v)return; try{ await apiCreate('todos',{title:v,done:false,date:todoDate}); await render(); }catch(e){ alert('添加失败：'+(e.message||e)); } }
-async function toggleTodo(id){ const a=cache.todos||[]; const t=a.find(x=>x.id===id); if(!t) return; t.done=!t.done; try{ await apiUpdate('todos',id,t); await render(); }catch(e){ alert('更新失败：'+(e.message||e)); } }
-async function delTodo(id){ try{ await apiDelete('todos',id); await render(); }catch(e){ alert('删除失败：'+(e.message||e)); } }
+async function addTodo(){
+  const i=document.getElementById('todoInput'); const v=(i?i.value:'').trim();
+  try{
+    const r = await apiCreate('todos',{title:v,done:false,date:todoDate,deadline:'',note:''});
+    await render();
+    const el = document.getElementById('tcard-'+r.id);
+    if(el){ const ta=el.querySelector('.tcontent'); if(ta){ ta.focus(); } }
+    if(i) i.value='';
+  }catch(e){ alert('添加失败：'+(e.message||e)); }
+}
+async function toggleTodo(id){
+  const t=(cache.todos||[]).find(x=>x.id===id); if(!t) return;
+  t.done=!t.done;
+  const card=document.getElementById('tcard-'+id);
+  if(card){
+    card.classList.toggle('done', t.done);
+    const c=card.querySelector('.tcheck'); if(c) c.classList.toggle('on', t.done);
+  }
+  try{ await apiUpdate('todos', id, t); refreshTodoPending(); }
+  catch(e){ alert('更新失败：'+(e.message||e)); }
+}
+async function saveTodoField(id, field, value){
+  const t=(cache.todos||[]).find(x=>x.id===id); if(!t) return;
+  if(field==='title') t.title=value; else if(field==='deadline') t.deadline=value; else if(field==='note') t.note=value;
+  try{ await apiUpdate('todos', id, t); refreshTodoPending(); }
+  catch(e){ alert('保存失败：'+(e.message||e)); }
+}
+async function delTodo(id){
+  if(!confirm('删除这张待办卡片？')) return;
+  try{ await apiDelete('todos', id); cache.todos=(cache.todos||[]).filter(x=>x.id!==id); await render(); }
+  catch(e){ alert('删除失败：'+(e.message||e)); }
+}
+function refreshTodoPending(){
+  const list=(cache.todos||[]).filter(t=>t.date===todoDate);
+  const pending=list.filter(t=>!t.done).length;
+  const badge=document.querySelector('.card .h .muted');
+  if(badge) badge.textContent='· 待完成 '+pending;
+}
 
 /* ---------- habits ---------- */
 function lastNDays(n){ const out=[]; const d=new Date(); for(let i=n-1;i>=0;i--){ const x=new Date(d); x.setDate(d.getDate()-i); out.push(x.toISOString().slice(0,10)); } return out; }

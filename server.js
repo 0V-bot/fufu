@@ -45,6 +45,21 @@ const toFeishuDate = s => {
   const ms = Date.parse(s.includes(' ') ? s : s + ' 00:00:00');
   return isNaN(ms) ? s : ms;
 };
+// 截止时间等带时刻的字段：前端传来 "2026-08-02T14:30"（本地北京时间），
+// 飞书 datetime 字段只接受 unix 毫秒（UTC 瞬时）。按北京时间(+8)换算成正确 UTC 毫秒，
+// 这样飞书按用户时区回显就是用户输入的时刻，不会差 8 小时。
+const toFeishuDateTime = s => {
+  if (s === null || s === undefined || s === '') return null;   // 空值传 null，便于清空字段
+  if (typeof s === 'number') {                                  // 已经是飞书回传的 UTC 毫秒，先转北京时间字符串
+    const d = new Date(s + 8 * 3600 * 1000), p = n => (n < 10 ? '0' + n : '' + n);
+    s = `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+  }
+  const norm = String(s).replace('T', ' ').replace('Z', '').trim();
+  const [dp, tp = '00:00'] = norm.split(' ');
+  const p = dp.split('-').map(Number), q = tp.split(':').map(Number);
+  if (p.length < 3) return null;
+  return Date.UTC(p[0], p[1] - 1, p[2], q[0] || 0, q[1] || 0, 0) - 8 * 3600 * 1000;
+};
 const num = v => { const n = Number(v); return isNaN(n) ? 0 : n; };
 // 统一按北京时间(东八区)计算"今天"，避免服务器 UTC 时区导致待办/复盘日期差一天
 const today = () => { const d = new Date(Date.now() + 8 * 3600 * 1000), p = n => (n < 10 ? '0' + n : '' + n); return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()); };
@@ -279,7 +294,7 @@ function readRec(kind, r) {
   switch (kind) {
     case 'goals':     return { id: r.record_id, title: r['目标'], detail: r['说明'] || '', progress: num(r['进度']) };
     case 'events':    return { id: r.record_id, title: r['事项'], date: dateOnly(r['日期']), status: sel(r['状态']) || '', note: r['备注'] || '' };
-    case 'todos':     return { id: r.record_id, title: r['内容'], date: dateOnly(r['日期']), done: !!r['完成'] };
+    case 'todos':     return { id: r.record_id, title: r['内容'], date: dateOnly(r['日期']), done: !!r['完成'], deadline: r['截止时间'] || '', note: r['备注'] || '' };
     case 'cards':     return { id: r.record_id, title: r['标题'], content: r['内容'] || '', tags: r['标签'] || '' };
     case 'wisdom': {
       // 灵感库（人生灵感库）富字段映射：兼容单选/url 对象/空值不返回等情况
@@ -321,7 +336,7 @@ function writeRec(kind, o, fix) {
   switch (kind) {
     case 'goals':     return { '目标': o.title, '类型': fix, '说明': o.detail || '', '进度': num(o.progress), '状态': o.status || '进行中' };
     case 'events':    return { '事项': o.title, '日期': toFeishuDate(o.date), '状态': o.status || '计划中', '备注': o.note || '' };
-    case 'todos':     return { '内容': o.title, '日期': toFeishuDate(o.date), '完成': !!o.done };
+    case 'todos':     return { '内容': o.title, '日期': toFeishuDate(o.date), '完成': !!o.done, '截止时间': o.deadline ? toFeishuDateTime(o.deadline) : null, '备注': o.note || '' };
     case 'cards':     return { '标题': o.title, '内容': o.content, '标签': o.tags || '' };
     case 'wisdom':    return o || {};   // 灵感库详情编辑：前端已按飞书字段名组装好，直接透传
     case 'topics':    return { '选题': o.title, '平台': o.platform || '', '状态': o.status || '灵感', '备注': o.note || '' };
