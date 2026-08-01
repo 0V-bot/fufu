@@ -23,6 +23,10 @@ const INPUT_TABLE = process.env.INPUT_TABLE || 'tblxVYnQ8P49qc6Y';
 const CATEGORY_TABLE = process.env.CATEGORY_TABLE_TOKEN || 'tblfMizz0bw1juvw';
 // 年计划/月计划 表格数据源：独立的「计划表格」Base 表，以 JSON 保存整个网格（含合并单元格）
 const GRID_TABLE = process.env.GRID_TABLE || '计划表格';
+const WISH_TABLE = process.env.WISH_TABLE || '愿望清单';
+const INSP_TABLE = process.env.INSP_TABLE || '灵感记录';
+const INSP_TYPE_TABLE = process.env.INSP_TYPE_TABLE || '灵感类型';
+const INSP_TYPE_DEFAULTS = ['健康', '友情', '感情', '心理学', '女性成长', '时间管理', '精力管理', '职场', '情绪管理'];
 const ACCESS_PWD = process.env.ACCESS_PWD || '';           // 空 = 不加密
 const APP_ID = process.env.FEISHU_APP_ID || '';
 const APP_SECRET = process.env.FEISHU_APP_SECRET || '';
@@ -289,12 +293,16 @@ const SECTIONS = {
   counseling:  { table: '项目任务', kind: 'ptask',     proj: '心理咨询' },
   outfit:      { table: '项目任务', kind: 'ptask',     proj: '穿搭IP' },
   bookcorner:  { table: '精神角落', kind: 'books' },
+  wishes:      { table: WISH_TABLE, kind: 'wishes' },
+  insprec:     { table: INSP_TABLE, kind: 'insprec' },
 };
 function readRec(kind, r) {
   switch (kind) {
     case 'goals':     return { id: r.record_id, title: r['目标'], detail: r['说明'] || '', progress: num(r['进度']) };
     case 'events':    return { id: r.record_id, title: r['事项'], date: dateOnly(r['日期']), status: sel(r['状态']) || '', note: r['备注'] || '' };
     case 'todos':     return { id: r.record_id, title: r['内容'], date: dateOnly(r['日期']), done: !!r['完成'], deadline: r['截止时间'] || '', note: r['备注'] || '' };
+    case 'wishes':    return { id: r.record_id, title: r['内容'] || '', done: !!r['完成'], realized: r['实现时间'] || '' };
+    case 'insprec':   return { id: r.record_id, content: r['内容'] || '', type: sel(r['类型']) || '', date: dateOnly(r['日期']) };
     case 'cards':     return { id: r.record_id, title: r['标题'], content: r['内容'] || '', tags: r['标签'] || '' };
     case 'wisdom': {
       // 灵感库（人生灵感库）富字段映射：兼容单选/url 对象/空值不返回等情况
@@ -337,6 +345,13 @@ function writeRec(kind, o, fix) {
     case 'goals':     return { '目标': o.title, '类型': fix, '说明': o.detail || '', '进度': num(o.progress), '状态': o.status || '进行中' };
     case 'events':    return { '事项': o.title, '日期': toFeishuDate(o.date), '状态': o.status || '计划中', '备注': o.note || '' };
     case 'todos':     return { '内容': o.title, '日期': toFeishuDate(o.date), '完成': !!o.done, '截止时间': o.deadline ? toFeishuDateTime(o.deadline) : null, '备注': o.note || '' };
+    case 'wishes': {
+      const done = !!o.done;
+      // 实现时若未指定时间则取当前；取消实现则清空时间
+      const realized = done ? (o.realized ? toFeishuDateTime(o.realized) : toFeishuDateTime(new Date().toISOString().slice(0, 16).replace('T', ' '))) : null;
+      return { '内容': o.title || '', '完成': done, '实现时间': realized };
+    }
+    case 'insprec':   return { '内容': o.content || '', '类型': o.type || '', '日期': o.date ? toFeishuDate(o.date) : toFeishuDate(new Date().toISOString().slice(0, 10)) };
     case 'cards':     return { '标题': o.title, '内容': o.content, '标签': o.tags || '' };
     case 'wisdom':    return o || {};   // 灵感库详情编辑：前端已按飞书字段名组装好，直接透传
     case 'topics':    return { '选题': o.title, '平台': o.platform || '', '状态': o.status || '灵感', '备注': o.note || '' };
@@ -592,6 +607,45 @@ async function getCategory() {
   return result;
 }
 
+/* ===================== 灵感类型（飞书表维护，可自由新增） ===================== */
+let _inspTypeCache = null, _inspTypeTime = 0;
+async function ensureInspTypeTable() {
+  // 仅 OpenAPI 模式自动建表；返回 true 表示本次刚建好并种入默认类型
+  if (!USE_OPENAPI) return false;
+  const exists = await tableExists(INSP_TYPE_TABLE, BASE_TOKEN);
+  if (exists) return false;
+  await createTableOpen(INSP_TYPE_TABLE, [{ name: '类型', type: 1 }]);
+  _tableCache[BASE_TOKEN] = null;   // 清缓存，确保 tableId 重新拉取
+  for (const d of INSP_TYPE_DEFAULTS) {
+    try { await createRecord(INSP_TYPE_TABLE, { '类型': d }, BASE_TOKEN); } catch (e) { /* 忽略 */ }
+  }
+  _inspTypeCache = INSP_TYPE_DEFAULTS.slice(); _inspTypeTime = Date.now();
+  return true;
+}
+async function getInspTypes() {
+  const now = Date.now();
+  if (_inspTypeCache && now - _inspTypeTime < 3600 * 1000) return _inspTypeCache;
+  let result = [];
+  try {
+    const justCreated = await ensureInspTypeTable();
+    if (justCreated) return _inspTypeCache;          // 刚建好已含默认类型
+    const rows = await listTable(INSP_TYPE_TABLE, BASE_TOKEN);
+    const set = new Set();
+    rows.forEach(r => { const v = (r['类型'] || '').toString().trim(); if (v) set.add(v); });
+    result = Array.from(set);
+  } catch (e) { result = []; }
+  _inspTypeCache = result; _inspTypeTime = now;
+  return result;
+}
+async function addInspType(type) {
+  type = (type || '').toString().trim();
+  if (!type) return getInspTypes();
+  await ensureInspTypeTable();
+  await createRecord(INSP_TYPE_TABLE, { '类型': type }, BASE_TOKEN);
+  _inspTypeCache = null;   // 失效缓存，下次重新拉取最新列表
+  return getInspTypes();
+}
+
 /* ===================== 访问密码门 ===================== */
 function authed(req) {
   if (!ACCESS_PWD) return true;
@@ -672,6 +726,12 @@ async function route(method, url, body, res, req) {
       } catch (e) { return send(res, 200, { count: -1, error: e.message }); }
     }
     if (method === 'GET' && url === '/api/category') return send(res, 200, await getCategory());
+    if (method === 'GET' && url === '/api/insp-types') return send(res, 200, { types: await getInspTypes() });
+    if (method === 'POST' && url === '/api/insp-types') {
+      const t = (body && body.type || '').toString().trim();
+      if (!t) return send(res, 400, { error: '类型名称不能为空' });
+      return send(res, 200, { types: await addInspType(t) });
+    }
     if (method === 'GET' && url === '/api/habits') return send(res, 200, await getHabits());
     if (method === 'POST' && url === '/api/habits') return send(res, 200, await createHabit(body.name));
     if (method === 'DELETE' && (m = url.match(/^\/api\/habits\/(.+)$/))) return send(res, 200, await deleteHabit(m[1]));

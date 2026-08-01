@@ -156,6 +156,8 @@
   .tdeadline input{font-family:inherit;border:1px solid var(--line);border-radius:8px;padding:4px 7px;font-size:12px;color:#334155;background:#f8fafc;}
   .tnote{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:13px;line-height:1.55;min-height:50px;resize:vertical;background:#f8fafc;color:#334155;outline:none;}
   .tnote:focus{background:#fff;border-color:#93c5fd;}
+  .itype{border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-family:inherit;font-size:12px;color:#334155;background:#f8fafc;max-width:175px;}
+  .itype:focus{border-color:#93c5fd;background:#fff;}
 
   /* habits */
   .habit{background:#fbfcfe;border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:10px;}
@@ -307,6 +309,7 @@ const NAV = [
     {id:'annual', label:'年计划'},
     {id:'monthly', label:'月计划'},
     {id:'major', label:'重大事项'},
+    {id:'wishes', label:'愿望清单'},
     {id:'bookcorner', label:'精神角落'},
   ]},
   {id:'daily', label:'每日管理', icon:'📅', children:[
@@ -321,6 +324,7 @@ const NAV = [
     {id:'outfit', label:'穿搭IP'},
   ]},
   {id:'content', label:'灵感库', icon:'✍️', children:[
+    {id:'insprec', label:'灵感记录'},
     {id:'topics', label:'选题库'},
     {id:'publish', label:'发布记录'},
   ]},
@@ -330,7 +334,7 @@ const NAV = [
     {id:'human', label:'人性'},
     {id:'health', label:'健康'},
     {id:'psychology', label:'心理学'},
-    {id:'inspiration', label:'灵感记录'},
+    {id:'inspiration', label:'人生灵感库'},
   ]},
   {id:'articleInput', label:'每日日记', icon:'📝'},
 ];
@@ -347,7 +351,7 @@ const SECTIONS = {
   counseling:{name:'心理咨询',kind:'project',accent:'#a855f7',hint:'项目目标、任务与进度追踪。'},
   outfit:{name:'穿搭IP',kind:'project',accent:'#ec4899',hint:'项目目标、任务与进度追踪。'},
   articleInput:{name:'每日日记',kind:'article',accent:'#8b5cf6',hint:'粘贴文章内容，保存到「人生灵感库」等待 AI 分析。'},
-  inspiration:{name:'灵感记录',kind:'wisdom',accent:'#f97316',hint:'来自「人生灵感库」的完整文案资产（在飞书中维护；可删除，也可点「详情」手动编辑补充）。',readonly:true,allowDelete:true,allowEdit:true},
+  inspiration:{name:'人生灵感库',kind:'wisdom',accent:'#f97316',hint:'来自「人生灵感库」的完整文案资产（在飞书中维护；可删除，也可点「详情」手动编辑补充）。',readonly:true,allowDelete:true,allowEdit:true},
   topics:{name:'选题库',kind:'topics',accent:'#3b82f6',hint:'把灵感打磨成可发布的选题。'},
   publish:{name:'发布记录',kind:'publish',accent:'#22c55e',hint:'记录每次发布与数据反馈。'},
   wealth:{name:'财富',kind:'knowledge',accent:'#d97706',hint:'投资、理财与金钱观的沉淀。'},
@@ -356,6 +360,8 @@ const SECTIONS = {
   health:{name:'健康',kind:'knowledge',accent:'#16a34a',hint:'身体是革命的本钱。'},
   psychology:{name:'心理学',kind:'knowledge',accent:'#0891b2',hint:'认识自己，理解心智。'},
   bookcorner:{name:'精神角落',kind:'books',accent:'#0d9488',hint:'记录读过的书，沉淀阅读与思考。'},
+  wishes:{name:'愿望清单',kind:'wishes',accent:'#2563eb',hint:'把想去的地方、想做的事写下来；实现了就打勾，并记录圆梦时刻。'},
+  insprec:{name:'灵感记录',kind:'insprec',accent:'#f97316',hint:'随手记下灵光一现，选择灵感类型（9 种可选，也可自由新增），积累你的灵感库。'},
 };
 
 /* field schemas for generic list kinds */
@@ -848,6 +854,149 @@ function refreshTodoPending(){
   if(badge) badge.textContent='· 待完成 '+pending;
 }
 
+/* ---------- 愿望清单 ---------- */
+let wishArr=[];
+async function renderWishes(){
+  let arr;
+  try{ arr = await apiList('wishes'); }
+  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  wishArr = arr;
+  arr.forEach(t => { if (t.realized) t.realized = fmtDeadline(t.realized); });
+  const done = arr.filter(t=>t.done).length;
+  let html = `<div class="card">
+    <div class="h"><div class="t">愿望清单 <span class="muted" style="font-weight:500">· 已实现 ${done}/${arr.length}</span></div></div>
+    <div class="todo-grid">`;
+  if(!arr.length){ html += `<div class="empty" style="grid-column:1/-1">还没有愿望，写下你的第一个心愿吧 ✨</div>`; }
+  arr.forEach(t=>{
+    const did=t.id;
+    html += `<div class="tcard ${t.done?'done':''}" id="wcard-${did}">
+      <div class="tcard-top">
+        <div class="tcheck ${t.done?'on':''}" onclick="toggleWish('${did}')" title="已实现">✓</div>
+        <span class="muted" style="font-size:12px">${t.done?'已实现':'心愿'}</span>
+        <button class="btn danger mini" style="margin-left:auto" onclick="delWish('${did}')">删</button>
+      </div>
+      <textarea class="tcontent" placeholder="你的愿望，点击直接输入…" onblur="saveWishField('${did}','title',this.value)">${esc(t.title||'')}</textarea>
+      <div class="tdeadline"><span>🎉 实现于</span>
+        <input type="datetime-local" value="${fmtDeadline(t.realized)}" ${t.done?'':'disabled style="opacity:.5"'} onchange="saveWishField('${did}','realized',this.value)"></div>
+    </div>`;
+  });
+  html += `</div>
+    <div class="inline-add"><input id="wishInput" placeholder="写下愿望，回车添加卡片…" onkeydown="if(event.key==='Enter')addWish()"/>
+      <button class="btn" onclick="addWish()">+ 添加卡片</button></div></div>`;
+  view.innerHTML = html;
+}
+async function addWish(){
+  const i=document.getElementById('wishInput'); const v=(i?i.value:'').trim();
+  try{
+    const r = await apiCreate('wishes',{title:v,done:false,realized:''});
+    await render();
+    const el=document.getElementById('wcard-'+r.id); if(el){ const ta=el.querySelector('.tcontent'); if(ta) ta.focus(); }
+    if(i) i.value='';
+  }catch(e){ alert('添加失败：'+(e.message||e)); }
+}
+async function toggleWish(id){
+  const t=(wishArr||[]).find(x=>x.id===id); if(!t) return;
+  t.done=!t.done;
+  const card=document.getElementById('wcard-'+id);
+  if(card){
+    card.classList.toggle('done', t.done);
+    const c=card.querySelector('.tcheck'); if(c) c.classList.toggle('on', t.done);
+    const di=card.querySelector('.tdeadline input');
+    if(di){
+      di.disabled=!t.done;
+      if(t.done && !di.value){
+        const now=new Date(), p=n=>('0'+n).slice(-2);
+        di.value=`${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())}T${p(now.getHours())}:${p(now.getMinutes())}`;
+      }
+    }
+  }
+  if(t.done && !t.realized){
+    const now=new Date(), p=n=>('0'+n).slice(-2);
+    t.realized=`${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())}T${p(now.getHours())}:${p(now.getMinutes())}`;
+  }
+  try{ await apiUpdate('wishes', id, t); }
+  catch(e){ alert('更新失败：'+(e.message||e)); }
+}
+async function saveWishField(id, field, value){
+  const t=(wishArr||[]).find(x=>x.id===id); if(!t) return;
+  if(field==='title') t.title=value; else if(field==='realized') t.realized=value;
+  try{ await apiUpdate('wishes', id, t); }
+  catch(e){ alert('保存失败：'+(e.message||e)); }
+}
+async function delWish(id){
+  if(!confirm('删除这个愿望卡片？')) return;
+  try{ await apiDelete('wishes', id); wishArr=(wishArr||[]).filter(x=>x.id!==id); await render(); }
+  catch(e){ alert('删除失败：'+(e.message||e)); }
+}
+
+/* ---------- 灵感记录 ---------- */
+let inspArr=[], inspTypes=[];
+async function renderInsp(){
+  let arr, types;
+  try{ arr = await apiList('insprec'); types = (await apiJson('/insp-types')).types || []; }
+  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  inspArr = arr; inspTypes = types;
+  let html = `<div class="card">
+    <div class="h"><div class="t">灵感记录 <span class="muted" style="font-weight:500">· 共 ${arr.length} 条</span></div></div>
+    <div class="todo-grid">`;
+  if(!arr.length){ html += `<div class="empty" style="grid-column:1/-1">还没有灵感，随手记一条吧 💡</div>`; }
+  arr.forEach(t=>{
+    const did=t.id;
+    html += `<div class="tcard" id="icard-${did}">
+      <div class="tcard-top">
+        <select class="itype" onchange="saveInspField('${did}','type',this.value)">${inspOptions(t.type)}</select>
+        <button class="btn danger mini" style="margin-left:auto" onclick="delInsp('${did}')">删</button>
+      </div>
+      <textarea class="tcontent" placeholder="灵光一现，随手记录…" onblur="saveInspField('${did}','content',this.value)">${esc(t.content||'')}</textarea>
+      <div class="tdeadline"><span>📅</span><input type="date" value="${esc(t.date||'')}" onchange="saveInspField('${did}','date',this.value)"></div>
+    </div>`;
+  });
+  html += `</div>
+    <div class="inline-add"><input id="inspInput" placeholder="写下灵感，回车添加卡片…" onkeydown="if(event.key==='Enter')addInsp()"/>
+      <button class="btn" onclick="addInsp()">+ 添加卡片</button></div></div>`;
+  view.innerHTML = html;
+}
+function inspOptions(sel){
+  let opts = `<option value="">— 选择类型 —</option>`;
+  (inspTypes||[]).forEach(tp=>{ opts += `<option value="${esc(tp)}" ${tp===sel?'selected':''}>${esc(tp)}</option>`; });
+  opts += `<option value="__new__">＋ 新建类型…</option>`;
+  return opts;
+}
+async function saveInspField(id, field, value){
+  const t=(inspArr||[]).find(x=>x.id===id); if(!t) return;
+  if(field==='content') t.content=value;
+  else if(field==='date') t.date=value;
+  else if(field==='type'){
+    if(value==='__new__'){
+      const nv=prompt('输入新的灵感类型名称：');
+      if(nv && nv.trim()){
+        try{
+          const r=await apiJson('/insp-types',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:nv.trim()})});
+          inspTypes=r.types||inspTypes; t.type=nv.trim(); await apiUpdate('insprec', id, t); await render();
+        }catch(e){ alert('新建类型失败：'+(e.message||e)); }
+      }
+      return;
+    }
+    t.type=value;
+  }
+  try{ await apiUpdate('insprec', id, t); }
+  catch(e){ alert('保存失败：'+(e.message||e)); }
+}
+async function addInsp(){
+  const i=document.getElementById('inspInput'); const v=(i?i.value:'').trim();
+  try{
+    const r = await apiCreate('insprec',{content:v,type:'',date:today()});
+    await render();
+    const el=document.getElementById('icard-'+r.id); if(el){ const ta=el.querySelector('.tcontent'); if(ta) ta.focus(); }
+    if(i) i.value='';
+  }catch(e){ alert('添加失败：'+(e.message||e)); }
+}
+async function delInsp(id){
+  if(!confirm('删除这条灵感记录？')) return;
+  try{ await apiDelete('insprec', id); inspArr=(inspArr||[]).filter(x=>x.id!==id); await render(); }
+  catch(e){ alert('删除失败：'+(e.message||e)); }
+}
+
 /* ---------- habits ---------- */
 function lastNDays(n){ const out=[]; const d=new Date(); for(let i=n-1;i>=0;i--){ const x=new Date(d); x.setDate(d.getDate()-i); out.push(x.toISOString().slice(0,10)); } return out; }
 function streakOf(hist){ let s=0; const d=new Date(); for(let i=0;;i++){ const x=new Date(d); x.setDate(d.getDate()-i); const k=x.toISOString().slice(0,10); if(hist&&hist[k]) s++; else { if(i===0){ continue; } break; } } return s; }
@@ -1114,6 +1263,8 @@ async function render(){
     if(kind==='project') return await renderProject(current);
     if(kind==='article') return await renderArticle();
     if(kind==='grid') return await renderGrid(current);
+    if(kind==='wishes') return await renderWishes();
+    if(kind==='insprec') return await renderInsp();
     return await renderList(current, kind);
   }catch(e){
     view.innerHTML = `<div class="empty">⚠️ 出错了：${esc(e.message||e)}</div>`;
