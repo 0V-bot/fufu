@@ -284,6 +284,7 @@ const NAV = [
     {id:'annual', label:'年计划'},
     {id:'monthly', label:'月计划'},
     {id:'major', label:'重大事项'},
+    {id:'bookcorner', label:'精神角落'},
   ]},
   {id:'daily', label:'每日管理', icon:'📅', children:[
     {id:'todos', label:'今日待办'},
@@ -296,9 +297,7 @@ const NAV = [
     {id:'counseling', label:'心理咨询'},
     {id:'outfit', label:'穿搭IP'},
   ]},
-  {id:'content', label:'内容系统', icon:'✍️', children:[
-    {id:'articleInput', label:'文章录入'},
-    {id:'inspiration', label:'灵感库'},
+  {id:'content', label:'灵感库', icon:'✍️', children:[
     {id:'topics', label:'选题库'},
     {id:'publish', label:'发布记录'},
   ]},
@@ -308,7 +307,9 @@ const NAV = [
     {id:'human', label:'人性'},
     {id:'health', label:'健康'},
     {id:'psychology', label:'心理学'},
+    {id:'inspiration', label:'灵感记录'},
   ]},
+  {id:'articleInput', label:'每日日记', icon:'📝'},
 ];
 
 const SECTIONS = {
@@ -322,8 +323,8 @@ const SECTIONS = {
   caps:{name:'鸭舌帽',kind:'project',accent:'#14b8a6',hint:'项目目标、任务与进度追踪。'},
   counseling:{name:'心理咨询',kind:'project',accent:'#a855f7',hint:'项目目标、任务与进度追踪。'},
   outfit:{name:'穿搭IP',kind:'project',accent:'#ec4899',hint:'项目目标、任务与进度追踪。'},
-  articleInput:{name:'文章录入',kind:'article',accent:'#8b5cf6',hint:'粘贴文章原文，保存到「人生灵感库」等待 AI 分析。'},
-  inspiration:{name:'灵感库',kind:'wisdom',accent:'#f97316',hint:'来自「人生灵感库」的完整文案资产（在飞书中维护；可删除，也可点「详情」手动编辑补充）。',readonly:true,allowDelete:true,allowEdit:true},
+  articleInput:{name:'每日日记',kind:'article',accent:'#8b5cf6',hint:'粘贴文章内容，保存到「人生灵感库」等待 AI 分析。'},
+  inspiration:{name:'灵感记录',kind:'wisdom',accent:'#f97316',hint:'来自「人生灵感库」的完整文案资产（在飞书中维护；可删除，也可点「详情」手动编辑补充）。',readonly:true,allowDelete:true,allowEdit:true},
   topics:{name:'选题库',kind:'topics',accent:'#3b82f6',hint:'把灵感打磨成可发布的选题。'},
   publish:{name:'发布记录',kind:'publish',accent:'#22c55e',hint:'记录每次发布与数据反馈。'},
   wealth:{name:'财富',kind:'knowledge',accent:'#d97706',hint:'投资、理财与金钱观的沉淀。'},
@@ -331,6 +332,7 @@ const SECTIONS = {
   human:{name:'人性',kind:'knowledge',accent:'#7c3aed',hint:'洞察人性，理解关系与动机。'},
   health:{name:'健康',kind:'knowledge',accent:'#16a34a',hint:'身体是革命的本钱。'},
   psychology:{name:'心理学',kind:'knowledge',accent:'#0891b2',hint:'认识自己，理解心智。'},
+  bookcorner:{name:'精神角落',kind:'books',accent:'#0d9488',hint:'记录读过的书，沉淀阅读与思考。'},
 };
 
 /* field schemas for generic list kinds */
@@ -350,6 +352,16 @@ const SCHEMA = {
     {key:'title',label:'标题',type:'text',required:true},
     {key:'content',label:'内容',type:'textarea',required:true},
     {key:'tags',label:'标签（逗号分隔）',type:'text'},
+  ],
+  books:[
+    {key:'title',label:'书名',type:'text',required:true},
+    {key:'author',label:'作者',type:'text'},
+    {key:'category',label:'分类',type:'select',options:['小说','非虚构','工具书','传记','心理学','其他']},
+    {key:'status',label:'阅读状态',type:'select',options:['想读','在读','已读']},
+    {key:'rating',label:'评分 (0-5)',type:'number',min:0,max:5,default:0},
+    {key:'note',label:'读后感 / 笔记',type:'textarea'},
+    {key:'source',label:'来源',type:'text'},
+    {key:'date',label:'完成日期',type:'date'},
   ],
   topics:[
     {key:'title',label:'选题',type:'text',required:true},
@@ -682,7 +694,7 @@ async function delGeneric(id,itemId){ if(!confirm('确认删除？')) return; tr
 async function renderArticle(){
   view.innerHTML = `<div class="card">
     <div class="h">
-      <div class="t">文章录入</div>
+      <div class="t">每日日记</div>
       <label class="multi-toggle" title="开启后，AI 会自动把原始文案拆分成多篇文章分别分析">
         <input type="checkbox" id="aiMulti">
         <span>多篇</span>
@@ -857,9 +869,9 @@ async function renderDashboard(){
   const pend = typeof inputPending === 'number' ? inputPending : -1;
   let pendingBanner;
   if (pend > 0) {
-    pendingBanner = `<div class="pending-banner warn" onclick="go('articleInput')" title="点击前往「文章录入」">
+    pendingBanner = `<div class="pending-banner warn" onclick="go('articleInput')" title="点击前往「每日日记」">
       <div class="pb-ic">📥</div>
-      <div class="pb-txt">录入表还有 <b>${pend}</b> 条文章待分析，尚未写入「人生灵感库」。在 WorkBuddy 说「处理待分析文章」即可触发 AI 分析，或点此前往「文章录入」查看。<span class="pb-link">去处理 →</span></div>
+      <div class="pb-txt">录入表还有 <b>${pend}</b> 条文章待分析，尚未写入「人生灵感库」。在 WorkBuddy 说「处理待分析文章」即可触发 AI 分析，或点此前往「每日日记」查看。<span class="pb-link">去处理 →</span></div>
     </div>`;
   } else if (pend === 0) {
     pendingBanner = `<div class="pending-banner ok">

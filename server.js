@@ -166,25 +166,37 @@ async function deleteRecordOpen(name, rec, baseToken = BASE_TOKEN) {
 /* ===================== 后端 B：本机 lark-cli（本地回退） ===================== */
 async function larkCli(args, input, baseToken = BASE_TOKEN) {
   const parts = ['base', ...args, '--as', 'user', '--base-token', baseToken];
-  if (input) parts.push('--json', JSON.stringify(input));
+  // 注意：本机 Git Bash 经 `bash -c` 传递含中文的 --json 字符串会被破坏编码（mojibake）。
+  // 因此把 JSON 写入临时文件，再用 `@./file` 传给 lark-cli，避免命令行中文乱码。
+  let tmpFile = null;
+  if (input) {
+    tmpFile = '.lark_in_' + Date.now() + '_' + Math.floor(Math.random() * 1e6) + '.json';
+    const ser = JSON.stringify(input);
+    fs.writeFileSync(tmpFile, ser);
+    parts.push('--json', '@./' + tmpFile);
+  }
   parts.push('--format', 'json');
   const cmd = LARK_CLI + ' ' + parts.map(shellQuote).join(' ');
   let lastErr;
-  for (let i = 0; i < 5; i++) {
-    try {
-      const out = execFileSync('bash', ['-c', cmd], { encoding: 'utf8', maxBuffer: 30 * 1024 * 1024 });
-      const j = JSON.parse(out.trim());
-      if (j && j.ok === false && NET_RE.test(JSON.stringify(j.error || ''))) {
-        if (i < 4) { await sleep(400 * (i + 1)); continue; }
+  try {
+    for (let i = 0; i < 5; i++) {
+      try {
+        const out = execFileSync('bash', ['-c', cmd], { encoding: 'utf8', maxBuffer: 30 * 1024 * 1024 });
+        const j = JSON.parse(out.trim());
+        if (j && j.ok === false && NET_RE.test(JSON.stringify(j.error || ''))) {
+          if (i < 4) { await sleep(400 * (i + 1)); continue; }
+        }
+        return j;
+      } catch (e) {
+        const m = (e.stderr || e.message || '').toString();
+        if (i < 4 && NET_RE.test(m)) { await sleep(400 * (i + 1)); continue; }
+        throw new Error('lark-cli 执行失败: ' + m.slice(0, 300));
       }
-      return j;
-    } catch (e) {
-      const m = (e.stderr || e.message || '').toString();
-      if (i < 4 && NET_RE.test(m)) { await sleep(400 * (i + 1)); continue; }
-      throw new Error('lark-cli 执行失败: ' + m.slice(0, 300));
     }
+    throw lastErr;
+  } finally {
+    if (tmpFile) { try { fs.unlinkSync(tmpFile); } catch (e) {} }
   }
-  throw lastErr;
 }
 async function listTableCli(name, baseToken = BASE_TOKEN) {
   const raw = await larkCli(['+record-list', '--table-id', name], null, baseToken);
@@ -241,6 +253,7 @@ const SECTIONS = {
   caps:        { table: '项目任务', kind: 'ptask',     proj: '鸭舌帽' },
   counseling:  { table: '项目任务', kind: 'ptask',     proj: '心理咨询' },
   outfit:      { table: '项目任务', kind: 'ptask',     proj: '穿搭IP' },
+  bookcorner:  { table: '精神角落', kind: 'books' },
 };
 function readRec(kind, r) {
   switch (kind) {
@@ -280,6 +293,7 @@ function readRec(kind, r) {
     case 'publish':   return { id: r.record_id, date: dateOnly(r['日期']), platform: r['平台'] || '', title: r['标题'], link: r['链接'] || '', result: r['数据反馈'] || '' };
     case 'knowledge': return { id: r.record_id, title: r['标题'], content: r['要点'] || '', source: r['来源'] || '', tags: r['标签'] || '' };
     case 'ptask':     return { id: r.record_id, title: r['任务'], status: sel(r['状态']) || '', note: r['备注'] || '' };
+    case 'books':     return { id: r.record_id, title: r['书名'] || '', author: r['作者'] || '', category: sel(r['分类']) || '', status: sel(r['状态']) || '', rating: num(r['评分']), note: r['读后感'] || '', source: r['来源'] || '', date: dateOnly(r['日期']) };
   }
   return { id: r.record_id };
 }
@@ -294,6 +308,12 @@ function writeRec(kind, o, fix) {
     case 'publish':   return { '标题': o.title, '日期': toFeishuDate(o.date), '平台': o.platform || '', '链接': o.link || '', '数据反馈': o.result || '' };
     case 'knowledge': return { '标题': o.title, '分类': fix, '要点': o.content, '来源': o.source || '', '标签': o.tags || '' };
     case 'ptask':     return { '任务': o.title, '项目': [PROJ_MAP[fix]], '状态': o.status || '待办', '备注': o.note || '' };
+    case 'books': {
+      // 注意：单选字段（分类/状态）传空字符串会被飞书拒绝(not_found)，故空值不写入
+      const f = { '书名': o.title, '作者': o.author || '', '状态': o.status || '想读', '评分': num(o.rating), '读后感': o.note || '', '来源': o.source || '', '日期': toFeishuDate(o.date) };
+      if (o.category && String(o.category).trim()) f['分类'] = String(o.category).trim();
+      return f;
+    }
   }
   return {};
 }
@@ -482,9 +502,10 @@ function send(res, code, obj) {
 }
 function handleApi(req, res) {
   if (req.method === 'POST' || req.method === 'PUT') {
-    let body = '';
-    req.on('data', c => body += c);
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
     req.on('end', () => {
+      const body = Buffer.concat(chunks).toString('utf8');
       let json = null;
       try { json = body ? JSON.parse(body) : {}; }
       catch (e) { send(res, 400, { error: '请求体不是合法 JSON' }); return; }
