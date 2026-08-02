@@ -23,7 +23,7 @@ if ((!APP_ID || !APP_SECRET) && fs.existsSync('.env.local')) {
 const INSPIRE_BASE = process.env.INSPIRE_BASE_TOKEN || 'ARCcbggiUaFqESsV7pRcin8CnUb';
 const INPUT_TABLE = process.env.INPUT_TABLE || 'tblxVYnQ8P49qc6Y';
 const INSPIRE_TABLE = process.env.INSPIRE_TABLE || 'tblpI6WqsvA5z0CL';
-const WISDOM_TAGS = ['职场', '女性成长', '人性', '健康', '心理学', '情绪管理'];
+const WISDOM_TAGS = ['职场', '女性成长', '人性', '健康', '心理学', '情绪管理', '个人成长感悟'];
 if (!APP_ID || !APP_SECRET) { console.error('❌ 请设置 FEISHU_APP_ID / FEISHU_APP_SECRET'); process.exit(1); }
 
 const API = 'https://open.feishu.cn/open-apis';

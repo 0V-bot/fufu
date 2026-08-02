@@ -289,6 +289,7 @@ const SECTIONS = {
   health:      { table: '知识库',   kind: 'knowledge', fix: '健康' },
   psychology:  { table: '知识库',   kind: 'knowledge', fix: '心理学' },
   emotion:     { table: '知识库',   kind: 'knowledge', fix: '情绪管理' },
+  growth:      { table: '知识库',   kind: 'knowledge', fix: '个人成长感悟' },
   taobao:      { table: '项目任务', kind: 'ptask',     proj: '淘宝发圈' },
   caps:        { table: '项目任务', kind: 'ptask',     proj: '鸭舌帽' },
   counseling:  { table: '项目任务', kind: 'ptask',     proj: '心理咨询' },

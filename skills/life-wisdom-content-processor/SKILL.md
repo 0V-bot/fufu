@@ -60,7 +60,7 @@ model: deepseek-v4-flash
   - AI搜索摘要(fldiB8qIez, text) ← 第 11 步摘要
   - 内容类型(fldhc3mJWe, select单) ← 金句/观点/故事/案例/长文
   - 使用状态(fldq7JyyD8) = 未使用
-  - 标签(fldMpMR4ac, select单) ← 工作台每日日记预填（职场/女性成长/人性/健康/心理学/情绪管理）；**仅当录入表预填该值时写入**，AI 不自动生成此标签
+  - 标签(fldMpMR4ac, select单) ← 工作台每日日记预填（职场/女性成长/人性/健康/心理学/情绪管理/个人成长感悟）；**仅当录入表预填该值时写入**，AI 不自动生成此标签
   - 来源(fldWVJd7Mm) / 来源链接(fldPigeRI6) / 个人感悟(fldQboMuGd) / 版权备注(fld7dzApJn) 按需
   - ID(fld223kpIC) 自增，不写
 
@@ -78,7 +78,7 @@ model: deepseek-v4-flash
 | fldTmYhH0e | 一级分类 | select 单（14 项；来自工作台每日日记，可空） |
 | fldiYXCwaZ | 二级分类 | select 单（72 项；可空） |
 | fld2spfLLh | 三级分类 | select 单（16 项；可空） |
-| fldR1Gc84n | 标签 | select 单（职场/女性成长/人性/健康/心理学/情绪管理；可空） |
+| fldR1Gc84n | 标签 | select 单（职场/女性成长/人性/健康/心理学/情绪管理/个人成长感悟；可空） |
 - **一级分类选项（单选，14 项，必须完全匹配）**：
   ` 职场认知` / `亲密关系` / `人生感悟` / `健康管理` / `关于善良` / `女性意识觉醒` / `情绪管理` / `时间管理` / `理财意识` / `电影观后感` / `精力管理` / `终身提升的能力` / `自我认知` / `风险控制`
 
@@ -144,7 +144,7 @@ model: deepseek-v4-flash
 | fldTmYhH0e | 一级分类 | select 单（14 项；来自工作台每日日记，可空） |
 | fldiYXCwaZ | 二级分类 | select 单（72 项；可空） |
 | fld2spfLLh | 三级分类 | select 单（16 项；可空） |
-| fldR1Gc84n | 标签 | select 单（职场/女性成长/人性/健康/心理学/情绪管理；可空） |
+| fldR1Gc84n | 标签 | select 单（职场/女性成长/人性/健康/心理学/情绪管理/个人成长感悟；可空） |
 
 ### 处理流程（务必严格按步骤，避免重复写入 / 漏删）
 
@@ -288,7 +288,7 @@ AI总结：
 | fldWVJd7Mm | 来源 | text |
 | fldXo7bhjC | AI总结 | text |
 | fldYzOLln0 | 一级分类 | select 单（14 项） |
-| fldMpMR4ac | 标签 | select 单（职场/女性成长/人性/健康/心理学/情绪管理；仅录入表预填时写） |
+| fldMpMR4ac | 标签 | select 单（职场/女性成长/人性/健康/心理学/情绪管理/个人成长感悟；仅录入表预填时写） |
 
 提示：`--field-id` 传中文名会被归一化为字段 ID 返回，所以投影后务必用上表映射回中文名。
 

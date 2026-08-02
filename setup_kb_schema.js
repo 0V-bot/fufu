@@ -67,6 +67,8 @@ if (!catField) {
   else console.log('  ↺ 选项「职场」已存在');
   if (!opts.find(o => o.name === '情绪管理')) { opts.push({ name: '情绪管理' }); console.log('  + 新增选项 情绪管理'); }
   else console.log('  ↺ 选项「情绪管理」已存在');
+  if (!opts.find(o => o.name === '个人成长感悟')) { opts.push({ name: '个人成长感悟' }); console.log('  + 新增选项 个人成长感悟'); }
+  else console.log('  ↺ 选项「个人成长感悟」已存在');
   const body = { field_name: '分类', type: 3, property: { options: opts } };
   if (prop.default_value) body.property.default_value = prop.default_value;
   const r = curlJson('PUT', BASE, `/tables/${encodeURIComponent(KB_TID)}/fields/${catField.field_id}`, body);
@@ -76,7 +78,7 @@ if (!catField) {
 
 // ===== 2) 人生灵感库：新增「标签」单选字段 =====
 console.log('===== 人生灵感库：新增「标签」字段 =====');
-const TAG_OPTS = ['职场', '女性成长', '人性', '健康', '心理学', '情绪管理'];
+const TAG_OPTS = ['职场', '女性成长', '人性', '健康', '心理学', '情绪管理', '个人成长感悟'];
 const INSP_TID = /^tbl/.test(INSPIRE_TABLE) ? INSPIRE_TABLE : tidOf(INSPIRE_BASE, '人生灵感库');
 const inspFields = fieldList(INSPIRE_BASE, INSP_TID);
 if (inspFields.find(f => f.field_name === '标签')) {

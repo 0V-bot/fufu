@@ -341,6 +341,7 @@ const NAV = [
     {id:'health', label:'健康'},
     {id:'psychology', label:'心理学'},
     {id:'emotion', label:'情绪管理'},
+    {id:'growth', label:'个人成长感悟'},
   ]},
 ];
 
@@ -365,13 +366,14 @@ const SECTIONS = {
   health:{name:'健康',kind:'kbcat',accent:'#16a34a',hint:'身体是革命的本钱。'},
   psychology:{name:'心理学',kind:'kbcat',accent:'#0891b2',hint:'认识自己，理解心智。'},
   emotion:{name:'情绪管理',kind:'kbcat',accent:'#0ea5e9',hint:'识别情绪、调节状态，做自己的情绪主人。'},
+  growth:{name:'个人成长感悟',kind:'kbcat',accent:'#0d9488',hint:'关于自我成长、认知升级与人生进阶的沉淀。'},
   bookcorner:{name:'精神角落',kind:'books',accent:'#0d9488',hint:'记录读过的书，沉淀阅读与思考。'},
   wishes:{name:'愿望清单',kind:'wishes',accent:'#2563eb',hint:'把想去的地方、想做的事写下来；实现了就打勾，并记录圆梦时刻。'},
   insprec:{name:'灵感记录',kind:'insprec',accent:'#f97316',hint:'随手记下灵光一现，选择灵感类型（9 种可选，也可自由新增），积累你的灵感库。'},
 };
 
 /* 人生灵感库「标签」可选分类（与飞书「人生灵感库」表的「标签」单选字段保持一致） */
-const WISDOM_TAGS = ['职场','女性成长','人性','健康','心理学','情绪管理'];
+const WISDOM_TAGS = ['职场','女性成长','人性','健康','心理学','情绪管理','个人成长感悟'];
 
 /* field schemas for generic list kinds */
 const SCHEMA = {
@@ -675,7 +677,7 @@ function renderKbCat(sectionId, arr){
 }
 function kbSearch(sectionId, v){ kbQ[sectionId]=v; renderKbCat(sectionId, cache[sectionId]||[]); }
 function addKb(sectionId){
-  openModal('添加 · '+SECTIONS[sectionId].name, SCHEMA['kbcat'], {tags: SECTIONS[sectionId].fix}, async v=>{
+  openModal('添加 · '+SECTIONS[sectionId].name, SCHEMA['kbcat'], {tags: SECTIONS[sectionId].name}, async v=>{
     try{ await apiCreate(sectionId,v); kbQ[sectionId]=''; await render(); }catch(e){ alert('保存失败：'+(e.message||e)); }
   });
 }
@@ -1307,7 +1309,7 @@ async function renderDashboard(){
   <div class="grid cols-3" style="margin-bottom:18px">
     ${stat('🚀 项目任务', projCount, '跨 4 个项目', 'projects')}
     ${stat('✍️ 内容资产', insp+topics, '灵感 '+insp+' · 选题 '+topics, 'content')}
-    ${stat('📚 知识沉淀', knowledge, '6 大主题', 'work')}
+    ${stat('📚 知识沉淀', knowledge, '7 大主题', 'work')}
   </div>`;
 
   html += `<div class="grid cols-2">`;
