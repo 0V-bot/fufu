@@ -336,7 +336,7 @@ function readRec(kind, r) {
     }
     case 'topics':    return { id: r.record_id, title: r['选题'], platform: r['平台'] || '', status: sel(r['状态']) || '', note: r['备注'] || '' };
     case 'publish':   return { id: r.record_id, date: dateOnly(r['日期']), platform: r['平台'] || '', title: r['标题'], link: r['链接'] || '', result: r['数据反馈'] || '' };
-    case 'knowledge': return { id: r.record_id, title: r['标题'], content: r['要点'] || '', source: r['来源'] || '', tags: r['标签'] || '' };
+    case 'knowledge': return { id: r.record_id, title: r['标题'], content: r['要点'] || '', source: r['来源'] || '', tags: sel(r['标签']) || '' };
     case 'ptask':     return { id: r.record_id, title: r['任务'], status: sel(r['状态']) || '', note: r['备注'] || '' };
     case 'books':     return { id: r.record_id, title: r['书名'] || '', author: r['作者'] || '', category: sel(r['分类']) || '', status: sel(r['状态']) || '', rating: num(r['评分']), note: r['读后感'] || '', source: r['来源'] || '', date: dateOnly(r['日期']) };
   }
@@ -371,7 +371,12 @@ function writeRec(kind, o, fix) {
 }
 function passFilter(kind, r, fix) {
   if (kind === 'goals') return sel(r['类型']) === fix;
-  if (kind === 'knowledge') return sel(r['分类']) === fix;
+  if (kind === 'knowledge') {
+    // 知识库分类页：优先按「标签」字段筛选（职场/女性成长/…）；
+    // 兜底：标签为空但「分类」匹配时也展示，避免历史记录（仅填了分类、未填标签）在改版后消失
+    const tag = sel(r['标签']); const cat = sel(r['分类']);
+    return tag === fix || (!tag && cat === fix);
+  }
   if (kind === 'ptask') return linkId(r['项目']) === PROJ_MAP[fix];
   return true;
 }

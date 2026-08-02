@@ -356,12 +356,12 @@ const SECTIONS = {
   inspiration:{name:'人生灵感库',kind:'wisdom',accent:'#f97316',hint:'来自「人生灵感库」的完整文案资产（在飞书中维护；可删除，也可点「详情」手动编辑补充）。',readonly:true,allowDelete:true,allowEdit:true},
   topics:{name:'选题库',kind:'topics',accent:'#3b82f6',hint:'把灵感打磨成可发布的选题。'},
   publish:{name:'发布记录',kind:'publish',accent:'#22c55e',hint:'记录每次发布与数据反馈。'},
-  work:{name:'职场',kind:'knowledge',accent:'#d97706',hint:'职场进阶、沟通协作与职业发展的沉淀。'},
-  women:{name:'女性成长',kind:'knowledge',accent:'#db2777',hint:'独立、自信与自我实现。'},
-  human:{name:'人性',kind:'knowledge',accent:'#7c3aed',hint:'洞察人性，理解关系与动机。'},
-  health:{name:'健康',kind:'knowledge',accent:'#16a34a',hint:'身体是革命的本钱。'},
-  psychology:{name:'心理学',kind:'knowledge',accent:'#0891b2',hint:'认识自己，理解心智。'},
-  emotion:{name:'情绪管理',kind:'knowledge',accent:'#0ea5e9',hint:'识别情绪、调节状态，做自己的情绪主人。'},
+  work:{name:'职场',kind:'kbcat',accent:'#d97706',hint:'职场进阶、沟通协作与职业发展的沉淀。'},
+  women:{name:'女性成长',kind:'kbcat',accent:'#db2777',hint:'独立、自信与自我实现。'},
+  human:{name:'人性',kind:'kbcat',accent:'#7c3aed',hint:'洞察人性，理解关系与动机。'},
+  health:{name:'健康',kind:'kbcat',accent:'#16a34a',hint:'身体是革命的本钱。'},
+  psychology:{name:'心理学',kind:'kbcat',accent:'#0891b2',hint:'认识自己，理解心智。'},
+  emotion:{name:'情绪管理',kind:'kbcat',accent:'#0ea5e9',hint:'识别情绪、调节状态，做自己的情绪主人。'},
   bookcorner:{name:'精神角落',kind:'books',accent:'#0d9488',hint:'记录读过的书，沉淀阅读与思考。'},
   wishes:{name:'愿望清单',kind:'wishes',accent:'#2563eb',hint:'把想去的地方、想做的事写下来；实现了就打勾，并记录圆梦时刻。'},
   insprec:{name:'灵感记录',kind:'insprec',accent:'#f97316',hint:'随手记下灵光一现，选择灵感类型（9 种可选，也可自由新增），积累你的灵感库。'},
@@ -416,6 +416,12 @@ const SCHEMA = {
     {key:'content',label:'要点',type:'textarea',required:true},
     {key:'source',label:'来源',type:'text'},
     {key:'tags',label:'标签',type:'text'},
+  ],
+  kbcat:[
+    {key:'title',label:'标题',type:'text',required:true},
+    {key:'content',label:'要点',type:'textarea',required:true},
+    {key:'source',label:'来源',type:'text'},
+    {key:'tags',label:'标签',type:'select',options:WISDOM_TAGS},
   ],
   project:[
     {key:'title',label:'任务',type:'text',required:true},
@@ -526,6 +532,7 @@ async function renderList(sectionId, kind){
   catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
   cache[sectionId] = arr;
   if(s.kind==='wisdom') return renderWisdom(arr);
+  if(s.kind==='kbcat') return renderKbCat(sectionId, arr);
   let html = `<div class="card"><div class="h"><div class="t">${s.name}（${arr.length}）</div>`;
   if(!s.readonly) html += `<button class="btn" onclick="addGeneric('${sectionId}')">+ 添加</button>`;
   html += `</div>`;
@@ -632,6 +639,43 @@ function wisdomFiltered(arr){
 function wisdomSearch(v){ wisdomFilter.q=v; renderWisdom(cache['inspiration']||[]); }
 function wisdomSet(k,v){ wisdomFilter[k]=v; renderWisdom(cache['inspiration']||[]); }
 function wisdomReset(){ wisdomFilter={q:'',cat1:'',cat2:'',ctype:'',tag:''}; renderWisdom(cache['inspiration']||[]); }
+
+/* ---- 知识库分类页：与人生灵感库同款卡片 + 搜索，唯一区别是按「标签」预筛选各自分类 ---- */
+let kbQ = {};   // 每个分类页独立的搜索词
+function kbBody(it){
+  let h = `<div class="it-title">${esc(it.title||'(无标题)')}</div>`;
+  let chips='';
+  if(it.tags) chips += `<span class="chip tag">${esc(it.tags)}</span>`;
+  if(chips) h += `<div class="chips">${chips}</div>`;
+  if(it.content) h += `<div class="meta">${esc(it.content)}</div>`;
+  return h;
+}
+function renderKbCat(sectionId, arr){
+  const s = SECTIONS[sectionId];
+  let html = `<div class="card"><div class="h"><div class="t">${s.name}（${arr.length}）</div><button class="btn" onclick="addKb('${sectionId}')">+ 添加</button></div>`;
+  const q = (kbQ[sectionId]||'').trim().toLowerCase();
+  html += `<div class="wisdom-toolbar"><div class="search-wrap">
+      <input class="inp" id="kbQ_${sectionId}" placeholder="🔍 搜索标题 / 要点 / 来源…" value="${esc(kbQ[sectionId]||'')}" onkeydown="if(event.key==='Enter') kbSearch('${sectionId}',this.value)">
+      <button class="btn" onclick="kbSearch('${sectionId}',document.getElementById('kbQ_${sectionId}').value)">搜索</button>
+    </div><button class="btn soft mini" onclick="kbSearch('${sectionId}','')">重置</button></div>`;
+  const filtered = q ? arr.filter(it=> [it.title,it.content,it.source,it.tags].join(' ').toLowerCase().includes(q)) : arr;
+  html += `<div class="muted" style="font-size:12.5px;margin:2px 2px 12px">匹配 <b>${filtered.length}</b> / ${arr.length} 条（仅「${esc(s.name)}」标签）</div>`;
+  if(!filtered.length){ html += `<div class="empty">${q?'没有匹配的内容，换个关键词试试':'还没有内容，点击「添加」开始记录 ✨'}</div></div>`; view.innerHTML=html; return; }
+  html += '<div class="grid cols-2">';
+  filtered.forEach(it=>{
+    let inner = `<button class="btn ghost mini" onclick="editGeneric('${sectionId}','${it.id}')">详情</button>`;
+    inner += `<button class="btn danger mini" onclick="delGeneric('${sectionId}','${it.id}')">删除</button>`;
+    html += `<div class="item"><div class="ops">${inner}</div>${kbBody(it)}</div>`;
+  });
+  html += '</div></div>';
+  view.innerHTML = html;
+}
+function kbSearch(sectionId, v){ kbQ[sectionId]=v; renderKbCat(sectionId, cache[sectionId]||[]); }
+function addKb(sectionId){
+  openModal('添加 · '+SECTIONS[sectionId].name, SCHEMA['kbcat'], {tags: SECTIONS[sectionId].fix}, async v=>{
+    try{ await apiCreate(sectionId,v); kbQ[sectionId]=''; await render(); }catch(e){ alert('保存失败：'+(e.message||e)); }
+  });
+}
 
 /* 详情：展示并手动编辑/补充全部字段，保存回人生灵感库 */
 let _catCache = null;
@@ -1240,7 +1284,7 @@ async function renderDashboard(){
   <div class="grid cols-3" style="margin-bottom:18px">
     ${stat('🚀 项目任务', projCount, '跨 4 个项目', 'projects')}
     ${stat('✍️ 内容资产', insp+topics, '灵感 '+insp+' · 选题 '+topics, 'content')}
-    ${stat('📚 知识沉淀', knowledge, '5 大主题', 'knowledge')}
+    ${stat('📚 知识沉淀', knowledge, '6 大主题', 'work')}
   </div>`;
 
   html += `<div class="grid cols-2">`;
