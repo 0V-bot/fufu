@@ -233,6 +233,9 @@
   /* 灵感库详情：原始文案上移并加宽一倍（弹窗整体加宽） */
   .modal.wide{width:min(720px,100%);}
   .field.fullw textarea{min-height:220px;font-size:14px;line-height:1.7;}
+  /* 每日日记：4 个分类/标签下拉 2×2 布局 */
+  .cat-row{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;margin:6px 0 2px;}
+  .cat-row .field{margin-bottom:0;}
   .modal-ops{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;}
   .muted{color:var(--muted);}
   @media(max-width:900px){.cols-2,.cols-3{grid-template-columns:1fr;}.sidebar{display:none;}}
@@ -776,6 +779,9 @@ async function delGeneric(id,itemId){ if(!confirm('确认删除？')) return; tr
 
 /* ---------- article input ---------- */
 async function renderArticle(){
+  const cat = await getCategory();
+  const tree = cat.tree||{};
+  const sel = (k,label,opts,cur)=> `<div class="field"><label>${label}（可选）</label><select id="${k}">${optList(opts,cur)}</select></div>`;
   view.innerHTML = `<div class="card">
     <div class="h">
       <div class="t">每日日记</div>
@@ -795,14 +801,23 @@ async function renderArticle(){
       <textarea id="aiContent" rows="10" placeholder="把文章原文粘贴到这里…"></textarea>
       <label>个人感悟（可选）</label>
       <textarea id="aiReflection" rows="3" placeholder="读完这段内容，你想到什么？"></textarea>
+      <div class="cat-row">
+        ${sel('aiCat1','一级分类',cat.cat1,'')}
+        ${sel('aiCat2','二级分类',[],'')}
+        ${sel('aiCat3','三级分类',[],'')}
+        ${sel('aiTag','标签',WISDOM_TAGS,'')}
+      </div>
       <div class="form-actions">
         <button class="btn" onclick="submitArticle()">💾 保存到人生灵感库（待分析）</button>
       </div>
       <div class="hint-box">
-        <b>下一步：</b>保存后，WorkBuddy 每小时会自动处理「待分析」记录；也可直接对我说「处理待分析文章」。AI 会自动完成分类、情绪标签、关键词、AI总结、金句等字段并写回飞书。开启「多篇」时，AI 会先按文章规律拆成多条再分别分析。
+        <b>分类说明：</b>「一级 / 二级 / 三级分类」与「标签」为可选项，提前选好 AI 会直接沿用、免去重新判断；全部留空则交给 AI 自动分析。保存后，WorkBuddy 每小时会自动处理「待分析」记录，也可对我说「处理待分析文章」。开启「多篇」时，AI 会先按文章规律拆成多条再分别分析。
       </div>
     </div>
   </div>`;
+  const c1=document.getElementById('aiCat1'), c2=document.getElementById('aiCat2'), c3=document.getElementById('aiCat3');
+  c1.addEventListener('change',()=>{ c2.innerHTML=optList(Object.keys(tree[c1.value]||{}),''); c3.innerHTML=optList([],''); });
+  c2.addEventListener('change',()=>{ c3.innerHTML=optList((tree[c1.value]||{})[c2.value]||[],''); });
 }
 async function submitArticle(){
   const title = document.getElementById('aiTitle').value.trim();
@@ -811,9 +826,13 @@ async function submitArticle(){
   const content = document.getElementById('aiContent').value.trim();
   const reflection = document.getElementById('aiReflection').value.trim();
   const multi = document.getElementById('aiMulti').checked;
+  const cat1 = document.getElementById('aiCat1').value.trim();
+  const cat2 = document.getElementById('aiCat2').value.trim();
+  const cat3 = document.getElementById('aiCat3').value.trim();
+  const tag = document.getElementById('aiTag').value.trim();
   if(!content){ alert('原始文案不能为空'); return; }
   try{
-    const r = await fetch(API+'/article-input',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content,source,sourceLink,reflection,multi})});
+    const r = await fetch(API+'/article-input',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content,source,sourceLink,reflection,multi,cat1,cat2,cat3,tag})});
     const j = await r.json();
     if(!r.ok) throw new Error(j.error||'保存失败');
     alert('已保存（record_id: '+j.record_id+'）'+(multi?'，多篇模式已开启，':'，')+'请在 WorkBuddy 说「处理待分析文章」触发 AI 分析');
@@ -823,6 +842,10 @@ async function submitArticle(){
     document.getElementById('aiContent').value='';
     document.getElementById('aiReflection').value='';
     document.getElementById('aiMulti').checked=false;
+    document.getElementById('aiCat1').value='';
+    document.getElementById('aiCat2').innerHTML=optList([],'');
+    document.getElementById('aiCat3').innerHTML=optList([],'');
+    document.getElementById('aiTag').value='';
   }catch(e){ alert('保存失败：'+(e.message||e)); }
 }
 

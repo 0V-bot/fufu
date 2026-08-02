@@ -355,7 +355,18 @@ function writeRec(kind, o, fix) {
     }
     case 'insprec':   return { '内容': o.content || '', '类型': o.type || '', '日期': o.date ? toFeishuDate(o.date) : toFeishuDate(new Date().toISOString().slice(0, 10)) };
     case 'cards':     return { '标题': o.title, '内容': o.content, '标签': o.tags || '' };
-    case 'wisdom':    return o || {};   // 灵感库详情编辑：前端已按飞书字段名组装好，直接透传
+    case 'wisdom': {
+      // 灵感库位于 INSPIRE_BASE（v1 路径）：单选/多选字段前端可能以 {text} 或 [{text}] 形式提交，
+      // 这里统一拍平为字符串 / 字符串数组，避免 SingleSelectFieldConvFail。
+      const flat = v => {
+        if (v && typeof v === 'object' && !Array.isArray(v)) return (v.text !== undefined ? v.text : (v.name !== undefined ? v.name : v));
+        if (Array.isArray(v)) return v.map(flat);
+        return v;
+      };
+      const out = {};
+      Object.keys(o || {}).forEach(k => { out[k] = flat(o[k]); });
+      return out;
+    }
     case 'topics':    return { '选题': o.title, '平台': o.platform || '', '状态': o.status || '灵感', '备注': o.note || '' };
     case 'publish':   return { '标题': o.title, '日期': toFeishuDate(o.date), '平台': o.platform || '', '链接': o.link || '', '数据反馈': o.result || '' };
     case 'knowledge': return { '标题': o.title, '分类': fix, '要点': o.content, '来源': o.source || '', '标签': o.tags || '' };
@@ -409,7 +420,7 @@ async function sectionDelete(id, rec) {
 }
 
 /* ===================== 文章录入（写入「录入表」等待 skill 分析） ===================== */
-async function createPendingArticle({ title, content, source, sourceLink, reflection, multi }) {
+async function createPendingArticle({ title, content, source, sourceLink, reflection, multi, cat1, cat2, cat3, tag }) {
   const fields = {
     '文案标题': title || '',
     '原始文案': content || '',
@@ -419,6 +430,11 @@ async function createPendingArticle({ title, content, source, sourceLink, reflec
     '是否多篇': multi ? '1' : '0'
   };
   if (sourceLink && sourceLink.trim()) fields['来源链接'] = sourceLink.trim();
+  // 一级/二级/三级分类 + 标签：单选字段，INSPIRE_BASE 走 v1，单选值直接传字符串；非空才写入（非必填）
+  if (cat1 && cat1.trim()) fields['一级分类'] = cat1.trim();
+  if (cat2 && cat2.trim()) fields['二级分类'] = cat2.trim();
+  if (cat3 && cat3.trim()) fields['三级分类'] = cat3.trim();
+  if (tag && tag.trim()) fields['标签'] = tag.trim();
   const id = await createRecord(INPUT_TABLE, fields, INSPIRE_BASE);
   return id;
 }
@@ -749,9 +765,9 @@ async function route(method, url, body, res, req) {
     if (method === 'GET' && (m = url.match(/^\/api\/project\/([\w]+)$/))) return send(res, 200, await getProject(m[1]));
     if (method === 'PUT' && url === '/api/project-desc') return send(res, 200, await saveProjectDesc(body.section, body.desc));
     if (method === 'POST' && url === '/api/article-input') {
-      const { title, content, source, sourceLink, reflection, multi } = body || {};
+      const { title, content, source, sourceLink, reflection, multi, cat1, cat2, cat3, tag } = body || {};
       if (!content || !content.trim()) return send(res, 400, { error: '原始文案不能为空' });
-      const id = await createPendingArticle({ title, content, source, sourceLink, reflection, multi });
+      const id = await createPendingArticle({ title, content, source, sourceLink, reflection, multi, cat1, cat2, cat3, tag });
       return send(res, 200, { ok: true, record_id: id });
     }
     if ((m = url.match(/^\/api\/grid\/([\w]+)$/))) {
