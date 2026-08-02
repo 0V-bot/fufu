@@ -280,7 +280,7 @@ const SECTIONS = {
   monthly:     { table: GRID_TABLE, kind: 'grid',     fix: '月计划' },
   major:       { table: '重大事项', kind: 'events' },
   todos:       { table: '每日待办', kind: 'todos' },
-  inspiration: { table: INSPIRE_TABLE, kind: 'wisdom', base: INSPIRE_BASE, readonly: true, allowDelete: true },
+  inspiration: { table: INSPIRE_TABLE, kind: 'wisdom', base: INSPIRE_BASE, readonly: true, allowDelete: true, allowEdit: true },
   topics:      { table: '选题库',   kind: 'topics' },
   publish:     { table: '发布记录', kind: 'publish' },
   // 知识库分类页：数据源是「人生灵感库」（真实带标签的文案资产都在这里），按 标签 字段筛选各自分类。
@@ -300,6 +300,35 @@ const SECTIONS = {
   wishes:      { table: WISH_TABLE, kind: 'wishes' },
   insprec:     { table: INSP_TABLE, kind: 'insprec' },
 };
+// 人生灵感库 / 知识库分类页 富字段映射（两者同源「人生灵感库」表，结构完全一致）
+function readInspireFields(r) {
+  const multi = v => Array.isArray(v) ? v.map(x => x && typeof x === 'object' ? (x.text || x) : x).filter(Boolean) : [];
+  const sl = r['来源链接']; const slText = sl && typeof sl === 'object' ? (sl.text || sl.link || '') : (sl || '');
+  return {
+    id: r.record_id,
+    ID: r['ID'] || '',
+    title: r['文案标题'] || '',
+    cat1: sel(r['一级分类']) || '',
+    cat2: sel(r['二级分类']) || '',
+    cat3: sel(r['三级分类']) || '',
+    tag: sel(r['标签']) || '',
+    emotion: multi(r['情绪标签']),
+    keywords: r['关键词'] || '',
+    summary: r['AI总结'] || '',
+    quote: r['金句提炼'] || '',
+    scenes: multi(r['适用场景']),
+    rewrite: r['改写方向'] || '',
+    original: r['原始文案'] || '',
+    date: dateOnly(r['收藏日期']),
+    abstract: r['AI搜索摘要'] || '',
+    ctype: sel(r['内容类型']) || '',
+    status: sel(r['使用状态']) || '',
+    source: r['来源'] || '',
+    sourceLink: slText,
+    reflection: r['个人感悟'] || '',
+    copyright: r['版权备注'] || ''
+  };
+}
 function readRec(kind, r) {
   switch (kind) {
     case 'goals':     return { id: r.record_id, title: r['目标'], detail: r['说明'] || '', progress: num(r['进度']) };
@@ -308,38 +337,11 @@ function readRec(kind, r) {
     case 'wishes':    return { id: r.record_id, title: r['内容'] || '', done: !!r['完成'], realized: r['实现时间'] || '' };
     case 'insprec':   return { id: r.record_id, content: r['内容'] || '', type: sel(r['类型']) || '', date: dateOnly(r['日期']) };
     case 'cards':     return { id: r.record_id, title: r['标题'], content: r['内容'] || '', tags: r['标签'] || '' };
-    case 'wisdom': {
-      // 灵感库（人生灵感库）富字段映射：兼容单选/url 对象/空值不返回等情况
-      const multi = v => Array.isArray(v) ? v.map(x => x && typeof x === 'object' ? (x.text || x) : x).filter(Boolean) : [];
-      const sl = r['来源链接']; const slText = sl && typeof sl === 'object' ? (sl.text || sl.link || '') : (sl || '');
-      return {
-        id: r.record_id,
-        ID: r['ID'] || '',
-        title: r['文案标题'] || '',
-        cat1: sel(r['一级分类']) || '',
-        cat2: sel(r['二级分类']) || '',
-        cat3: sel(r['三级分类']) || '',
-        tag: sel(r['标签']) || '',
-        emotion: multi(r['情绪标签']),
-        keywords: r['关键词'] || '',
-        summary: r['AI总结'] || '',
-        quote: r['金句提炼'] || '',
-        scenes: multi(r['适用场景']),
-        rewrite: r['改写方向'] || '',
-        original: r['原始文案'] || '',
-        date: dateOnly(r['收藏日期']),
-        abstract: r['AI搜索摘要'] || '',
-        ctype: sel(r['内容类型']) || '',
-        status: sel(r['使用状态']) || '',
-        source: r['来源'] || '',
-        sourceLink: slText,
-        reflection: r['个人感悟'] || '',
-        copyright: r['版权备注'] || ''
-      };
-    }
+    case 'wisdom':    return readInspireFields(r);
     case 'topics':    return { id: r.record_id, title: r['选题'], platform: r['平台'] || '', status: sel(r['状态']) || '', note: r['备注'] || '' };
     case 'publish':   return { id: r.record_id, date: dateOnly(r['日期']), platform: r['平台'] || '', title: r['标题'], link: r['链接'] || '', result: r['数据反馈'] || '' };
-    case 'knowledge': return { id: r.record_id, title: r['文案标题'] || '', content: r['金句提炼'] || r['AI总结'] || '', source: r['来源'] || '', tags: sel(r['标签']) || '' };
+    // 知识库分类页与人生灵感库同源同结构，返回完整字段，供富详情弹窗展示/编辑
+    case 'knowledge': return readInspireFields(r);
     case 'ptask':     return { id: r.record_id, title: r['任务'], status: sel(r['状态']) || '', note: r['备注'] || '' };
     case 'books':     return { id: r.record_id, title: r['书名'] || '', author: r['作者'] || '', category: sel(r['分类']) || '', status: sel(r['状态']) || '', rating: num(r['评分']), note: r['读后感'] || '', source: r['来源'] || '', date: dateOnly(r['日期']) };
   }

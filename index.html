@@ -647,14 +647,6 @@ function wisdomReset(){ wisdomFilter={q:'',cat1:'',cat2:'',ctype:'',tag:''}; ren
 
 /* ---- 知识库分类页：与人生灵感库同款卡片 + 搜索，唯一区别是按「标签」预筛选各自分类 ---- */
 let kbQ = {};   // 每个分类页独立的搜索词
-function kbBody(it){
-  let h = `<div class="it-title">${esc(it.title||'(无标题)')}</div>`;
-  let chips='';
-  if(it.tags) chips += `<span class="chip tag">${esc(it.tags)}</span>`;
-  if(chips) h += `<div class="chips">${chips}</div>`;
-  if(it.content) h += `<div class="meta">${esc(it.content)}</div>`;
-  return h;
-}
 function renderKbCat(sectionId, arr){
   const s = SECTIONS[sectionId];
   let html = `<div class="card"><div class="h"><div class="t">${s.name}（${arr.length}）</div><button class="btn" onclick="addKb('${sectionId}')">+ 添加</button></div>`;
@@ -668,9 +660,9 @@ function renderKbCat(sectionId, arr){
   if(!filtered.length){ html += `<div class="empty">${q?'没有匹配的内容，换个关键词试试':'还没有内容，点击「添加」开始记录 ✨'}</div></div>`; view.innerHTML=html; return; }
   html += '<div class="grid cols-2">';
   filtered.forEach(it=>{
-    let inner = `<button class="btn ghost mini" onclick="editGeneric('${sectionId}','${it.id}')">详情</button>`;
+    let inner = `<button class="btn ghost mini" onclick="editWisdom('${it.id}','${sectionId}')">详情</button>`;
     inner += `<button class="btn danger mini" onclick="delGeneric('${sectionId}','${it.id}')">删除</button>`;
-    html += `<div class="item"><div class="ops">${inner}</div>${kbBody(it)}</div>`;
+    html += `<div class="item"><div class="ops">${inner}</div>${wisdomBody(it)}</div>`;
   });
   html += '</div></div>';
   view.innerHTML = html;
@@ -697,8 +689,9 @@ function optList(list, cur){
     opts.map(v=>`<option value="${esc(v)}" ${v===cur?'selected':''}>${esc(v)}</option>`)
   ).join('');
 }
-async function editWisdom(recId){
-  const all = cache['inspiration']||[];
+async function editWisdom(recId, sectionId){
+  sectionId = sectionId || 'inspiration';
+  const all = cache[sectionId] || cache['inspiration'] || [];
   const it = all.find(x=>x.id===recId); if(!it) return;
   const cat = await getCategory();
   const tree = cat.tree||{};
@@ -708,7 +701,8 @@ async function editWisdom(recId){
   const sel = (k,label,opts,cur)=> `<div class="field"><label>${label}</label><select data-k="${k}">${optList(opts,cur)}</select></div>`;
   const F = (k,label,val)=> `<div class="field"><label>${label}</label><input data-k="${k}" value="${esc(val||'')}"></div>`;
   const T = (k,label,val,cls)=> `<div class="field ${cls||''}"><label>${label}</label><textarea data-k="${k}">${esc(val||'')}</textarea></div>`;
-  modal.innerHTML = `<h3>编辑 · 人生灵感库</h3>
+  const secName = (SECTIONS[sectionId] && SECTIONS[sectionId].name) || '人生灵感库';
+  modal.innerHTML = `<h3>编辑 · ${secName}</h3>
     ${F('title','文案标题',it.title)}
     ${T('original','原始文案',it.original,'fullw')}
     ${sel('cat1','一级分类',cat.cat1,cur1)}
