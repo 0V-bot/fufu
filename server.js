@@ -283,13 +283,15 @@ const SECTIONS = {
   inspiration: { table: INSPIRE_TABLE, kind: 'wisdom', base: INSPIRE_BASE, readonly: true, allowDelete: true },
   topics:      { table: '选题库',   kind: 'topics' },
   publish:     { table: '发布记录', kind: 'publish' },
-  work:        { table: '知识库',   kind: 'knowledge', fix: '职场' },
-  women:       { table: '知识库',   kind: 'knowledge', fix: '女性成长' },
-  human:       { table: '知识库',   kind: 'knowledge', fix: '人性' },
-  health:      { table: '知识库',   kind: 'knowledge', fix: '健康' },
-  psychology:  { table: '知识库',   kind: 'knowledge', fix: '心理学' },
-  emotion:     { table: '知识库',   kind: 'knowledge', fix: '情绪管理' },
-  growth:      { table: '知识库',   kind: 'knowledge', fix: '个人成长感悟' },
+  // 知识库分类页：数据源是「人生灵感库」（真实带标签的文案资产都在这里），按 标签 字段筛选各自分类。
+  // （早期曾用独立的「知识库」表，但用户的标签数据实际落在人生灵感库，故统一改读此处。）
+  work:        { table: INSPIRE_TABLE, base: INSPIRE_BASE, kind: 'knowledge', fix: '职场' },
+  women:       { table: INSPIRE_TABLE, base: INSPIRE_BASE, kind: 'knowledge', fix: '女性成长' },
+  human:       { table: INSPIRE_TABLE, base: INSPIRE_BASE, kind: 'knowledge', fix: '人性' },
+  health:      { table: INSPIRE_TABLE, base: INSPIRE_BASE, kind: 'knowledge', fix: '健康' },
+  psychology:  { table: INSPIRE_TABLE, base: INSPIRE_BASE, kind: 'knowledge', fix: '心理学' },
+  emotion:     { table: INSPIRE_TABLE, base: INSPIRE_BASE, kind: 'knowledge', fix: '情绪管理' },
+  growth:      { table: INSPIRE_TABLE, base: INSPIRE_BASE, kind: 'knowledge', fix: '个人成长感悟' },
   taobao:      { table: '项目任务', kind: 'ptask',     proj: '淘宝发圈' },
   caps:        { table: '项目任务', kind: 'ptask',     proj: '鸭舌帽' },
   counseling:  { table: '项目任务', kind: 'ptask',     proj: '心理咨询' },
@@ -337,7 +339,7 @@ function readRec(kind, r) {
     }
     case 'topics':    return { id: r.record_id, title: r['选题'], platform: r['平台'] || '', status: sel(r['状态']) || '', note: r['备注'] || '' };
     case 'publish':   return { id: r.record_id, date: dateOnly(r['日期']), platform: r['平台'] || '', title: r['标题'], link: r['链接'] || '', result: r['数据反馈'] || '' };
-    case 'knowledge': return { id: r.record_id, title: r['标题'], content: r['要点'] || '', source: r['来源'] || '', tags: sel(r['标签']) || '' };
+    case 'knowledge': return { id: r.record_id, title: r['文案标题'] || '', content: r['金句提炼'] || r['AI总结'] || '', source: r['来源'] || '', tags: sel(r['标签']) || '' };
     case 'ptask':     return { id: r.record_id, title: r['任务'], status: sel(r['状态']) || '', note: r['备注'] || '' };
     case 'books':     return { id: r.record_id, title: r['书名'] || '', author: r['作者'] || '', category: sel(r['分类']) || '', status: sel(r['状态']) || '', rating: num(r['评分']), note: r['读后感'] || '', source: r['来源'] || '', date: dateOnly(r['日期']) };
   }
@@ -370,7 +372,7 @@ function writeRec(kind, o, fix) {
     }
     case 'topics':    return { '选题': o.title, '平台': o.platform || '', '状态': o.status || '灵感', '备注': o.note || '' };
     case 'publish':   return { '标题': o.title, '日期': toFeishuDate(o.date), '平台': o.platform || '', '链接': o.link || '', '数据反馈': o.result || '' };
-    case 'knowledge': return { '标题': o.title, '分类': fix, '要点': o.content, '来源': o.source || '', '标签': o.tags || '' };
+    case 'knowledge': return { '文案标题': o.title, '标签': o.tags || '', '来源': o.source || '', 'AI总结': o.content || '' };
     case 'ptask':     return { '任务': o.title, '项目': [PROJ_MAP[fix]], '状态': o.status || '待办', '备注': o.note || '' };
     case 'books': {
       // 注意：单选字段（分类/状态）传空字符串会被飞书拒绝(not_found)，故空值不写入
@@ -511,7 +513,7 @@ async function getDashboard() {
   const projCount = (await listTable('项目任务')).length;
   const insp = (await listTable(INSPIRE_TABLE, INSPIRE_BASE)).length;
   const topics = (await listTable('选题库')).length;
-  const knowledge = (await listTable('知识库')).length;
+  const knowledge = (await listTable(INSPIRE_TABLE, INSPIRE_BASE)).length;
   // 录入表（文章录入）里尚未被 skill 分析写入「人生灵感库」的待处理条数
   const inputPending = (await listTable(INPUT_TABLE, INSPIRE_BASE)).length;
   return { todayTodos, todoPending: todayTodos.filter(x => !x.done).length, habits, major, projCount, insp, topics, knowledge, inputPending };
