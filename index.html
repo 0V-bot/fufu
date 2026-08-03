@@ -163,6 +163,23 @@
   .itype{border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-family:inherit;font-size:12px;color:#334155;background:#f8fafc;max-width:175px;}
   .itype:focus{border-color:#93c5fd;background:#fff;}
 
+  /* 愿望清单（列表式：输入框 + 许愿按钮 + 每行愿望 + 勾选实现） */
+  .wish-add{display:flex;gap:9px;margin-top:4px;}
+  .wish-add input{flex:1;border:1px solid var(--line);border-radius:10px;padding:11px 14px;font-size:14px;font-family:inherit;outline:none;background:#fff;}
+  .wish-add input:focus{border-color:var(--brand);}
+  .btn.primary{background:var(--brand);color:#fff;border:none;}
+  .btn.primary:hover{filter:brightness(1.05);}
+  .wish-list{margin-top:14px;display:flex;flex-direction:column;}
+  .wish-item{display:flex;align-items:center;gap:11px;padding:9px 6px;border-radius:10px;transition:background .12s;}
+  .wish-item:hover{background:#f8fafc;}
+  .wish-check{width:18px;height:18px;flex:0 0 auto;cursor:pointer;accent-color:var(--brand);margin:0;}
+  .wish-text{flex:1;font-size:15px;color:#0f172a;line-height:1.5;word-break:break-word;}
+  .wish-item.done .wish-text{text-decoration:line-through;color:#94a3b8;}
+  .wish-date{flex:0 0 auto;font-size:12px;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:999px;padding:3px 10px;white-space:nowrap;}
+  .wish-del{flex:0 0 auto;opacity:0;border:none;background:transparent;color:#cbd5e1;font-size:19px;cursor:pointer;line-height:1;padding:0 6px 2px;border-radius:6px;transition:.12s;}
+  .wish-item:hover .wish-del{opacity:1;}
+  .wish-del:hover{color:#dc2626;background:#fee2e2;}
+
   /* habits */
   .habit{background:#fbfcfe;border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:10px;}
   .habit .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
@@ -1003,7 +1020,7 @@ function refreshTodoPending(){
   if(badge) badge.textContent='· 待完成 '+pending;
 }
 
-/* ---------- 愿望清单 ---------- */
+/* ---------- 愿望清单（列表式：输入框 + 许愿按钮 + 每行愿望 + 勾选实现） ---------- */
 let wishArr=[];
 async function renderWishes(){
   let arr;
@@ -1014,67 +1031,66 @@ async function renderWishes(){
   const done = arr.filter(t=>t.done).length;
   let html = `<div class="card">
     <div class="h"><div class="t">愿望清单 <span class="muted" style="font-weight:500">· 已实现 ${done}/${arr.length}</span></div></div>
-    <div class="todo-grid">`;
-  if(!arr.length){ html += `<div class="empty" style="grid-column:1/-1">还没有愿望，写下你的第一个心愿吧 ✨</div>`; }
+    <div class="wish-add">
+      <input id="wishInput" placeholder="写下你的愿望，点「许愿」记录到清单…" onkeydown="if(event.key==='Enter')addWish()" />
+      <button class="btn primary" onclick="addWish()">许愿</button>
+    </div>
+    <div class="wish-list">`;
+  if(!arr.length){ html += `<div class="empty">还没有愿望，写下你的第一个心愿吧 ✨</div>`; }
   arr.forEach(t=>{
     const did=t.id;
-    html += `<div class="tcard ${t.done?'done':''}" id="wcard-${did}">
-      <div class="tcard-top">
-        <div class="tcheck ${t.done?'on':''}" onclick="toggleWish('${did}')" title="已实现">✓</div>
-        <span class="muted" style="font-size:12px">${t.done?'已实现':'心愿'}</span>
-        <button class="btn danger mini" style="margin-left:auto" onclick="delWish('${did}')">删</button>
-      </div>
-      <textarea class="tcontent" placeholder="你的愿望，点击直接输入…" onblur="saveWishField('${did}','title',this.value)">${esc(t.title||'')}</textarea>
-      <div class="tdeadline"><span>🎉 实现于</span>
-        <input type="datetime-local" value="${fmtDeadline(t.realized)}" ${t.done?'':'disabled style="opacity:.5"'} onchange="saveWishField('${did}','realized',this.value)"></div>
+    const rtext = t.realized ? `<span class="wish-date">实现于 ${t.realized.replace('T',' ')}</span>` : '';
+    html += `<div class="wish-item ${t.done?'done':''}" id="wish-${did}">
+      <input type="checkbox" class="wish-check" ${t.done?'checked':''} onchange="toggleWish('${did}')" title="已实现">
+      <span class="wish-text">${esc(t.title||'')}</span>
+      ${rtext}
+      <button class="wish-del" onclick="delWish('${did}')" title="删除">×</button>
     </div>`;
   });
-  html += `</div>
-    <div class="inline-add"><input id="wishInput" placeholder="写下愿望，回车添加卡片…" onkeydown="if(event.key==='Enter')addWish()"/>
-      <button class="btn" onclick="addWish()">+ 添加卡片</button></div></div>`;
+  html += `</div></div>`;
   view.innerHTML = html;
 }
 async function addWish(){
   const i=document.getElementById('wishInput'); const v=(i?i.value:'').trim();
+  if(!v){ if(i) i.focus(); return; }
   try{
     const r = await apiCreate('wishes',{title:v,done:false,realized:''});
-    await render();
-    const el=document.getElementById('wcard-'+r.id); if(el){ const ta=el.querySelector('.tcontent'); if(ta) ta.focus(); }
-    if(i) i.value='';
-  }catch(e){ alert('添加失败：'+(e.message||e)); }
+    if(!wishArr) wishArr=[];
+    wishArr.push({id:r.id,title:v,done:false,realized:''});
+    await renderWishes();
+  }catch(e){ alert('许愿失败：'+(e.message||e)); }
 }
 async function toggleWish(id){
   const t=(wishArr||[]).find(x=>x.id===id); if(!t) return;
   t.done=!t.done;
-  const card=document.getElementById('wcard-'+id);
-  if(card){
-    card.classList.toggle('done', t.done);
-    const c=card.querySelector('.tcheck'); if(c) c.classList.toggle('on', t.done);
-    const di=card.querySelector('.tdeadline input');
-    if(di){
-      di.disabled=!t.done;
-      if(t.done && !di.value){
-        const now=new Date(), p=n=>('0'+n).slice(-2);
-        di.value=`${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())}T${p(now.getHours())}:${p(now.getMinutes())}`;
+  const item=document.getElementById('wish-'+id);
+  if(t.done){
+    // 打勾实现：记录当前北京时间（由服务端换算成飞书时间戳），就地更新 DOM 不打断操作
+    const now=new Date(), p=n=>('0'+n).slice(-2);
+    const local=`${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())}T${p(now.getHours())}:${p(now.getMinutes())}`;
+    t.realized=local;
+    if(item){
+      item.classList.add('done');
+      if(!item.querySelector('.wish-date')){
+        const span=document.createElement('span');
+        span.className='wish-date';
+        span.textContent='实现于 '+local.replace('T',' ');
+        item.insertBefore(span, item.querySelector('.wish-del'));
       }
     }
-  }
-  if(t.done && !t.realized){
-    const now=new Date(), p=n=>('0'+n).slice(-2);
-    t.realized=`${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())}T${p(now.getHours())}:${p(now.getMinutes())}`;
+  }else{
+    t.realized='';   // 取消实现：清空实现时间
+    if(item){
+      item.classList.remove('done');
+      const ds=item.querySelector('.wish-date'); if(ds) ds.remove();
+    }
   }
   try{ await apiUpdate('wishes', id, t); }
   catch(e){ alert('更新失败：'+(e.message||e)); }
 }
-async function saveWishField(id, field, value){
-  const t=(wishArr||[]).find(x=>x.id===id); if(!t) return;
-  if(field==='title') t.title=value; else if(field==='realized') t.realized=value;
-  try{ await apiUpdate('wishes', id, t); }
-  catch(e){ alert('保存失败：'+(e.message||e)); }
-}
 async function delWish(id){
-  if(!confirm('删除这个愿望卡片？')) return;
-  try{ await apiDelete('wishes', id); wishArr=(wishArr||[]).filter(x=>x.id!==id); await render(); }
+  if(!confirm('删除这个愿望？')) return;
+  try{ await apiDelete('wishes', id); wishArr=(wishArr||[]).filter(x=>x.id!==id); await renderWishes(); }
   catch(e){ alert('删除失败：'+(e.message||e)); }
 }
 
