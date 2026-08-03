@@ -312,21 +312,17 @@ function readInspireFields(r) {
     cat2: sel(r['二级分类']) || '',
     cat3: sel(r['三级分类']) || '',
     tag: sel(r['标签']) || '',
-    emotion: multi(r['情绪标签']),
     keywords: r['关键词'] || '',
     summary: r['AI总结'] || '',
     quote: r['金句提炼'] || '',
-    scenes: multi(r['适用场景']),
-    rewrite: r['改写方向'] || '',
     original: r['原始文案'] || '',
     date: dateOnly(r['收藏日期']),
     abstract: r['AI搜索摘要'] || '',
     ctype: sel(r['内容类型']) || '',
-    status: sel(r['使用状态']) || '',
+    status: sel(r['是否整理']) || '',
     source: r['来源'] || '',
     sourceLink: slText,
-    reflection: r['个人感悟'] || '',
-    copyright: r['版权备注'] || ''
+    reflection: r['个人感悟'] || ''
   };
 }
 function readRec(kind, r) {
@@ -400,7 +396,7 @@ function passFilter(kind, r, fix) {
 /* ===================== 通用 section CRUD ===================== */
 // 灵感库类板块列表所需字段（列表只取这些轻量字段，避免整篇「原始文案」拖慢首屏；
 // 单条详情接口再单独取全字段）。排序一律按「索引 ID(record_id) 倒序」判断最新。
-const INSPIRE_LIST_FIELDS = ['ID', '文案标题', '一级分类', '二级分类', '三级分类', '分类', '标签', '情绪标签', '内容类型', '金句提炼', 'AI总结', '关键词', '使用状态', '来源', '收藏日期'];
+const INSPIRE_LIST_FIELDS = ['ID', '文案标题', '一级分类', '二级分类', '三级分类', '分类', '标签', '内容类型', '金句提炼', 'AI总结', '关键词', '是否整理', '来源', '收藏日期'];
 const _rawCache = {};   // `${base}::${table}` -> { ts, rows }（raw 记录，按 record_id 倒序）
 async function getInspireRows(base, table) {
   const key = base + '::' + table;
@@ -431,7 +427,7 @@ async function getInspireRows(base, table) {
 }
 // 列表输出瘦身：只回传卡片展示所需的轻量字段
 function slimInsp(it) {
-  const keep = ['id', 'ID', 'title', 'cat1', 'cat2', 'cat3', 'tag', 'emotion', 'quote', 'summary', 'keywords', 'ctype', 'date', 'status', 'source'];
+  const keep = ['id', 'ID', 'title', 'cat1', 'cat2', 'cat3', 'tag', 'quote', 'summary', 'keywords', 'ctype', 'date', 'status', 'source'];
   const o = {};
   keep.forEach(k => { o[k] = it[k]; });
   return o;
@@ -465,6 +461,7 @@ async function sectionList(id, opts) {
   if (opts.cat2) list = list.filter(it => it.cat2 === opts.cat2);
   if (opts.tag) list = list.filter(it => it.tag === opts.tag);
   if (opts.ctype) list = list.filter(it => it.ctype === opts.ctype);
+  if (opts.status) list = list.filter(it => it.status === opts.status);
   const total = list.length;
   const pageSize = Math.min(100, Math.max(1, Number(opts.pageSize) || 20));
   const page = Math.max(1, Number(opts.page) || 1);
@@ -538,7 +535,7 @@ async function createDirectArticle({ title, content, source, sourceLink, reflect
     '来源': source || '',
     '个人感悟': reflection || '',
     '收藏日期': toFeishuDate(new Date().toISOString().slice(0, 10)),
-    '使用状态': '未使用'
+    '是否整理': '未整理'
   };
   if (sourceLink && sourceLink.trim()) fields['来源链接'] = sourceLink.trim();
   // 单选字段（一级/二级/三级分类、标签、内容类型）：空值不写入，否则飞书 SingleSelectFieldConvFail「must be a string」
@@ -969,7 +966,7 @@ async function route(method, url, body, res, req) {
         const u = new URL(req.url, 'http://localhost');
         const opts = {
           q: u.searchParams.get('q') || '', cat1: u.searchParams.get('cat1') || '', cat2: u.searchParams.get('cat2') || '',
-          tag: u.searchParams.get('tag') || '', ctype: u.searchParams.get('ctype') || '',
+          tag: u.searchParams.get('tag') || '', ctype: u.searchParams.get('ctype') || '', status: u.searchParams.get('status') || '',
           page: u.searchParams.get('page'), pageSize: u.searchParams.get('pageSize')
         };
         return send(res, 200, await sectionList(id, opts));

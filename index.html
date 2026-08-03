@@ -650,7 +650,6 @@ function wisdomBody(it, q){
   let chips = '';
   if(it.cat1) chips += `<span class="chip cat">${esc(it.cat1)}</span>`;
   if(it.tag) chips += `<span class="chip tag">${esc(it.tag)}</span>`;
-  (it.emotion||[]).forEach(c=> chips += `<span class="chip emo">${esc(c)}</span>`);
   if(it.ctype) chips += `<span class="chip type">${esc(it.ctype)}</span>`;
   if(chips) h += `<div class="chips">${chips}</div>`;
   if(it.quote) h += `<div class="quote">“${hl(it.quote, q)}”</div>`;
@@ -664,7 +663,7 @@ const PG_SIZE = 20;
 const pgState = {};   // sectionId -> {page,loading,done,q,cat1,cat2,tag,ctype,items,total,hasMore,facets}
 let _infiniteScrollFn = null;
 function pgGet(sectionId){
-  if(!pgState[sectionId]) pgState[sectionId] = {page:0,loading:false,done:false,q:'',cat1:'',cat2:'',tag:'',ctype:'',items:[],total:0,hasMore:false,facets:{}};
+  if(!pgState[sectionId]) pgState[sectionId] = {page:0,loading:false,done:false,q:'',cat1:'',cat2:'',tag:'',ctype:'',status:'',items:[],total:0,hasMore:false,facets:{}};
   return pgState[sectionId];
 }
 async function fetchInspPage(sectionId, page){
@@ -675,6 +674,7 @@ async function fetchInspPage(sectionId, page){
   if(st.cat2) p.set('cat2', st.cat2);
   if(st.tag)  p.set('tag', st.tag);
   if(st.ctype) p.set('ctype', st.ctype);
+  if(st.status) p.set('status', st.status);
   return await apiJson('/section/'+sectionId+'?'+p.toString());
 }
 async function renderInspirationSection(sectionId){
@@ -708,6 +708,7 @@ function inspToolbar(sectionId){
     <select onchange="inspSet('${sectionId}','cat2',this.value)">${opt('cat2',st.cat2)}</select>
     <select onchange="inspSet('${sectionId}','tag',this.value)">${opt('tag',st.tag)}</select>
     <select onchange="inspSet('${sectionId}','ctype',this.value)">${opt('ctype',st.ctype)}</select>
+    ${sectionId==='inspiration' ? `<select onchange="inspSet('${sectionId}','status',this.value)"><option value="">是否整理：全部</option><option value="未整理" ${st.status==='未整理'?'selected':''}>未整理</option><option value="已整理" ${st.status==='已整理'?'selected':''}>已整理</option></select>` : ''}
     <button class="btn soft mini" onclick="inspReset('${sectionId}')">重置</button>
   </div>`;
 }
@@ -764,7 +765,7 @@ function setupInspScroll(sectionId){
 }
 function inspSearch(sectionId, v){ const st=pgGet(sectionId); st.q=(v||'').trim(); renderInspirationSection(sectionId); }
 function inspSet(sectionId, k, v){ const st=pgGet(sectionId); st[k]=v; renderInspirationSection(sectionId); }
-function inspReset(sectionId){ const st=pgGet(sectionId); st.q='';st.cat1='';st.cat2='';st.tag='';st.ctype=''; renderInspirationSection(sectionId); }
+function inspReset(sectionId){ const st=pgGet(sectionId); st.q='';st.cat1='';st.cat2='';st.tag='';st.ctype='';st.status=''; renderInspirationSection(sectionId); }
 function addKb(sectionId){
   openModal('添加 · '+SECTIONS[sectionId].name, SCHEMA['kbcat'], {tags: SECTIONS[sectionId].name}, async v=>{
     try{ await apiCreate(sectionId,v); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); }
@@ -808,20 +809,16 @@ async function editWisdom(recId, sectionId){
     ${sel('cat2','二级分类',list2,cur2)}
     ${sel('cat3','三级分类',list3,cur3)}
     ${sel('tag','标签',WISDOM_TAGS,it.tag)}
-    ${F('emotion','情绪标签（逗号分隔）',(it.emotion||[]).join('，'))}
     ${F('ctype','内容类型',it.ctype)}
-    ${F('scenes','适用场景（逗号分隔）',(it.scenes||[]).join('，'))}
     ${F('keywords','关键词',it.keywords)}
-    ${sel('status','使用状态',['未使用','已使用'],it.status)}
+    ${sel('status','是否整理',['未整理','已整理'],it.status)}
     ${F('date','收藏日期',it.date)}
     ${F('source','来源',it.source)}
     ${F('sourceLink','来源链接',it.sourceLink)}
     ${T('summary','AI 总结',it.summary)}
     ${T('quote','金句提炼',it.quote)}
     ${T('abstract','AI 搜索摘要',it.abstract)}
-    ${T('rewrite','改写方向',it.rewrite)}
     ${T('reflection','个人感悟',it.reflection)}
-    ${F('copyright','版权备注',it.copyright)}
     <div class="modal-ops">
       <button class="btn soft" onclick="closeModal()">取消</button>
       <button class="btn" onclick="saveWisdom('${recId}')">保存</button>
@@ -846,11 +843,9 @@ async function saveWisdom(recId){
     '二级分类': sel(g('cat2')),
     '三级分类': sel(g('cat3')),
     '标签': sel(g('tag')),
-    '情绪标签': msel(splitList(g('emotion'))),
     '内容类型': sel(g('ctype')),
-    '适用场景': msel(splitList(g('scenes'))),
     '关键词': g('keywords'),
-    '使用状态': sel(g('status')),
+    '是否整理': sel(g('status')),
     '收藏日期': g('date') ? g('date') : null,
     '来源': g('source'),
     '来源链接': g('sourceLink'),
@@ -858,9 +853,7 @@ async function saveWisdom(recId){
     '金句提炼': g('quote'),
     '原始文案': g('original'),
     'AI搜索摘要': g('abstract'),
-    '改写方向': g('rewrite'),
-    '个人感悟': g('reflection'),
-    '版权备注': g('copyright')
+    '个人感悟': g('reflection')
   };
   try{ await apiUpdate('inspiration', recId, fields); closeModal(); await render(); }
   catch(e){ alert('保存失败：'+(e.message||e)); }

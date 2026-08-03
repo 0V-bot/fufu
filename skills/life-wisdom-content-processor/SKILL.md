@@ -29,13 +29,11 @@ model: deepseek-v4-flash
 3. **判断一级分类** —— 14 选 1（见下，必须匹配现有选项）。
 4. **判断二级分类** —— 在一级分类下选择最贴切的 1 个（单选，受飞书现有 73 项约束；不能同时选多个）。
 5. **判断三级分类** —— 在二级分类有 predefined 三级选项时选 1 个，没有时**留空不填**（单选，16 项；不要强行生成）。
-6. **提取情绪标签** —— 可多个（受飞书现有 10 项约束）。
-7. **提取关键词** —— 3–6 个，便于检索。
-8. **AI总结** —— 深度拆解：作者真实意图 / 底层心智模型 / 成立条件与边界 / 与已有内容关联。
-9. **提炼传播金句** —— 1–3 句，标注「可直接引用 / 需改写」。
-10. **判断适用场景** —— 小红书笔记 / 短视频口播 / 直播话术 / 公众号文章 / 心理咨询素材 / 课程内容 / 朋友圈表达 / 个人IP故事 / 商业演讲（多选，受 9 项约束）。
-11. **生成 AI搜索摘要**（新增字段）—— 1–2 句、搜索友好的浓缩摘要，覆盖核心主题 + 角度 + 可检索词，让未来查询能命中。
-12. **判断内容类型**（新增字段）—— 金句 / 观点 / 故事 / 案例 / 长文（单选）。
+6. **提取关键词** —— 3–6 个，便于检索。
+7. **AI总结** —— 深度拆解：作者真实意图 / 底层心智模型 / 成立条件与边界 / 与已有内容关联。
+8. **提炼传播金句** —— 1–3 句，标注「可直接引用 / 需改写」。
+9. **生成 AI搜索摘要**（新增字段）—— 1–2 句、搜索友好的浓缩摘要，覆盖核心主题 + 角度 + 可检索词，让未来查询能命中。
+10. **判断内容类型**（新增字段）—— 金句 / 观点 / 故事 / 案例 / 长文（单选）。
 
 ### 飞书写入
 
@@ -49,19 +47,16 @@ model: deepseek-v4-flash
   - 一级分类(fldYzOLln0, select单) ← 必须匹配 14 个现有选项之一
   - 二级分类(fldjxB6aOm, select单) ← 必须匹配 73 个现有选项之一，**只选一个**
   - 三级分类(fldhSzPhMw, select单) ← 有 predefined 选项时填 1 个，否则**留空**
-  - 情绪标签(fldIJSg0lT, select多) ← 须匹配现有项
   - 关键词(fldwcXWcUA, text) ← 关键词
   - AI总结(fldXo7bhjC, text) ← AI总结
   - 金句提炼(fldSEhpTvk, text) ← 核心金句
-  - 适用场景(fldPLnK0EP, select多) ← 须匹配现有项
-  - 改写方向(fld6ixf6cC, text) ← 未来创作方向
   - 原始文案(fld76TEiND, text) ← 原文
   - 收藏日期(fldnxTFsmi, datetime) ← `YYYY-MM-DD HH:mm:ss`
-  - AI搜索摘要(fldiB8qIez, text) ← 第 11 步摘要
+  - AI搜索摘要(fldiB8qIez, text) ← 第 9 步摘要
   - 内容类型(fldhc3mJWe, select单) ← 金句/观点/故事/案例/长文
-  - 使用状态(fldq7JyyD8) = 未使用
+  - 是否整理(fldq7JyyD8) = 未整理
   - 标签(fldMpMR4ac, select单) ← 工作台每日日记预填（职场/女性成长/人性/健康/心理学/情绪管理/个人成长感悟）；**仅当录入表预填该值时写入**，AI 不自动生成此标签
-  - 来源(fldWVJd7Mm) / 来源链接(fldPigeRI6) / 个人感悟(fldQboMuGd) / 版权备注(fld7dzApJn) 按需
+  - 来源(fldWVJd7Mm) / 来源链接(fldPigeRI6) / 个人感悟(fldQboMuGd) 按需
   - ID(fld223kpIC) 自增，不写
 
 ### 录入表字段映射（工作台 → 录入表）
@@ -170,7 +165,7 @@ model: deepseek-v4-flash
      4. **确认创建成功后，立即用 `+record-delete` 删除本条原始记录**（不要等全部处理完再删）。
    - **若「是否多篇」= "0" / 空 / 不存在**：
      1. 对该条「原始文案」执行【收藏流程】12 步；标题为空则自动生成。
-     2. 用 `+record-batch-create` 在「人生灵感库」创建**恰好 1 条**记录（使用状态 = 未使用）。
+     2. 用 `+record-batch-create` 在「人生灵感库」创建**恰好 1 条**记录（是否整理 = 未整理）。
      3. **确认创建成功后，立即删除本条原始记录**。
 
 2. **收尾强制对账（关键！防止漏删残留）**：
@@ -189,15 +184,15 @@ model: deepseek-v4-flash
 
 当用户提出寻找需求：
 
-**第一步：理解真实需求。** 拆解意图——目标一级分类 / 二级分类 / 情绪标签 / 关键词 / 情绪诉求。
-- 例："找让我减少焦虑的内容" → 情绪标签 `治愈`/`释然`、二级分类 `积极心态看问题` / `快速翻篇的能力`、或 AI总结/AI搜索摘要 中涉及缓解焦虑。
+**第一步：理解真实需求。** 拆解意图——目标一级分类 / 二级分类 / 关键词 / 情绪诉求。
+- 例："找让我减少焦虑的内容" → 二级分类 `积极心态看问题` / `快速翻篇的能力`、或 AI总结/AI搜索摘要 中涉及缓解焦虑。
 - 例："找关于亲密关系边界的观点" → 一级分类 `亲密关系` + 二级分类 `边界感` + 内容类型 `观点`。
 
 **第二步：调用飞书数据库查询工具。**
 - 优先用 filter 缩小范围（字段名或 id 均可）：
-  `lark-cli base +record-list --base-token ARCcbggiUaFqESsV7pRcin8CnUb --table-id tblpI6WqsvA5z0CL --as user --format json --filter-json '<filter>' --field-id 文案标题 --field-id 一级分类 --field-id 二级分类 --field-id 三级分类 --field-id 情绪标签 --field-id 关键词 --field-id AI总结 --field-id AI搜索摘要 --field-id 原始文案`
+  `lark-cli base +record-list --base-token ARCcbggiUaFqESsV7pRcin8CnUb --table-id tblpI6WqsvA5z0CL --as user --format json --filter-json '<filter>' --field-id 文案标题 --field-id 一级分类 --field-id 二级分类 --field-id 三级分类 --field-id 关键词 --field-id AI总结 --field-id AI搜索摘要 --field-id 原始文案`
   - 点名一级分类：`{"logic":"and","conditions":[["一级分类","intersects",["亲密关系"]]]}`
-  - 点名二级分类/情绪标签：`["二级分类","intersects",["边界感"]]` 或 `["情绪标签","intersects",["治愈"]]`
+  - 点名二级分类：`["二级分类","intersects",["边界感"]]`
   - 点名三级分类：`["三级分类","intersects",["边界感"]]`
   - 点名关键词/语义词：`["关键词","intersects","焦虑"]` 或 `["AI搜索摘要","intersects","边界"]`
   - 多个条件可并列（默认 and）。
@@ -273,19 +268,15 @@ AI总结：
 | 字段ID | 名称 | 类型 |
 |---|---|---|
 | fld223kpIC | ID | auto_number |
-| fld6ixf6cC | 改写方向 | text |
 | fld76TEiND | 原始文案 | text |
-| fld7dzApJn | 版权备注 | text |
 | fldhSzPhMw | 三级分类 | select 单（16 项；无对应选项时留空） |
 | fldjxB6aOm | 二级分类 | select 单（73 项） |
 | fldevmtRAX | 文案标题 | text |
 | fldhc3mJWe | 内容类型 | select 单（金句/观点/故事/案例/长文） |
 | fldiB8qIez | AI搜索摘要 | text |
-| fldIJSg0lT | 情绪标签 | select 多 |
 | fldnxTFsmi | 收藏日期 | datetime |
 | fldPigeRI6 | 来源链接 | text |
-| fldPLnK0EP | 适用场景 | select 多 |
-| fldq7JyyD8 | 使用状态 | select 单（未使用/已使用/待分析） |
+| fldq7JyyD8 | 是否整理 | select 单（未整理/已整理） |
 | fldQboMuGd | 个人感悟 | text |
 | fldSEhpTvk | 金句提炼 | text |
 | fldwcXWcUA | 关键词 | text |
