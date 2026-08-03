@@ -241,6 +241,19 @@
   .cat-row .field{margin-bottom:0;}
   .modal-ops{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;}
   .muted{color:var(--muted);}
+  /* 年计划：年份切换 + 四列可调整高度 + 添加 */
+  .annual-yearbar{display:flex;align-items:center;gap:16px;margin:6px 0 16px;}
+  .annual-yearbar .yr{flex:1;text-align:center;font-size:25px;font-weight:800;letter-spacing:1px;color:var(--ink);}
+  .annual-yearbar .yrbtn{width:42px;height:42px;border-radius:12px;border:1px solid var(--line);background:#fff;font-size:22px;line-height:1;cursor:pointer;color:var(--ink);transition:.15s;flex:0 0 auto;}
+  .annual-yearbar .yrbtn:hover{background:var(--brand);color:#fff;border-color:var(--brand);}
+  .annual-summary{width:100%;min-height:96px;resize:vertical;margin-bottom:6px;}
+  .annual-rows{display:flex;flex-direction:column;gap:14px;margin-top:8px;}
+  .annual-row{position:relative;display:flex;gap:14px;align-items:stretch;}
+  .annual-col{flex:1 1 0;min-width:0;resize:none;overflow:auto;line-height:1.6;font-size:14px;}
+  .annual-resize{position:absolute;left:0;right:0;bottom:-8px;height:14px;cursor:ns-resize;z-index:2;}
+  .annual-resize::after{content:"";position:absolute;left:50%;top:6px;transform:translateX(-50%);width:42px;height:4px;border-radius:3px;background:#d7dcea;transition:.15s;}
+  .annual-resize:hover::after{background:var(--brand);}
+  .annual-add{margin-top:22px;display:flex;justify-content:center;}
   @media(max-width:900px){.cols-2,.cols-3{grid-template-columns:1fr;}.sidebar{display:none;}}
 </style>
 </head>
@@ -349,7 +362,7 @@ const NAV = [
 ];
 
 const SECTIONS = {
-  annual:{name:'年计划',kind:'grid',accent:'#e11d48',hint:'像 Excel 一样规划全年：可加/删行列、合并拆分单元格、直接录入文字，记得点「保存」。'},
+  annual:{name:'年计划',kind:'annual',accent:'#e11d48',hint:'按年份规划全年：顶部切换年份，下方写年度总结，四列记录具体计划，可拖动调整高度，底部「添加」新增一行四列。'},
   monthly:{name:'月计划',kind:'grid',accent:'#f59e0b',hint:'像 Excel 一样拆解每月动作：可加/删行列、合并拆分单元格、直接录入文字，记得点「保存」。'},
   major:{name:'重大事项',kind:'events',accent:'#8b5cf6',hint:'记录人生关键节点与重要安排。'},
   todos:{name:'今日待办',kind:'todos',accent:'#0ea5e9',hint:'聚焦当下，完成今天最重要的几件事。'},
@@ -1188,6 +1201,98 @@ async function renderReview(){
 function setReviewDate(v){ reviewDate=v; render(); }
 async function saveReview(){ const t=document.getElementById('reviewText').value; try{ await apiSaveReview(reviewDate,t); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); } }
 
+/* ---------- 年计划（按年份：四列可调整高度 + 添加） ---------- */
+let annualYear = new Date().getFullYear();
+let annualState = { summary: '', rows: [] };
+let annualSaveTimer = null;
+async function annualSave(flush){
+  clearTimeout(annualSaveTimer);
+  const doSave = async () => {
+    try { await apiJson('/annual?year='+annualYear, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({data: annualState})}); }
+    catch(e){ console.warn('年计划保存失败', e); }
+  };
+  if(flush) return doSave();
+  annualSaveTimer = setTimeout(doSave, 800);
+}
+async function renderAnnual(){
+  annualYear = new Date().getFullYear();
+  await annualLoad(annualYear);
+}
+async function annualLoad(year){
+  annualYear = year;
+  try { annualState = await apiJson('/annual?year='+year); }
+  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  if(!annualState || !Array.isArray(annualState.rows)) annualState = { summary:'', rows:[] };
+  if(annualState.summary == null) annualState.summary = '';
+  annualPaint();
+}
+function annualRowsHTML(){
+  if(!annualState.rows.length) return `<div class="muted" style="font-size:13px;padding:6px 2px">还没有任何计划，点击下方「添加」开始 ✨</div>`;
+  return annualState.rows.map((row,r)=>{
+    const h = row.h || 140;
+    const cols = (row.c||[]).map((v,c)=>`<textarea class="inp annual-col" data-r="${r}" data-c="${c}" oninput="annualCellInput(this)" style="height:${h}px">${esc(v)}</textarea>`).join('');
+    return `<div class="annual-row" data-r="${r}" style="height:${h}px">${cols}<div class="annual-resize" onmousedown="annualResizeStart(event,${r})"></div></div>`;
+  }).join('');
+}
+function annualPaint(){
+  const s = SECTIONS['annual'];
+  let html = `<div class="card"><div class="h"><div class="t">${s.name}</div></div>`;
+  html += `<div class="annual-yearbar">
+    <button class="yrbtn" onclick="annualSwitch(-1)" title="上一年">‹</button>
+    <div class="yr">${annualYear} 年计划</div>
+    <button class="yrbtn" onclick="annualSwitch(1)" title="下一年">›</button>
+  </div>`;
+  html += `<textarea class="inp annual-summary" placeholder="年度总结 / 备注……" oninput="annualSummaryInput(this.value)">${esc(annualState.summary)}</textarea>`;
+  html += `<div class="annual-rows" id="annualRows">${annualRowsHTML()}</div>`;
+  html += `<div class="annual-add"><button class="btn primary" onclick="annualAddRow()">＋ 添加</button></div>`;
+  html += `</div>`;
+  view.innerHTML = html;
+}
+function annualSummaryInput(v){ annualState.summary = v; annualSave(); }
+function annualCellInput(el){
+  const r = +el.dataset.r, c = +el.dataset.c;
+  if(!annualState.rows[r]) return;
+  if(!annualState.rows[r].c) annualState.rows[r].c = ['','','',''];
+  annualState.rows[r].c[c] = el.value;
+  annualSave();
+}
+function annualAddRow(){
+  annualState.rows.push({ c:['','','',''], h:140 });
+  const box = document.getElementById('annualRows');
+  if(box) box.innerHTML = annualRowsHTML();
+  annualSave();
+}
+async function annualSwitch(delta){
+  await annualSave(true);
+  await annualLoad(annualYear + delta);
+  window.scrollTo(0, 0);
+}
+let annualResizing = null;
+function annualResizeStart(e, r){
+  e.preventDefault();
+  const rowEl = e.target.closest('.annual-row');
+  if(!rowEl) return;
+  annualResizing = { r, startY: e.clientY, startH: (annualState.rows[r] && annualState.rows[r].h) || 140, rowEl, curH: (annualState.rows[r] && annualState.rows[r].h) || 140 };
+  document.addEventListener('mousemove', annualResizingMove);
+  document.addEventListener('mouseup', annualResizeEnd);
+}
+function annualResizingMove(e){
+  if(!annualResizing) return;
+  let h = annualResizing.startH + (e.clientY - annualResizing.startY);
+  if(h < 60) h = 60; if(h > 800) h = 800;
+  annualResizing.curH = h;
+  annualResizing.rowEl.style.height = h + 'px';
+  annualResizing.rowEl.querySelectorAll('.annual-col').forEach(t => t.style.height = h + 'px');
+}
+function annualResizeEnd(){
+  if(!annualResizing) return;
+  annualState.rows[annualResizing.r].h = annualResizing.curH;
+  document.removeEventListener('mousemove', annualResizingMove);
+  document.removeEventListener('mouseup', annualResizeEnd);
+  annualResizing = null;
+  annualSave();
+}
+
 /* ---------- 类 Excel 表格编辑器（年计划 / 月计划） ---------- */
 let gridSectionId = null;
 let gridState = null;        // {rows, cols, data:[[{t,rs,cs}]]}
@@ -1398,6 +1503,7 @@ async function render(){
     if(kind==='review') return await renderReview();
     if(kind==='project') return await renderProject(current);
     if(kind==='article') return await renderArticle();
+    if(kind==='annual') return await renderAnnual();
     if(kind==='grid') return await renderGrid(current);
     if(kind==='wishes') return await renderWishes();
     if(kind==='insprec') return await renderInsp();

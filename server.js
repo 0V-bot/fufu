@@ -276,7 +276,7 @@ async function ensureProjects() { if (!projectsLoaded) { await loadProjects(); p
 
 /* ===================== 模块 → 飞书表 映射 ===================== */
 const SECTIONS = {
-  annual:      { table: GRID_TABLE, kind: 'grid',     fix: '年计划' },
+  annual:      { table: GRID_TABLE, kind: 'annual',  fix: '年计划' },
   monthly:     { table: GRID_TABLE, kind: 'grid',     fix: '月计划' },
   major:       { table: '重大事项', kind: 'events' },
   todos:       { table: '每日待办', kind: 'todos' },
@@ -688,6 +688,45 @@ async function saveGrid(name, grid) {
   return { ok: true };
 }
 
+/* ===================== 年计划（按年份存储：每页四列可调整高度） ===================== */
+const ANNUAL_COLS = 4;
+const annualName = y => '年计划-' + y;
+function normAnnual(d) {
+  d = d || {};
+  const rows = Array.isArray(d.rows) ? d.rows : [];
+  const clean = rows.map(r => {
+    const c = Array.isArray(r && r.c) ? r.c : [];
+    const cols = [];
+    for (let i = 0; i < ANNUAL_COLS; i++) cols.push(c[i] == null ? '' : String(c[i]));
+    cols.length = ANNUAL_COLS;
+    let h = Number(r && r.h) || 140;
+    if (h < 60) h = 60; if (h > 800) h = 800;
+    return { c: cols, h };
+  });
+  return { summary: d.summary == null ? '' : String(d.summary), cols: ANNUAL_COLS, rows: clean };
+}
+async function getAnnual(year) {
+  await ensureGridTable();
+  let rows = [];
+  try { rows = await listTable(GRID_TABLE, BASE_TOKEN); } catch (e) { rows = []; }
+  const rec = rows.find(x => (x['名称'] || '') === annualName(year));
+  if (rec && rec['网格']) {
+    try { return normAnnual(JSON.parse(rec['网格'])); } catch (e) {}
+  }
+  return normAnnual({ summary: '', rows: [] });
+}
+async function saveAnnual(year, data) {
+  await ensureGridTable();
+  const d = normAnnual(data);
+  let rows = [];
+  try { rows = await listTable(GRID_TABLE, BASE_TOKEN); } catch (e) { rows = []; }
+  const rec = rows.find(x => (x['名称'] || '') === annualName(year));
+  const payload = { '名称': annualName(year), '网格': JSON.stringify(d) };
+  if (rec) await feishuRetry(() => updateRecord(GRID_TABLE, rec.record_id, payload, BASE_TOKEN));
+  else await feishuRetry(() => createRecord(GRID_TABLE, payload, BASE_TOKEN));
+  return { ok: true };
+}
+
 /* ===================== 分类表（级联下拉数据源） ===================== */
 let _catCache = null, _catTime = 0;
 async function getCategory() {
@@ -862,6 +901,13 @@ async function route(method, url, body, res, req) {
       if (!cfg || cfg.kind !== 'grid') return send(res, 404, { error: '非表格模块: ' + id });
       if (method === 'GET') return send(res, 200, await loadGrid(cfg.fix));
       if (method === 'PUT') { await saveGrid(cfg.fix, (body && body.grid) || {}); return send(res, 200, { ok: true }); }
+      return send(res, 405, { error: '方法不允许' });
+    }
+    if ((m = (req.url.split('?')[0]).match(/^\/api\/annual$/))) {
+      const u = new URL(req.url, 'http://localhost');
+      const year = Number(u.searchParams.get('year')) || new Date().getFullYear();
+      if (method === 'GET') return send(res, 200, await getAnnual(year));
+      if (method === 'PUT') { await saveAnnual(year, (body && body.data) || {}); return send(res, 200, { ok: true }); }
       return send(res, 405, { error: '方法不允许' });
     }
     if ((m = (req.url.split('?')[0]).match(/^\/api\/section\/([\w]+)(?:\/(.+))?$/))) {
