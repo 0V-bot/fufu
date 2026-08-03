@@ -398,12 +398,94 @@ function passFilter(kind, r, fix) {
 }
 
 /* ===================== 通用 section CRUD ===================== */
-async function sectionList(id) {
+// 灵感库类板块列表所需字段（列表只取这些轻量字段，避免整篇「原始文案」拖慢首屏；
+// 单条详情接口再单独取全字段）。排序一律按「索引 ID(record_id) 倒序」判断最新。
+const INSPIRE_LIST_FIELDS = ['ID', '文案标题', '一级分类', '二级分类', '三级分类', '分类', '标签', '情绪标签', '内容类型', '金句提炼', 'AI总结', '关键词', '使用状态', '来源', '收藏日期'];
+const _rawCache = {};   // `${base}::${table}` -> { ts, rows }（raw 记录，按 record_id 倒序）
+async function getInspireRows(base, table) {
+  const key = base + '::' + table;
+  const now = Date.now();
+  if (_rawCache[key] && now - _rawCache[key].ts < 60000) return _rawCache[key].rows;
+  let rows;
+  if (USE_OPENAPI) {
+    try {
+      const pre = await basePrefix(base);
+      const tid = await tableId(table, base);
+      const fn = encodeURIComponent(JSON.stringify({ field_names: INSPIRE_LIST_FIELDS }));
+      rows = [];
+      let pageToken = '';
+      do {
+        const url = `${pre}/tables/${encodeURIComponent(tid)}/records?page_size=100&field_names=${fn}${pageToken ? '&page_token=' + encodeURIComponent(pageToken) : ''}`;
+        const j = await feishuRequest('GET', url);
+        (j.data.items || []).forEach(it => rows.push(Object.assign({ record_id: it.record_id }, it.fields || {})));
+        pageToken = j.data.has_more ? j.data.page_token : '';
+      } while (pageToken);
+    } catch (e) { rows = await listTable(table, base); }   // field_names 不被支持时回退全量
+  } else {
+    rows = await listTable(table, base);
+  }
+  // 按索引 ID 倒序：ID 越大越新（飞书 record_id 单调递增），最新在前
+  rows.sort((a, b) => (b.record_id || '').localeCompare(a.record_id || ''));
+  _rawCache[key] = { ts: now, rows };
+  return rows;
+}
+// 列表输出瘦身：只回传卡片展示所需的轻量字段
+function slimInsp(it) {
+  const keep = ['id', 'ID', 'title', 'cat1', 'cat2', 'cat3', 'tag', 'emotion', 'quote', 'summary', 'keywords', 'ctype', 'date', 'status', 'source'];
+  const o = {};
+  keep.forEach(k => { o[k] = it[k]; });
+  return o;
+}
+// 服务端搜索：只匹配能代表「文章是什么」的字段（与前端收窄范围一致），避免正文噪音
+function inspMatch(it, q) {
+  if (!q) return true;
+  const ql = q.toLowerCase();
+  const hay = [it.title, it.keywords, it.quote, it.summary, it.tag, it.cat1, it.cat2, it.cat3].filter(Boolean).join(' ').toLowerCase();
+  return hay.includes(ql);
+}
+function inspFacet(list, key) {
+  const s = new Set();
+  list.forEach(it => { const v = it[key]; if (v) s.add(v); });
+  return [...s];
+}
+async function sectionList(id, opts) {
+  opts = opts || {};
   const cfg = SECTIONS[id];
   const base = cfg.base || BASE_TOKEN;
   if (cfg.kind === 'ptask') await ensureProjects();
-  return (await listTable(cfg.table, base)).filter(r => passFilter(cfg.kind, r, cfg.fix || cfg.proj)).map(r => readRec(cfg.kind, r));
+  // 仅灵感库类板块(wisdom/knowledge)走服务端分页；其余板块数据量小，保持一次性返回数组
+  if (cfg.kind !== 'wisdom' && cfg.kind !== 'knowledge') {
+    return (await listTable(cfg.table, base)).filter(r => passFilter(cfg.kind, r, cfg.fix || cfg.proj)).map(r => readRec(cfg.kind, r));
+  }
+  const raw = await getInspireRows(base, cfg.table);
+  let list = raw.filter(r => passFilter(cfg.kind, r, cfg.fix)).map(r => readRec(cfg.kind, r));
+  const q = (opts.q || '').trim();
+  if (q) list = list.filter(it => inspMatch(it, q));
+  if (opts.cat1) list = list.filter(it => it.cat1 === opts.cat1);
+  if (opts.cat2) list = list.filter(it => it.cat2 === opts.cat2);
+  if (opts.tag) list = list.filter(it => it.tag === opts.tag);
+  if (opts.ctype) list = list.filter(it => it.ctype === opts.ctype);
+  const total = list.length;
+  const pageSize = Math.min(100, Math.max(1, Number(opts.pageSize) || 20));
+  const page = Math.max(1, Number(opts.page) || 1);
+  const start = (page - 1) * pageSize;
+  const items = list.slice(start, start + pageSize).map(slimInsp);
+  // 各下拉的可选项（基于当前板块全量，不受搜索/筛选影响，便于切换）
+  const facets = { cat1: inspFacet(list, 'cat1'), cat2: inspFacet(list, 'cat2'), tag: inspFacet(list, 'tag'), ctype: inspFacet(list, 'ctype') };
+  return { items, total, page, pageSize, hasMore: start + pageSize < total, facets };
 }
+// 单条完整记录（详情弹窗用，返回全字段）
+async function sectionRecord(id, rec) {
+  const cfg = SECTIONS[id];
+  const base = cfg.base || BASE_TOKEN;
+  const pre = await basePrefix(base);
+  const tid = await tableId(cfg.table, base);
+  const j = await feishuRequest('GET', `${pre}/tables/${encodeURIComponent(tid)}/records/${rec}`);
+  const r = j.data && j.data.record;
+  if (!r) return null;
+  return readRec(cfg.kind, Object.assign({ record_id: r.record_id }, r.fields || {}));
+}
+function invalidateCache(cfg, base) { _rawCache[(cfg.base || base || BASE_TOKEN) + '::' + cfg.table] = null; }
 async function sectionCreate(id, o) {
   const cfg = SECTIONS[id];
   const base = cfg.base || BASE_TOKEN;
@@ -782,15 +864,25 @@ async function route(method, url, body, res, req) {
       if (method === 'PUT') { await saveGrid(cfg.fix, (body && body.grid) || {}); return send(res, 200, { ok: true }); }
       return send(res, 405, { error: '方法不允许' });
     }
-    if ((m = url.match(/^\/api\/section\/([\w]+)(?:\/(.+))?$/))) {
+    if ((m = (req.url.split('?')[0]).match(/^\/api\/section\/([\w]+)(?:\/(.+))?$/))) {
       const id = m[1], rec = m[2];
       if (!SECTIONS[id]) return send(res, 404, { error: '未知模块: ' + id });
       const cfg = SECTIONS[id];
+      const base = cfg.base || BASE_TOKEN;
       if (cfg.readonly && method !== 'GET' && method !== 'DELETE' && !(cfg.allowEdit && method === 'PUT')) return send(res, 403, { error: '该板块为只读（数据来自外部多维表格，请在飞书中维护；仅支持删除与编辑）' });
-      if (method === 'GET') return send(res, 200, await sectionList(id));
-      if (method === 'POST') return send(res, 200, await sectionCreate(id, body || {}));
-      if (method === 'PUT' && rec) return send(res, 200, await sectionUpdate(id, rec, body || {}));
-      if (method === 'DELETE' && rec) return send(res, 200, await sectionDelete(id, rec));
+      if (method === 'GET' && rec) return send(res, 200, await sectionRecord(id, rec));
+      if (method === 'GET') {
+        const u = new URL(req.url, 'http://localhost');
+        const opts = {
+          q: u.searchParams.get('q') || '', cat1: u.searchParams.get('cat1') || '', cat2: u.searchParams.get('cat2') || '',
+          tag: u.searchParams.get('tag') || '', ctype: u.searchParams.get('ctype') || '',
+          page: u.searchParams.get('page'), pageSize: u.searchParams.get('pageSize')
+        };
+        return send(res, 200, await sectionList(id, opts));
+      }
+      if (method === 'POST') { const r = await sectionCreate(id, body || {}); invalidateCache(cfg, base); return send(res, 200, r); }
+      if (method === 'PUT' && rec) { await sectionUpdate(id, rec, body || {}); invalidateCache(cfg, base); return send(res, 200, { ok: true }); }
+      if (method === 'DELETE' && rec) { await sectionDelete(id, rec); invalidateCache(cfg, base); return send(res, 200, { ok: true }); }
       return send(res, 405, { error: '方法不允许' });
     }
     return send(res, 404, { error: '接口不存在' });
