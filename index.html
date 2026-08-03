@@ -1203,28 +1203,61 @@ async function saveReview(){ const t=document.getElementById('reviewText').value
 
 /* ---------- 年计划（按年份：四列可调整高度 + 添加） ---------- */
 let annualYear = new Date().getFullYear();
+let annualLoadedYear = null;          // annualState 实际所属的年份（防止把旧年数据写进新年份）
 let annualState = { summary: '', rows: [] };
 let annualSaveTimer = null;
+let annualGen = 0;                    // 加载代次，丢弃过期加载结果，防止快速切换串数据
+let annualDirty = false;              // 是否有未保存改动（避免无改动时也发 PUT）
+const annualCache = {};               // year -> 已加载状态，用于秒切回看、不再请求
+function annualMarkDirty(){ annualDirty = true; }
 async function annualSave(flush){
   clearTimeout(annualSaveTimer);
-  const doSave = async () => {
-    try { await apiJson('/annual?year='+annualYear, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({data: annualState})}); }
-    catch(e){ console.warn('年计划保存失败', e); }
+  const doit = async () => {
+    // 关键守卫：只有「当前显示年份 == 已加载年份」才落库，杜绝竞态下旧年数据写进新年份
+    if(annualYear !== annualLoadedYear) return;
+    const y = annualYear;
+    const snap = JSON.parse(JSON.stringify(annualState));
+    try {
+      await apiJson('/annual?year='+y, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({data: snap})});
+      annualDirty = false;
+      annualCache[y] = snap;
+    } catch(e){ console.warn('年计划保存失败', e); }
   };
-  if(flush) return doSave();
-  annualSaveTimer = setTimeout(doSave, 800);
+  if(flush) return doit();
+  annualSaveTimer = setTimeout(doit, 800);
 }
 async function renderAnnual(){
   annualYear = new Date().getFullYear();
   await annualLoad(annualYear);
 }
 async function annualLoad(year){
+  const gen = ++annualGen;
   annualYear = year;
-  try { annualState = await apiJson('/annual?year='+year); }
-  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
-  if(!annualState || !Array.isArray(annualState.rows)) annualState = { summary:'', rows:[] };
-  if(annualState.summary == null) annualState.summary = '';
-  annualPaint();
+  // 命中缓存且本地无未保存改动：立即渲染，零网络等待（解决切换卡顿）
+  if(annualCache[year] && !annualDirty){
+    annualState = annualCache[year];
+    annualLoadedYear = year;
+    annualPaint();
+    return;
+  }
+  // 否则展示加载态后再请求
+  view.innerHTML = `<div class="card"><div class="annual-yearbar">
+    <button class="yrbtn" onclick="annualSwitch(-1)" title="上一年">‹</button>
+    <div class="yr">${year} 年计划</div>
+    <button class="yrbtn" onclick="annualSwitch(1)" title="下一年">›</button>
+  </div><div class="empty">加载中…</div></div>`;
+  try {
+    const data = await apiJson('/annual?year='+year);
+    if(gen !== annualGen) return;            // 已有更新的加载，丢弃本次结果（防竞态）
+    const st = (data && Array.isArray(data.rows)) ? data : { summary:'', rows:[] };
+    if(st.summary == null) st.summary = '';
+    annualState = st; annualLoadedYear = year; annualDirty = false;
+    annualCache[year] = JSON.parse(JSON.stringify(st));
+    annualPaint();
+  } catch(e){
+    if(gen !== annualGen) return;
+    view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`;
+  }
 }
 function annualRowsHTML(){
   if(!annualState.rows.length) return `<div class="muted" style="font-size:13px;padding:6px 2px">还没有任何计划，点击下方「添加」开始 ✨</div>`;
@@ -1248,19 +1281,19 @@ function annualPaint(){
   html += `</div>`;
   view.innerHTML = html;
 }
-function annualSummaryInput(v){ annualState.summary = v; annualSave(); }
+function annualSummaryInput(v){ annualState.summary = v; annualMarkDirty(); annualSave(); }
 function annualCellInput(el){
   const r = +el.dataset.r, c = +el.dataset.c;
   if(!annualState.rows[r]) return;
   if(!annualState.rows[r].c) annualState.rows[r].c = ['','','',''];
   annualState.rows[r].c[c] = el.value;
-  annualSave();
+  annualMarkDirty(); annualSave();
 }
 function annualAddRow(){
   annualState.rows.push({ c:['','','',''], h:140 });
   const box = document.getElementById('annualRows');
   if(box) box.innerHTML = annualRowsHTML();
-  annualSave();
+  annualMarkDirty(); annualSave();
 }
 async function annualSwitch(delta){
   await annualSave(true);
@@ -1290,7 +1323,7 @@ function annualResizeEnd(){
   document.removeEventListener('mousemove', annualResizingMove);
   document.removeEventListener('mouseup', annualResizeEnd);
   annualResizing = null;
-  annualSave();
+  annualMarkDirty(); annualSave();
 }
 
 /* ---------- 类 Excel 表格编辑器（年计划 / 月计划） ---------- */

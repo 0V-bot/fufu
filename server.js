@@ -657,7 +657,7 @@ function defaultGrid() { return normGridObj({ rows: 6, cols: 4, data: [] }); }
 async function loadGrid(name) {
   await ensureGridTable();
   let rows = [];
-  try { rows = await listTable(GRID_TABLE, BASE_TOKEN); } catch (e) { rows = []; }
+  try { rows = await getGridRows(); } catch (e) { rows = []; }
   const rec = rows.find(x => (x['名称'] || '') === name);
   if (rec && rec['网格']) {
     try { return normGridObj(JSON.parse(rec['网格'])); } catch (e) {}
@@ -680,13 +680,28 @@ async function saveGrid(name, grid) {
   await ensureGridTable();
   const g = normGridObj(grid);
   let rows = [];
-  try { rows = await listTable(GRID_TABLE, BASE_TOKEN); } catch (e) { rows = []; }
+  try { rows = await getGridRows(); } catch (e) { rows = []; }
   const rec = rows.find(x => (x['名称'] || '') === name);
   const payload = { '名称': name, '网格': JSON.stringify(g) };
   if (rec) await feishuRetry(() => updateRecord(GRID_TABLE, rec.record_id, payload, BASE_TOKEN));
   else await feishuRetry(() => createRecord(GRID_TABLE, payload, BASE_TOKEN));
+  invalidateGridRows();
   return { ok: true };
 }
+
+/* ===================== 计划表格(GRID_TABLE) 列表缓存 ===================== */
+/* 年计划/月计划每次读写都会 listTable 整张「计划表格」，记录一多就很慢且放大飞书抖动。
+   这里加一个短 TTL 的内存缓存，避免同一时段重复全表拉取；任何写操作后失效。 */
+let _gridRowsCache = null, _gridRowsTime = 0;
+const GRID_ROWS_TTL = 8000;
+async function getGridRows(){
+  const now = Date.now();
+  if(_gridRowsCache && now - _gridRowsTime < GRID_ROWS_TTL) return _gridRowsCache;
+  const rows = await listTable(GRID_TABLE, BASE_TOKEN);
+  _gridRowsCache = rows; _gridRowsTime = now;
+  return rows;
+}
+function invalidateGridRows(){ _gridRowsCache = null; }
 
 /* ===================== 年计划（按年份存储：每页四列可调整高度） ===================== */
 const ANNUAL_COLS = 4;
@@ -708,7 +723,7 @@ function normAnnual(d) {
 async function getAnnual(year) {
   await ensureGridTable();
   let rows = [];
-  try { rows = await listTable(GRID_TABLE, BASE_TOKEN); } catch (e) { rows = []; }
+  try { rows = await getGridRows(); } catch (e) { rows = []; }
   const rec = rows.find(x => (x['名称'] || '') === annualName(year));
   if (rec && rec['网格']) {
     try { return normAnnual(JSON.parse(rec['网格'])); } catch (e) {}
@@ -719,11 +734,12 @@ async function saveAnnual(year, data) {
   await ensureGridTable();
   const d = normAnnual(data);
   let rows = [];
-  try { rows = await listTable(GRID_TABLE, BASE_TOKEN); } catch (e) { rows = []; }
+  try { rows = await getGridRows(); } catch (e) { rows = []; }
   const rec = rows.find(x => (x['名称'] || '') === annualName(year));
   const payload = { '名称': annualName(year), '网格': JSON.stringify(d) };
   if (rec) await feishuRetry(() => updateRecord(GRID_TABLE, rec.record_id, payload, BASE_TOKEN));
   else await feishuRetry(() => createRecord(GRID_TABLE, payload, BASE_TOKEN));
+  invalidateGridRows();
   return { ok: true };
 }
 
