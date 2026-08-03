@@ -79,8 +79,8 @@ model: deepseek-v4-flash
 | fldiYXCwaZ | 二级分类 | select 单（72 项；可空） |
 | fld2spfLLh | 三级分类 | select 单（16 项；可空） |
 | fldR1Gc84n | 标签 | select 单（职场/女性成长/人性/健康/心理学/情绪管理/个人成长感悟；可空） |
-| （由 setup_input_extra_fields.js 建立） | 内容类型 | select 单（金句/观点/故事/案例/长文；可空，来自工作台每日日记「内容类型」下拉） |
-| （由 setup_input_extra_fields.js 建立） | AI总结 | text（可空，来自工作台每日日记「核心关键点」文本框） |
+| fldwVop9Yc | 内容类型 | select 单（金句/观点/故事/案例/长文；可空，来自工作台每日日记「内容类型」下拉） |
+| fld2YIZlJS | AI总结 | text（可空，来自工作台每日日记「核心关键点」文本框） |
 - **一级分类选项（单选，14 项，必须完全匹配）**：
   ` 职场认知` / `亲密关系` / `人生感悟` / `健康管理` / `关于善良` / `女性意识觉醒` / `情绪管理` / `时间管理` / `理财意识` / `电影观后感` / `精力管理` / `终身提升的能力` / `自我认知` / `风险控制`
 
@@ -147,8 +147,8 @@ model: deepseek-v4-flash
 | fldiYXCwaZ | 二级分类 | select 单（72 项；可空） |
 | fld2spfLLh | 三级分类 | select 单（16 项；可空） |
 | fldR1Gc84n | 标签 | select 单（职场/女性成长/人性/健康/心理学/情绪管理/个人成长感悟；可空） |
-| （由 setup_input_extra_fields.js 建立） | 内容类型 | select 单（金句/观点/故事/案例/长文；可空，来自工作台每日日记） |
-| （由 setup_input_extra_fields.js 建立） | AI总结 | text（可空，来自工作台每日日记「核心关键点」） |
+| fldwVop9Yc | 内容类型 | select 单（金句/观点/故事/案例/长文；可空，来自工作台每日日记） |
+| fld2YIZlJS | AI总结 | text（可空，来自工作台每日日记「核心关键点」） |
 
 ### 处理流程（务必严格按步骤，避免重复写入 / 漏删）
 
