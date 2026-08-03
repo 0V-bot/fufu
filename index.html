@@ -124,7 +124,7 @@
   .article-form .inp,.article-form textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:13.5px;outline:none;transition:.15s;box-sizing:border-box;}
   .article-form .inp:focus,.article-form textarea:focus{border-color:#a5b4fc;box-shadow:0 0 0 3px rgba(99,102,241,.08);}
   .article-form textarea{resize:vertical;line-height:1.65;}
-  .article-form .form-actions{margin-top:18px;}
+  .article-form .form-actions{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;}
   .article-form .hint-box{margin-top:16px;padding:12px 14px;background:#f5f3ff;border:1px solid #e9e5ff;border-radius:10px;font-size:12.5px;color:#5b4db2;line-height:1.65;}
   .multi-toggle{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:#475069;cursor:pointer;user-select:none;}
   .multi-toggle input{width:18px;height:18px;accent-color:var(--brand);cursor:pointer;}
@@ -902,11 +902,18 @@ async function renderArticle(){
         ${sel('aiCat3','三级分类',[],'')}
         ${sel('aiTag','标签',WISDOM_TAGS,'')}
       </div>
+      ${sel('aiCtype','内容类型',['金句','观点','故事','案例','长文'],'')}
+      <label>核心关键点 / AI 总结（可选，留空则交由 AI 分析）</label>
+      <textarea id="aiSummary" rows="3" placeholder="一句话提炼这篇文章的核心观点或关键点…"></textarea>
       <div class="form-actions">
-        <button class="btn" onclick="submitArticle()">💾 保存到人生灵感库（待分析）</button>
+        <button class="btn ghost" onclick="submitArticle()">📝 先记录，待AI分析</button>
+        <button class="btn" onclick="submitArticleDirect()">⚡ 直接录入</button>
       </div>
       <div class="hint-box">
-        <b>分类说明：</b>「一级 / 二级 / 三级分类」与「标签」为可选项，提前选好 AI 会直接沿用、免去重新判断；全部留空则交给 AI 自动分析。保存后，WorkBuddy 每小时会自动处理「待分析」记录，也可对我说「处理待分析文章」。开启「多篇」时，AI 会先按文章规律拆成多条再分别分析。
+        <b>使用说明：</b>「一级 / 二级 / 三级分类」「标签」「内容类型」「核心关键点」均为可选项——提前填好，AI 会直接沿用、免去重新判断；全部留空则交给 AI 自动分析。<br>
+        · <b>先记录，待AI分析</b>：保存到「录入表」，由 WorkBuddy 定时或对我说「处理待分析文章」触发 AI 分析后写入人生灵感库。<br>
+        · <b>直接录入</b>：不经录入表，直接写入「人生灵感库」（内容类型 / 核心关键点一并保存，其余 AI 字段留空待后续在灵感库详情里补充）。<br>
+        开启「多篇」时，AI 会先按文章规律拆成多条再分别分析。
       </div>
     </div>
   </div>`;
@@ -925,23 +932,51 @@ async function submitArticle(){
   const cat2 = document.getElementById('aiCat2').value.trim();
   const cat3 = document.getElementById('aiCat3').value.trim();
   const tag = document.getElementById('aiTag').value.trim();
+  const ctype = document.getElementById('aiCtype').value.trim();
+  const summary = document.getElementById('aiSummary').value.trim();
   if(!content){ alert('原始文案不能为空'); return; }
   try{
-    const r = await fetch(API+'/article-input',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content,source,sourceLink,reflection,multi,cat1,cat2,cat3,tag})});
+    const r = await fetch(API+'/article-input',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content,source,sourceLink,reflection,multi,cat1,cat2,cat3,tag,ctype,summary})});
     const j = await r.json();
     if(!r.ok) throw new Error(j.error||'保存失败');
-    alert('已保存（record_id: '+j.record_id+'）'+(multi?'，多篇模式已开启，':'，')+'请在 WorkBuddy 说「处理待分析文章」触发 AI 分析');
-    document.getElementById('aiTitle').value='';
-    document.getElementById('aiSource').value='';
-    document.getElementById('aiSourceLink').value='';
-    document.getElementById('aiContent').value='';
-    document.getElementById('aiReflection').value='';
-    document.getElementById('aiMulti').checked=false;
-    document.getElementById('aiCat1').value='';
-    document.getElementById('aiCat2').innerHTML=optList([],'');
-    document.getElementById('aiCat3').innerHTML=optList([],'');
-    document.getElementById('aiTag').value='';
+    alert('已记录到「录入表」（record_id: '+j.record_id+'）'+(multi?'（多篇模式已开启）':'')+'，请在 WorkBuddy 说「处理待分析文章」触发 AI 分析');
+    resetArticleForm();
   }catch(e){ alert('保存失败：'+(e.message||e)); }
+}
+async function submitArticleDirect(){
+  const title = document.getElementById('aiTitle').value.trim();
+  const source = document.getElementById('aiSource').value.trim();
+  const sourceLink = document.getElementById('aiSourceLink').value.trim();
+  const content = document.getElementById('aiContent').value.trim();
+  const reflection = document.getElementById('aiReflection').value.trim();
+  const cat1 = document.getElementById('aiCat1').value.trim();
+  const cat2 = document.getElementById('aiCat2').value.trim();
+  const cat3 = document.getElementById('aiCat3').value.trim();
+  const tag = document.getElementById('aiTag').value.trim();
+  const ctype = document.getElementById('aiCtype').value.trim();
+  const summary = document.getElementById('aiSummary').value.trim();
+  if(!content){ alert('原始文案不能为空'); return; }
+  try{
+    const r = await fetch(API+'/article-direct',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content,source,sourceLink,reflection,cat1,cat2,cat3,tag,ctype,summary})});
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||'保存失败');
+    alert('已直接录入「人生灵感库」（record_id: '+j.record_id+'）');
+    resetArticleForm();
+  }catch(e){ alert('保存失败：'+(e.message||e)); }
+}
+function resetArticleForm(){
+  document.getElementById('aiTitle').value='';
+  document.getElementById('aiSource').value='';
+  document.getElementById('aiSourceLink').value='';
+  document.getElementById('aiContent').value='';
+  document.getElementById('aiReflection').value='';
+  document.getElementById('aiMulti').checked=false;
+  document.getElementById('aiCat1').value='';
+  document.getElementById('aiCat2').innerHTML=optList([],'');
+  document.getElementById('aiCat3').innerHTML=optList([],'');
+  document.getElementById('aiTag').value='';
+  document.getElementById('aiCtype').value='';
+  document.getElementById('aiSummary').value='';
 }
 
 /* ---------- todos（三板块：今日待办 / 未完事项 / 已完成） ---------- */

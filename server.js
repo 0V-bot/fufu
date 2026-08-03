@@ -507,7 +507,7 @@ async function sectionDelete(id, rec) {
 }
 
 /* ===================== 文章录入（写入「录入表」等待 skill 分析） ===================== */
-async function createPendingArticle({ title, content, source, sourceLink, reflection, multi, cat1, cat2, cat3, tag }) {
+async function createPendingArticle({ title, content, source, sourceLink, reflection, multi, cat1, cat2, cat3, tag, ctype, summary }) {
   const fields = {
     '文案标题': title || '',
     '原始文案': content || '',
@@ -522,7 +522,33 @@ async function createPendingArticle({ title, content, source, sourceLink, reflec
   if (cat2 && cat2.trim()) fields['二级分类'] = cat2.trim();
   if (cat3 && cat3.trim()) fields['三级分类'] = cat3.trim();
   if (tag && tag.trim()) fields['标签'] = tag.trim();
+  // 内容类型（单选）/ AI总结（核心关键点，文本）：仅当录入表已建立对应字段时生效；
+  // 飞书会忽略表中不存在的字段名（不报错），故即便录入表尚未加这两个字段也不会写失败。
+  if (ctype && ctype.trim()) fields['内容类型'] = ctype.trim();
+  if (summary && summary.trim()) fields['AI总结'] = summary.trim();
   const id = await createRecord(INPUT_TABLE, fields, INSPIRE_BASE);
+  return id;
+}
+
+/* ===================== 文章直接录入（不经录入表，直接写「人生灵感库」） ===================== */
+async function createDirectArticle({ title, content, source, sourceLink, reflection, cat1, cat2, cat3, tag, ctype, summary }) {
+  const fields = {
+    '文案标题': title || '',
+    '原始文案': content || '',
+    '来源': source || '',
+    '个人感悟': reflection || '',
+    '收藏日期': toFeishuDate(new Date().toISOString().slice(0, 10)),
+    '使用状态': '未使用'
+  };
+  if (sourceLink && sourceLink.trim()) fields['来源链接'] = sourceLink.trim();
+  // 单选字段（一级/二级/三级分类、标签、内容类型）：空值不写入，否则飞书 SingleSelectFieldConvFail「must be a string」
+  if (cat1 && cat1.trim()) fields['一级分类'] = cat1.trim();
+  if (cat2 && cat2.trim()) fields['二级分类'] = cat2.trim();
+  if (cat3 && cat3.trim()) fields['三级分类'] = cat3.trim();
+  if (tag && tag.trim()) fields['标签'] = tag.trim();
+  if (ctype && ctype.trim()) fields['内容类型'] = ctype.trim();
+  if (summary && summary.trim()) fields['AI总结'] = summary.trim();
+  const id = await createRecord(INSPIRE_TABLE, fields, INSPIRE_BASE);
   return id;
 }
 
@@ -907,9 +933,15 @@ async function route(method, url, body, res, req) {
     if (method === 'GET' && (m = url.match(/^\/api\/project\/([\w]+)$/))) return send(res, 200, await getProject(m[1]));
     if (method === 'PUT' && url === '/api/project-desc') return send(res, 200, await saveProjectDesc(body.section, body.desc));
     if (method === 'POST' && url === '/api/article-input') {
-      const { title, content, source, sourceLink, reflection, multi, cat1, cat2, cat3, tag } = body || {};
+      const { title, content, source, sourceLink, reflection, multi, cat1, cat2, cat3, tag, ctype, summary } = body || {};
       if (!content || !content.trim()) return send(res, 400, { error: '原始文案不能为空' });
-      const id = await createPendingArticle({ title, content, source, sourceLink, reflection, multi, cat1, cat2, cat3, tag });
+      const id = await createPendingArticle({ title, content, source, sourceLink, reflection, multi, cat1, cat2, cat3, tag, ctype, summary });
+      return send(res, 200, { ok: true, record_id: id });
+    }
+    if (method === 'POST' && url === '/api/article-direct') {
+      const { title, content, source, sourceLink, reflection, cat1, cat2, cat3, tag, ctype, summary } = body || {};
+      if (!content || !content.trim()) return send(res, 400, { error: '原始文案不能为空' });
+      const id = await createDirectArticle({ title, content, source, sourceLink, reflection, cat1, cat2, cat3, tag, ctype, summary });
       return send(res, 200, { ok: true, record_id: id });
     }
     if ((m = url.match(/^\/api\/grid\/([\w]+)$/))) {
