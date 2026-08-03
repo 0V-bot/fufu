@@ -292,7 +292,8 @@
   .cal-week span{text-align:center; font-size:12px; color:var(--muted); padding:2px 0;}
   .cal-grid{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; width:100%;}
   .cal-cell{position:relative; aspect-ratio:1/1; min-width:0; display:flex; align-items:center; justify-content:center; font-size:13px; border-radius:9px; background:var(--line2); color:var(--ink); cursor:default; user-select:none; overflow:hidden;}
-  .cal-cell.empty{background:transparent;}
+  .cal-cell.empty{background:transparent; aspect-ratio:auto;}
+  .cal-cell.empty .ph{display:block; width:100%; padding-top:100%;}
   .cal-cell.future{color:var(--muted); opacity:.5;}
   .cal-cell.today{box-shadow:inset 0 0 0 2px var(--brand); font-weight:700;}
   .cal-cell.green{background:#dcfce7; color:#15803d; font-weight:700; cursor:pointer;}
@@ -1370,7 +1371,7 @@ function diaryPaint(){
   const byDate = {};
   diaryData.forEach(d => { if (d.date.slice(0,7) === ym) byDate[d.date] = d; });
   let cells = '';
-  for (let i=0;i<startWeekday;i++) cells += `<div class="cal-cell empty"></div>`;
+  for (let i=0;i<startWeekday;i++) cells += `<div class="cal-cell empty"><span class="ph"></span></div>`;
   for (let d=1; d<=daysInMonth; d++){
     const ds = `${ym}-${String(d).padStart(2,'0')}`;
     const has = !!byDate[ds];
