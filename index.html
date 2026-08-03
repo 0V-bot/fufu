@@ -279,6 +279,45 @@
   .annual-resize:hover::after{background:var(--brand);}
   .annual-add{margin-top:22px;display:flex;justify-content:center;}
   @media(max-width:900px){.cols-2,.cols-3{grid-template-columns:1fr;}.sidebar{display:none;}}
+  /* 写日记 */
+  .diary-layout{display:flex; gap:18px; align-items:flex-start;}
+  .diary-main{flex:1; min-width:0;}
+  .diary-side{width:288px; flex:0 0 288px;}
+  @media (max-width:760px){ .diary-layout{flex-direction:column;} .diary-side{width:100%;} }
+  .diary-card .h{display:flex; align-items:center; justify-content:space-between;}
+  .diary-cal{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; box-shadow:var(--shadow);}
+  .cal-bar{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+  .cal-title{font-weight:700; font-size:15px; color:var(--ink);}
+  .cal-week{display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:4px;}
+  .cal-week span{text-align:center; font-size:12px; color:var(--muted); padding:2px 0;}
+  .cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:4px;}
+  .cal-cell{position:relative; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center; font-size:13px; border-radius:9px; background:var(--line2); color:var(--ink); cursor:default; user-select:none;}
+  .cal-cell.empty{background:transparent;}
+  .cal-cell.future{color:var(--muted); opacity:.5;}
+  .cal-cell.today{box-shadow:inset 0 0 0 2px var(--brand); font-weight:700;}
+  .cal-cell.green{background:#dcfce7; color:#15803d; font-weight:700; cursor:pointer;}
+  .cal-cell.green:hover{background:#bbf7d0;}
+  .cal-dot{position:absolute; bottom:5px; width:5px; height:5px; border-radius:50%; background:#16a34a;}
+  .cal-legend{margin-top:10px; font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px;}
+  .lg.green{width:12px; height:12px; border-radius:4px; background:#dcfce7; display:inline-block;}
+  .diary-write .dw-meta{display:flex; flex-wrap:wrap; gap:14px; align-items:flex-start; margin-bottom:12px;}
+  .dw-date{display:flex; align-items:center; gap:8px; font-size:15px;}
+  .dw-picks{flex:1; min-width:220px; display:flex; flex-direction:column; gap:10px;}
+  .pick-label{font-size:13px; color:var(--muted); margin-bottom:6px; font-weight:600;}
+  .wrow,.mrow{display:flex; flex-wrap:wrap; gap:6px;}
+  .wchip,.mchip{border:1px solid var(--line); background:#fff; border-radius:999px; padding:6px 11px; font-size:13px; cursor:pointer; color:var(--ink); transition:.15s; font-family:inherit;}
+  .wchip:hover,.mchip:hover{border-color:var(--brand);}
+  .wchip.on,.mchip.on{background:var(--brand); border-color:var(--brand); color:#fff;}
+  .diary-write .note{margin-top:4px;}
+  .diary-done .dd-row{display:flex; gap:10px; align-items:center; padding:7px 0; border-bottom:1px dashed var(--line);}
+  .diary-done .dd-k{color:var(--muted); font-size:13px; width:64px; flex:0 0 64px;}
+  .diary-done .dd-v{font-size:15px; font-weight:600;}
+  .diary-done .dd-content{margin-top:14px; white-space:pre-wrap; line-height:1.8; font-size:15px; background:var(--line2); border-radius:12px; padding:14px 16px;}
+  .diary-done .dd-note{margin-top:14px; color:#15803d; font-size:13px; background:#dcfce7; border-radius:10px; padding:10px 12px;}
+  .diary-view h3{margin:0 0 12px; color:var(--ink);}
+  .diary-view .dv-meta{display:flex; gap:8px; margin-bottom:12px;}
+  .diary-view .dv-pill{background:var(--brand-soft); color:var(--brand); border-radius:999px; padding:5px 12px; font-size:13px; font-weight:600;}
+  .diary-view .dv-content{white-space:pre-wrap; line-height:1.8; font-size:15px; background:var(--line2); border-radius:12px; padding:14px 16px;}
 </style>
 </head>
 <body>
@@ -340,6 +379,7 @@ const apiDeleteHabit = rec => apiJson('/habits/'+rec,{method:'DELETE'});
 const apiToggleHabit = (hid,date) => apiJson('/habit-toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({habitId:hid,date})});
 const apiReview = () => apiJson('/review');
 const apiSaveReview = (date,text) => apiJson('/review',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({date,text})});
+const apiDiary = () => apiJson('/diary');
 const apiProject = section => apiJson('/project/'+section);
 const apiSaveProjectDesc = (section,desc) => apiJson('/project-desc',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({section,desc})});
 
@@ -360,6 +400,7 @@ const NAV = [
     {id:'todos', label:'今日待办'},
     {id:'habits', label:'微习惯'},
     {id:'review', label:'日复盘'},
+    {id:'diary', label:'写日记'},
   ]},
   {id:'projects', label:'项目中心', icon:'🚀', children:[
     {id:'taobao', label:'淘宝发圈'},
@@ -373,7 +414,7 @@ const NAV = [
     {id:'publish', label:'发布记录'},
   ]},
   {id:'knowledge', label:'知识库', icon:'📚', children:[
-    {id:'articleInput', label:'每日日记'},
+    {id:'articleInput', label:'文章录入'},
     {id:'inspiration', label:'人生灵感库'},
     {id:'work', label:'职场'},
     {id:'women', label:'女性成长'},
@@ -396,7 +437,8 @@ const SECTIONS = {
   caps:{name:'鸭舌帽',kind:'project',accent:'#14b8a6',hint:'项目目标、任务与进度追踪。'},
   counseling:{name:'心理咨询',kind:'project',accent:'#a855f7',hint:'项目目标、任务与进度追踪。'},
   outfit:{name:'穿搭IP',kind:'project',accent:'#ec4899',hint:'项目目标、任务与进度追踪。'},
-  articleInput:{name:'每日日记',kind:'article',accent:'#8b5cf6',hint:'粘贴文章内容，保存到「人生灵感库」等待 AI 分析。'},
+  articleInput:{name:'文章录入',kind:'article',accent:'#8b5cf6',hint:'粘贴文章内容，保存到「人生灵感库」等待 AI 分析。'},
+  diary:{name:'写日记',kind:'diary',accent:'#f43f5e',hint:'每天一篇私人日记：记录天气、心情与当日所思所想。提交后不可修改，日历中绿色日期可点开回看。'},
   inspiration:{name:'人生灵感库',kind:'wisdom',accent:'#f97316',hint:'来自「人生灵感库」的完整文案资产（在飞书中维护；可删除，也可点「详情」手动编辑补充）。',readonly:true,allowDelete:true,allowEdit:true},
   topics:{name:'选题库',kind:'topics',accent:'#3b82f6',hint:'把灵感打磨成可发布的选题。'},
   publish:{name:'发布记录',kind:'publish',accent:'#22c55e',hint:'记录每次发布与数据反馈。'},
@@ -414,6 +456,10 @@ const SECTIONS = {
 
 /* 人生灵感库「标签」可选分类（与飞书「人生灵感库」表的「标签」单选字段保持一致） */
 const WISDOM_TAGS = ['职场','女性成长','人性','健康','心理学','情绪管理','个人成长感悟'];
+
+/* 写日记：天气 / 心情 选项（点击选择，存入飞书「日记」表对应文本字段） */
+const DIARY_WEATHER = ['☀️ 晴','⛅ 多云','☁️ 阴','🌧️ 小雨','⛈️ 大雨','🌨️ 雪','🌫️ 雾','🌬️ 风'];
+const DIARY_MOOD = ['😄 开心','😊 平静','🥰 幸福','🤩 兴奋','😐 一般','😟 焦虑','😢 难过','😡 生气','😴 疲惫','🤒 生病','🤔 思考','😎 酷'];
 
 /* field schemas for generic list kinds */
 const SCHEMA = {
@@ -872,7 +918,7 @@ async function renderArticle(){
   const sel = (k,label,opts,cur)=> `<div class="field"><label>${label}（可选）</label><select id="${k}">${optList(opts,cur)}</select></div>`;
   view.innerHTML = `<div class="card">
     <div class="h">
-      <div class="t">每日日记</div>
+      <div class="t">文章录入</div>
       <label class="multi-toggle" title="开启后，AI 会自动把原始文案拆分成多篇文章分别分析">
         <input type="checkbox" id="aiMulti">
         <span>多篇</span>
@@ -1294,6 +1340,127 @@ async function renderReview(){
 function setReviewDate(v){ reviewDate=v; render(); }
 async function saveReview(){ const t=document.getElementById('reviewText').value; try{ await apiSaveReview(reviewDate,t); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); } }
 
+/* ---------- 写日记（每日一篇，提交后不可改；本月日历绿格可点开回看） ---------- */
+let diaryYear = new Date().getFullYear();
+let diaryMonth = new Date().getMonth() + 1;
+let diaryData = [];                 // 全部日记 [{date,weather,mood,content}]
+let diaryTodayDone = false;
+let diarySelWeather = '', diarySelMood = '';
+async function renderDiary(){
+  let all;
+  try{ all = await apiDiary(); }
+  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  diaryData = all || [];
+  diaryYear = new Date().getFullYear();
+  diaryMonth = new Date().getMonth() + 1;
+  diaryPaint();
+}
+function diaryPaint(){
+  const s = SECTIONS['diary'];
+  const y = diaryYear, m = diaryMonth;
+  const today = todayStr();
+  const todayEntry = diaryData.find(d => d.date === today);
+  diaryTodayDone = !!todayEntry;
+  diarySelWeather = ''; diarySelMood = '';
+
+  // —— 本月日历（右上角）——
+  const startWeekday = (new Date(y, m-1, 1).getDay() + 6) % 7; // 周一=0
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const ym = `${y}-${String(m).padStart(2,'0')}`;
+  const byDate = {};
+  diaryData.forEach(d => { if (d.date.slice(0,7) === ym) byDate[d.date] = d; });
+  let cells = '';
+  for (let i=0;i<startWeekday;i++) cells += `<div class="cal-cell empty"></div>`;
+  for (let d=1; d<=daysInMonth; d++){
+    const ds = `${ym}-${String(d).padStart(2,'0')}`;
+    const has = !!byDate[ds];
+    const isToday = ds === today;
+    const isFuture = ds > today;
+    let cls = 'cal-cell';
+    if (has) cls += ' green';
+    if (isToday) cls += ' today';
+    if (isFuture) cls += ' future';
+    const attr = has ? ` onclick="viewDiary('${ds}')" title="查看 ${ds} 的日记"` : '';
+    cells += `<div class="${cls}"${attr}>${d}${has?'<span class="cal-dot"></span>':''}</div>`;
+  }
+  const cal = `<div class="diary-cal">
+    <div class="cal-bar"><button class="yrbtn" onclick="diaryMove(-1)" title="上一月">‹</button><div class="cal-title">${y}年${m}月</div><button class="yrbtn" onclick="diaryMove(1)" title="下一月">›</button></div>
+    <div class="cal-week"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+    <div class="cal-grid">${cells}</div>
+    <div class="cal-legend"><span class="lg green"></span>有日记，可点开回看</div>
+  </div>`;
+
+  // —— 主界面：写 / 已写只读 ——
+  let mainHTML;
+  if (diaryTodayDone){
+    mainHTML = `<div class="diary-done">
+      <div class="dd-row"><span class="dd-k">📅 日期</span><span class="dd-v">${today}</span></div>
+      <div class="dd-row"><span class="dd-k">🌤️ 天气</span><span class="dd-v">${esc(todayEntry.weather)||'—'}</span></div>
+      <div class="dd-row"><span class="dd-k">💗 心情</span><span class="dd-v">${esc(todayEntry.mood)||'—'}</span></div>
+      <div class="dd-content">${esc(todayEntry.content).replace(/\n/g,'<br>')}</div>
+      <div class="dd-note">✓ 今日日记已记录，每天仅可写一篇，不可修改。</div>
+    </div>`;
+  } else {
+    mainHTML = `<div class="diary-write">
+      <div class="dw-meta">
+        <div class="dw-date"><span class="dd-k">📅 日期</span><b>${today}</b><span class="muted">（不可修改）</span></div>
+        <div class="dw-picks">
+          <div class="pick"><div class="pick-label">天气</div><div class="wrow" id="wrow">${DIARY_WEATHER.map(w=>`<button class="wchip" onclick="pickWeather('${esc(w)}')">${w}</button>`).join('')}</div></div>
+          <div class="pick"><div class="pick-label">今日心情</div><div class="mrow" id="mrow">${DIARY_MOOD.map(md=>`<button class="mchip" onclick="pickMood('${esc(md)}')">${md}</button>`).join('')}</div></div>
+        </div>
+      </div>
+      <textarea id="diaryContent" class="note" rows="12" placeholder="写下今天的所思所想、发生的事、想记住的瞬间……"></textarea>
+      <div class="form-actions"><button class="btn" onclick="saveDiary()">📝 记录</button></div>
+    </div>`;
+  }
+
+  view.innerHTML = `<div class="card diary-card">
+    <div class="h"><div class="t">写日记</div><span class="muted" style="font-weight:500">${diaryTodayDone?'今日已记录 ✓':'今天还没写哦'}</span></div>
+    <div class="diary-layout">
+      <div class="diary-main">${mainHTML}</div>
+      <div class="diary-side">${cal}</div>
+    </div>
+  </div>`;
+}
+function diaryMove(delta){
+  let m = diaryMonth + delta, y = diaryYear;
+  if (m < 1){ m = 12; y--; } else if (m > 12){ m = 1; y++; }
+  diaryYear = y; diaryMonth = m; diaryPaint();
+}
+function pickWeather(w){
+  diarySelWeather = w;
+  document.querySelectorAll('#wrow .wchip').forEach(b => b.classList.toggle('on', b.textContent === w));
+}
+function pickMood(md){
+  diarySelMood = md;
+  document.querySelectorAll('#mrow .mchip').forEach(b => b.classList.toggle('on', b.textContent === md));
+}
+async function saveDiary(){
+  const content = document.getElementById('diaryContent').value.trim();
+  if (!content){ alert('日记内容不能为空'); return; }
+  try{
+    const r = await fetch(API+'/diary',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date: todayStr(), weather: diarySelWeather, mood: diarySelMood, content})});
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || '保存失败');
+    alert('日记已记录 ✓');
+    await renderDiary();
+  }catch(e){ alert('保存失败：'+(e.message||e)); }
+}
+function viewDiary(date){
+  const d = diaryData.find(x => x.date === date);
+  if (!d) return;
+  modal.innerHTML = `<div class="diary-view">
+    <h3>📔 ${d.date}</h3>
+    <div class="dv-meta">
+      <span class="dv-pill">🌤️ ${esc(d.weather)||'—'}</span>
+      <span class="dv-pill">💗 ${esc(d.mood)||'—'}</span>
+    </div>
+    <div class="dv-content">${esc(d.content).replace(/\n/g,'<br>')}</div>
+    <div class="modal-ops"><button class="btn soft" onclick="closeModal()">关闭</button></div>
+  </div>`;
+  overlay.classList.add('show');
+}
+
 /* ---------- 年计划（按年份：四列可调整高度 + 添加） ---------- */
 let annualYear = new Date().getFullYear();
 let annualLoadedYear = null;          // annualState 实际所属的年份（防止把旧年数据写进新年份）
@@ -1572,9 +1739,9 @@ async function renderDashboard(){
   const pend = typeof inputPending === 'number' ? inputPending : -1;
   let pendingBanner;
   if (pend > 0) {
-    pendingBanner = `<div class="pending-banner warn" onclick="go('articleInput')" title="点击前往「每日日记」">
+    pendingBanner = `<div class="pending-banner warn" onclick="go('articleInput')" title="点击前往「文章录入」">
       <div class="pb-ic">📥</div>
-      <div class="pb-txt">录入表还有 <b>${pend}</b> 条文章待分析，尚未写入「人生灵感库」。在 WorkBuddy 说「处理待分析文章」即可触发 AI 分析，或点此前往「每日日记」查看。<span class="pb-link">去处理 →</span></div>
+      <div class="pb-txt">录入表还有 <b>${pend}</b> 条文章待分析，尚未写入「人生灵感库」。在 WorkBuddy 说「处理待分析文章」即可触发 AI 分析，或点此前往「文章录入」查看。<span class="pb-link">去处理 →</span></div>
     </div>`;
   } else if (pend === 0) {
     pendingBanner = `<div class="pending-banner ok">
@@ -1627,6 +1794,7 @@ async function render(){
     if(kind==='todos') return await renderTodos();
     if(kind==='habits') return await renderHabits();
     if(kind==='review') return await renderReview();
+    if(kind==='diary') return await renderDiary();
     if(kind==='project') return await renderProject(current);
     if(kind==='article') return await renderArticle();
     if(kind==='annual') return await renderAnnual();

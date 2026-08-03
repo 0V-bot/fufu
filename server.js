@@ -593,6 +593,31 @@ async function deleteReview(date) {
   return { ok: true };
 }
 
+/* ===================== 日记（每日一篇，提交后不可改） ===================== */
+async function getDiaryAll() {
+  return (await listTable('日记')).map(r => ({
+    date: dateOnly(r['日期']),
+    weather: r['天气'] || '',
+    mood: r['心情'] || '',
+    content: r['内容'] || ''
+  }));
+}
+async function getDiary(date) {
+  const found = (await listTable('日记')).find(r => dateOnly(r['日期']) === date);
+  return found ? { date, weather: found['天气'] || '', mood: found['心情'] || '', content: found['内容'] || '' } : null;
+}
+async function createDiary({ date, weather, mood, content }) {
+  const found = (await listTable('日记')).find(r => dateOnly(r['日期']) === date);
+  if (found) throw new Error('该日期日记已存在，每天只能写一篇');
+  const id = await createRecord('日记', {
+    '日期': toFeishuDate(date),
+    '天气': weather || '',
+    '心情': mood || '',
+    '内容': content || ''
+  });
+  return id;
+}
+
 /* ===================== 项目 ===================== */
 async function getProject(section) {
   await ensureProjects();
@@ -927,6 +952,17 @@ async function route(method, url, body, res, req) {
     if (method === 'GET' && url === '/api/review') return send(res, 200, await getReview());
     if (method === 'PUT' && url === '/api/review') return send(res, 200, await saveReview(body.date, body.text));
     if (method === 'DELETE' && (m = url.match(/^\/api\/review\/([\w-]+)$/))) return send(res, 200, await deleteReview(m[1]));
+    // 日记：GET 全部（前端按月份标绿格）；POST 新建（每天限一篇，重复返回 409）
+    if (method === 'GET' && url === '/api/diary') return send(res, 200, await getDiaryAll());
+    if (method === 'POST' && url === '/api/diary') {
+      const d = body.date, w = (body.weather || '').trim(), mo = (body.mood || '').trim(), c = (body.content || '').trim();
+      if (!d) return send(res, 400, { error: '缺少日期' });
+      if (!c) return send(res, 400, { error: '日记内容不能为空' });
+      try {
+        const id = await createDiary({ date: d, weather: w, mood: mo, content: c });
+        return send(res, 200, { ok: true, record_id: id });
+      } catch (e) { return send(res, 409, { error: e.message }); }
+    }
     if (method === 'GET' && (m = url.match(/^\/api\/project\/([\w]+)$/))) return send(res, 200, await getProject(m[1]));
     if (method === 'PUT' && url === '/api/project-desc') return send(res, 200, await saveProjectDesc(body.section, body.desc));
     if (method === 'POST' && url === '/api/article-input') {
