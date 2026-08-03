@@ -111,6 +111,9 @@
   .chip.kw{background:#f1f3f8;color:#64748b;}
   .chip.sub{background:#f5f0ff;color:#7c3aed;}
   .item .quote{margin:8px 0;padding:9px 13px;border-left:3px solid var(--brand);background:#fbfaff;border-radius:0 9px 9px 0;font-size:13px;color:#3a3f55;line-height:1.65;font-style:italic;}
+  .item .snippet{margin:6px 0 2px;padding:7px 11px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#92400e;line-height:1.6;}
+  .item .snippet b{color:#b45309;}
+  .item mark{background:#fff1a8;color:#7c2d12;padding:0 2px;border-radius:3px;font-weight:600;}
   .item .meta.orig{background:#f8fafc;padding:8px 11px;border-radius:9px;max-height:120px;overflow:auto;}
   .item .meta.muted{color:#9aa3b2;}
 
@@ -578,14 +581,18 @@ function genericBody(kind,it){
 }
 /* 灵感库卡片：只展示核心 5 项（标题 / 一级分类 / 情绪标签 / 内容类型 / 金句提炼） */
 function wisdomBody(it){
-  let h = `<div class="it-title">${esc(it.title||'(无标题)')}</div>`;
+  const q = (wisdomFilter.q||'').trim();
+  let h = `<div class="it-title">${hl(it.title||'(无标题)', q)}</div>`;
   let chips = '';
   if(it.cat1) chips += `<span class="chip cat">${esc(it.cat1)}</span>`;
   if(it.tag) chips += `<span class="chip tag">${esc(it.tag)}</span>`;
   (it.emotion||[]).forEach(c=> chips += `<span class="chip emo">${esc(c)}</span>`);
   if(it.ctype) chips += `<span class="chip type">${esc(it.ctype)}</span>`;
   if(chips) h += `<div class="chips">${chips}</div>`;
-  if(it.quote) h += `<div class="quote">“${esc(it.quote)}”</div>`;
+  if(it.quote) h += `<div class="quote">“${hl(it.quote, q)}”</div>`;
+  // 若命中词只出现在「关键词/AI总结/标签/分类」等卡片上看不到的字段，补一行命中片段
+  const m = wisdomMatchInfo(it);
+  if(q && m.snippet) h += `<div class="snippet">🔎 命中：<b>${esc(m.snippet)}</b></div>`;
   return h;
 }
 
@@ -617,7 +624,7 @@ function wisdomToolbar(){
   const opt = (key,sel)=> `<option value="">全部</option>` + wisdomUniq(key).map(v=>`<option ${v===sel?'selected':''}>${esc(v)}</option>`).join('');
   return `<div class="wisdom-toolbar">
     <div class="search-wrap">
-      <input class="inp" id="wfQ" placeholder="🔍 搜索标题 / 关键词 / 金句 / 原文…" value="${esc(f.q)}" onkeydown="if(event.key==='Enter') wisdomSearch(this.value)">
+      <input class="inp" id="wfQ" placeholder="🔍 搜索标题 / 关键词 / 金句 / 摘要…" value="${esc(f.q)}" onkeydown="if(event.key==='Enter') wisdomSearch(this.value)">
       <button class="btn" onclick="wisdomSearch(document.getElementById('wfQ').value)">搜索</button>
     </div>
     <select onchange="wisdomSet('cat1',this.value)">${opt('cat1',f.cat1)}</select>
@@ -627,17 +634,48 @@ function wisdomToolbar(){
     <button class="btn soft mini" onclick="wisdomReset()">重置</button>
   </div>`;
 }
+// 搜索范围：只匹配能代表「文章是什么」的字段（标题/关键词/金句/AI总结/标签/分类），
+// 不再把整篇「原始文案」等冗长正文纳入，避免常见词命中全部记录导致结果无关。
+// 同时返回命中片段 —— 若命中词只藏在「关键词/AI总结/标签/分类」这些卡片上看不到的字段，
+// 卡片会额外显示一行片段，让用户看清「为什么它出现在结果里」。
+function wisdomMatchInfo(it){
+  const q = (wisdomFilter.q||'').trim();
+  if(!q) return {hit:true, snippet:''};
+  const ql = q.toLowerCase();
+  const fields = {
+    title: (it.title||''), quote: (it.quote||''), keywords: (it.keywords||''),
+    summary: (it.summary||''), tag: (it.tag||''), cat1: (it.cat1||''),
+    cat2: (it.cat2||''), cat3: (it.cat3||'')
+  };
+  const hay = Object.values(fields).join(' ').toLowerCase();
+  if(!hay.includes(ql)) return {hit:false};
+  const visInTitle = fields.title.toLowerCase().includes(ql);
+  const visInQuote = fields.quote.toLowerCase().includes(ql);
+  if(visInTitle || visInQuote) return {hit:true, snippet:''};
+  // 仅在描述性字段命中 → 给出片段
+  if(fields.summary.toLowerCase().includes(ql)){
+    const i = fields.summary.toLowerCase().indexOf(ql);
+    return {hit:true, snippet: fields.summary.slice(Math.max(0,i-12), i+ql.length+24)};
+  }
+  if(fields.keywords.toLowerCase().includes(ql)) return {hit:true, snippet: fields.keywords};
+  return {hit:true, snippet: [fields.tag,fields.cat1,fields.cat2,fields.cat3].filter(Boolean).join(' / ')};
+}
+function hl(s, q){
+  s = s||'';
+  if(!q) return esc(s);
+  const safe = esc(s);
+  const qe = esc(q).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  try { return safe.replace(new RegExp(qe,'gi'), x=>`<mark>${x}</mark>`); }
+  catch(e){ return safe; }
+}
 function wisdomFiltered(arr){
-  const f = wisdomFilter; const q = f.q.trim().toLowerCase();
+  const f = wisdomFilter;
   return arr.filter(it=>{
     if(f.cat1 && it.cat1!==f.cat1) return false;
     if(f.cat2 && it.cat2!==f.cat2) return false;
     if(f.tag && it.tag!==f.tag) return false;
     if(f.ctype && it.ctype!==f.ctype) return false;
-    if(q){
-      const hay = [it.title,it.keywords,it.quote,it.original,it.summary,it.abstract,it.reflection].join(' ').toLowerCase();
-      if(!hay.includes(q)) return false;
-    }
+    if(f.q.trim()){ if(!wisdomMatchInfo(it).hit) return false; }
     return true;
   });
 }
