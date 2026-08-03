@@ -180,6 +180,13 @@
   .wish-item:hover .wish-del{opacity:1;}
   .wish-del:hover{color:#dc2626;background:#fee2e2;}
 
+  /* todos 三板块：添加行 + 只读态 */
+  .todo-add{display:flex;gap:9px;margin-top:4px;align-items:center;}
+  .todo-add .ti{flex:1;border:1px solid var(--line);border-radius:10px;padding:11px 14px;font-size:14px;font-family:inherit;outline:none;background:#fff;}
+  .todo-add .ti:focus{border-color:var(--brand);}
+  .todo-add input[type=date]{border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;background:#fff;color:#334155;}
+  .tdeadline input[readonly], .tnote[readonly]{background:#f1f5f9;color:#94a3b8;cursor:default;resize:none;}
+
   /* habits */
   .habit{background:#fbfcfe;border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:10px;}
   .habit .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
@@ -937,8 +944,7 @@ async function submitArticle(){
   }catch(e){ alert('保存失败：'+(e.message||e)); }
 }
 
-/* ---------- todos（卡片式，可自由编辑） ---------- */
-let todoDate = today();
+/* ---------- todos（三板块：今日待办 / 未完事项 / 已完成） ---------- */
 // 把飞书回传的截止时间（UTC 毫秒或字符串）归一为 datetime-local 值 "YYYY-MM-DDTHH:MM"
 function fmtDeadline(v){
   if(!v) return '';
@@ -948,76 +954,119 @@ function fmtDeadline(v){
   }
   return String(v).replace(' ','T').slice(0,16);
 }
+// 北京时间今天的 YYYY-MM-DD（与截止时间显示口径一致）
+function todayStr(){
+  const d = new Date(Date.now() + 8*3600*1000), p = n => (n<10?'0'+n:''+n);
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())}`;
+}
+const datePart = s => s ? String(s).slice(0,10) : '';
+const isOverdue = (t, td) => { const d = datePart(t.deadline); return d !== '' && d < td; };
 async function renderTodos(){
   let arr;
   try{ arr = await apiList('todos'); }
   catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
   cache.todos = arr;
   arr.forEach(t => { if (t.deadline) t.deadline = fmtDeadline(t.deadline); });
-  const list = arr.filter(t=>t.date===todoDate);
-  const pending = list.filter(t=>!t.done).length;
-  let html = `<div class="card">
-    <div class="h"><div class="t">今日待办 <span class="muted" style="font-weight:500">· 待完成 ${pending}</span></div>
-      <input type="date" value="${todoDate}" onchange="setTodoDate(this.value)" style="border:1px solid var(--line);border-radius:9px;padding:6px 10px;font-family:inherit;"></div>
+  const td = todayStr();
+  const todayList   = arr.filter(t => !t.done && !isOverdue(t, td)); // 今日待办（含今日及未来）
+  const overdueList = arr.filter(t => !t.done &&  isOverdue(t, td)); // 未完事项（已逾期）
+  const doneList    = arr.filter(t => t.done);                        // 已完成
+  let html = '';
+  // —— 板块一：今日待办 ——
+  html += `<div class="card">
+    <div class="h"><div class="t">今日待办 <span class="muted" style="font-weight:500">· 待完成 ${todayList.length}</span></div></div>
+    <div class="todo-add">
+      <input id="todoInput" class="ti" placeholder="输入待办内容，回车添加…" onkeydown="if(event.key==='Enter')addTodo()"/>
+      <input type="date" id="todoDeadline" value="${td}">
+      <button class="btn primary" onclick="addTodo()">添加待办</button>
+    </div>
     <div class="todo-grid">`;
-  if(!list.length){ html += `<div class="empty" style="grid-column:1/-1">${todoDate===today()?'今天还没有待办，点下面「+ 添加卡片」开始吧':'这一天没有记录'}</div>`; }
-  list.forEach(t=>{
-    const did = t.id;
-    html += `<div class="tcard ${t.done?'done':''}" id="tcard-${did}">
-      <div class="tcard-top">
-        <div class="tcheck ${t.done?'on':''}" onclick="toggleTodo('${did}')" title="完成">✓</div>
-        <span class="muted" style="font-size:12px">${esc(t.date)}</span>
-        <button class="btn danger mini" style="margin-left:auto" onclick="delTodo('${did}')">删</button>
-      </div>
-      <textarea class="tcontent" placeholder="待办内容，点击直接输入…" onblur="saveTodoField('${did}','title',this.value)">${esc(t.title||'')}</textarea>
-      <div class="tdeadline"><span>⏰ 截止</span>
-        <input type="datetime-local" value="${fmtDeadline(t.deadline)}" onchange="saveTodoField('${did}','deadline',this.value)"></div>
-      <textarea class="tnote" placeholder="备注（可编辑）…" onblur="saveTodoField('${did}','note',this.value)">${esc(t.note||'')}</textarea>
-    </div>`;
-  });
-  html += `</div>
-    <div class="inline-add"><input id="todoInput" placeholder="输入待办标题，回车添加卡片…" onkeydown="if(event.key==='Enter')addTodo()"/>
-      <button class="btn" onclick="addTodo()">+ 添加卡片</button></div></div>`;
+  if(!todayList.length) html += `<div class="empty" style="grid-column:1/-1">还没有待办，上面添加一条吧 ✅</div>`;
+  todayList.forEach(t => html += todoCard(t, 'today'));
+  html += `</div></div>`;
+  // —— 板块二：未完事项（不显示勾选框）——
+  html += `<div class="card">
+    <div class="h"><div class="t">未完事项 <span class="muted" style="font-weight:500">· 已逾期 ${overdueList.length}</span></div></div>
+    <div class="todo-grid">`;
+  if(!overdueList.length) html += `<div class="empty" style="grid-column:1/-1">🎉 没有逾期事项</div>`;
+  overdueList.forEach(t => html += todoCard(t, 'overdue'));
+  html += `</div></div>`;
+  // —— 板块三：已完成（只读，仅勾选框可取消）——
+  html += `<div class="card">
+    <div class="h"><div class="t">已完成 <span class="muted" style="font-weight:500">· 共 ${doneList.length} 条</span></div></div>
+    <div class="todo-grid">`;
+  if(!doneList.length) html += `<div class="empty" style="grid-column:1/-1">还没有已完成的事项</div>`;
+  doneList.forEach(t => html += todoCard(t, 'done'));
+  html += `</div></div>`;
   view.innerHTML = html;
 }
-function setTodoDate(v){ todoDate=v; render(); }
+function todoCard(t, mode){
+  const did = t.id, dp = datePart(t.deadline);
+  const showCheck = (mode==='today' || mode==='done');   // 未完事项不显示勾选框
+  const ro = (mode==='done');                            // 已完成：截止时间/备注只读、无删除
+  const check = showCheck
+    ? `<div class="tcheck ${t.done?'on':''}" onclick="toggleTodo('${did}')" title="完成/取消">✓</div>`
+    : '';
+  const del = (mode!=='done')
+    ? `<button class="btn danger mini" style="margin-left:auto" onclick="delTodo('${did}')">删</button>`
+    : '';
+  const deadline = ro
+    ? `<input type="date" value="${dp}" readonly>`
+    : `<input type="date" value="${dp}" onchange="saveTodoField('${did}','deadline',this.value)">`;
+  const title = ro
+    ? `<textarea class="tcontent" placeholder="待办内容…" readonly>${esc(t.title||'')}</textarea>`
+    : `<textarea class="tcontent" placeholder="待办内容…" onblur="saveTodoField('${did}','title',this.value)">${esc(t.title||'')}</textarea>`;
+  const note = ro
+    ? `<textarea class="tnote" placeholder="备注…" readonly>${esc(t.note||'')}</textarea>`
+    : `<textarea class="tnote" placeholder="备注…" onblur="saveTodoField('${did}','note',this.value)">${esc(t.note||'')}</textarea>`;
+  return `<div class="tcard ${t.done?'done':''}" id="tcard-${did}">
+    <div class="tcard-top">
+      ${check}
+      <span class="muted" style="font-size:12px">⏰ ${dp||'无截止'}</span>
+      ${del}
+    </div>
+    ${title}
+    <div class="tdeadline"><span>截止</span>${deadline}</div>
+    ${note}
+  </div>`;
+}
 async function addTodo(){
-  const i=document.getElementById('todoInput'); const v=(i?i.value:'').trim();
+  const i=document.getElementById('todoInput'), d=document.getElementById('todoDeadline');
+  const v=(i?i.value:'').trim();
+  const dl=(d?d.value:'') || todayStr();
+  if(!v){ if(i) i.focus(); return; }
   try{
-    const r = await apiCreate('todos',{title:v,done:false,date:todoDate,deadline:'',note:''});
-    await render();
-    const el = document.getElementById('tcard-'+r.id);
-    if(el){ const ta=el.querySelector('.tcontent'); if(ta){ ta.focus(); } }
-    if(i) i.value='';
+    const r = await apiCreate('todos',{title:v,done:false,date:dl,deadline:dl,note:''});
+    await renderTodos();
   }catch(e){ alert('添加失败：'+(e.message||e)); }
 }
 async function toggleTodo(id){
   const t=(cache.todos||[]).find(x=>x.id===id); if(!t) return;
   t.done=!t.done;
-  const card=document.getElementById('tcard-'+id);
-  if(card){
-    card.classList.toggle('done', t.done);
-    const c=card.querySelector('.tcheck'); if(c) c.classList.toggle('on', t.done);
+  if(t.done){
+    // 标记完成：在备注最前面加一行完成时间
+    const now=new Date(), p=n=>('0'+n).slice(-2);
+    const ts=`${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())} ${p(now.getHours())}:${p(now.getMinutes())}`;
+    t.note = (t.note && t.note.trim()) ? ('完成时间：'+ts+'\n'+t.note) : ('完成时间：'+ts);
+    t.date = datePart(t.deadline) || todayStr();
+  }else{
+    t.note = (t.note||'').replace(/^完成时间：.*\n?/, '');   // 取消完成：移除自动添加的完成时间行
   }
-  try{ await apiUpdate('todos', id, t); refreshTodoPending(); }
+  try{ await apiUpdate('todos', id, t); await renderTodos(); }
   catch(e){ alert('更新失败：'+(e.message||e)); }
 }
 async function saveTodoField(id, field, value){
   const t=(cache.todos||[]).find(x=>x.id===id); if(!t) return;
-  if(field==='title') t.title=value; else if(field==='deadline') t.deadline=value; else if(field==='note') t.note=value;
-  try{ await apiUpdate('todos', id, t); refreshTodoPending(); }
+  if(field==='title') t.title=value;
+  else if(field==='deadline'){ t.deadline=value; t.date=datePart(value)||todayStr(); }
+  else if(field==='note') t.note=value;
+  try{ await apiUpdate('todos', id, t); await renderTodos(); }
   catch(e){ alert('保存失败：'+(e.message||e)); }
 }
 async function delTodo(id){
-  if(!confirm('删除这张待办卡片？')) return;
-  try{ await apiDelete('todos', id); cache.todos=(cache.todos||[]).filter(x=>x.id!==id); await render(); }
+  if(!confirm('删除这条待办？')) return;
+  try{ await apiDelete('todos', id); cache.todos=(cache.todos||[]).filter(x=>x.id!==id); await renderTodos(); }
   catch(e){ alert('删除失败：'+(e.message||e)); }
-}
-function refreshTodoPending(){
-  const list=(cache.todos||[]).filter(t=>t.date===todoDate);
-  const pending=list.filter(t=>!t.done).length;
-  const badge=document.querySelector('.card .h .muted');
-  if(badge) badge.textContent='· 待完成 '+pending;
 }
 
 /* ---------- 愿望清单（列表式：输入框 + 许愿按钮 + 每行愿望 + 勾选实现） ---------- */
