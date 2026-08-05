@@ -324,14 +324,11 @@
   .a2-cell{position:relative; box-sizing:border-box; border:1px solid var(--line); min-height:56px; padding:14px 18px; overflow:hidden;}
   .a2-opening, .a2-ending{width:100%;}
   .a2-text{outline:none; min-height:24px; white-space:pre-wrap; word-break:break-word; line-height:1.7; font-size:15px;}
-  .a2-title{display:flex; align-items:center; justify-content:center; text-align:center; min-height:50px; font-weight:800; font-size:18px; position:relative; padding-left:30px; padding-right:30px;}
+  .a2-title{display:flex; align-items:center; justify-content:center; text-align:center; min-height:50px; font-weight:800; font-size:18px; position:relative; padding-left:98px; padding-right:98px;}
   .a2-title .a2-text{text-align:center;}
-  .a2-drag{position:absolute; left:6px; top:50%; transform:translateY(-50%); width:24px; height:24px; display:flex; align-items:center; justify-content:center; cursor:grab; font-size:16px; color:var(--ink); z-index:4; user-select:none; touch-action:none;}
-  .a2-drag:active{cursor:grabbing;}
   .a2-main{display:flex; align-items:stretch; gap:0; margin-top:0;}
   .a2-groups{display:grid; grid-template-columns:repeat(2,1fr); gap:0; align-items:stretch; flex:1; min-width:0;}
   .a2-group{display:flex; flex-direction:column; min-width:0; box-sizing:border-box;}
-  .a2-group.dragging{opacity:.55; box-shadow:0 8px 24px rgba(0,0,0,.18);}
   .a2-content{flex:1; display:flex; flex-direction:column; padding:10px 12px; min-height:56px;}
   .a2-item{display:flex; align-items:flex-start; gap:8px; padding:6px 2px; border-bottom:1px dashed var(--line);}
   .a2-item:last-child{border-bottom:none;}
@@ -340,6 +337,7 @@
   .a2-actions{position:absolute; top:6px; right:6px; display:flex; gap:4px; z-index:5;}
   .a2-btn{width:24px; height:24px; border-radius:6px; background:rgba(255,255,255,.8); border:1px solid var(--line); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px; color:var(--ink); flex:0 0 auto; line-height:1;}
   .a2-btn:hover{background:#fff; border-color:var(--brand);}
+  .a2-fill:hover{border-color:#f59e0b; background:#fffbeb;}
   .a2-del:hover{border-color:#ef4444; color:#ef4444; background:#fef2f2;}
   .a2-add-item{margin-top:8px; text-align:center; color:var(--brand); cursor:pointer; font-size:13px; padding:7px; border:1px dashed var(--brand-soft); border-radius:8px;}
   .a2-add-item:hover{background:var(--brand-soft);}
@@ -473,7 +471,7 @@ const NAV = [
 
 const SECTIONS = {
   annual:{name:'年计划',kind:'annual',accent:'#e11d48',hint:'按年份规划全年：顶部切换年份，下方写年度总结，四列记录具体计划，可拖动调整高度，底部「添加」新增一行四列。'},
-  annual2:{name:'年度计划2.0',kind:'annual2',accent:'#e11d48',hint:'模块式年度计划：开头 + 若干「标题+内容」分组 + 结尾；分组可拖拽排序、增删条目，标题随机配色并居中加粗；每行可排 2/3/4 组。数据存于飞书「年度计划」表。'},
+  annual2:{name:'年度计划2.0',kind:'annual2',accent:'#e11d48',hint:'模块式年度计划：开头 + 若干「标题+内容」分组 + 结尾；✎ 改文字颜色、🎨 改格子颜色、🗑 删除；标题随机配色并居中加粗；每行可排 2/3/4 组。数据存于飞书「年度计划」表。'},
   monthly:{name:'月计划',kind:'grid',accent:'#f59e0b',hint:'像 Excel 一样拆解每月动作：可加/删行列、合并拆分单元格、直接录入文字，记得点「保存」。'},
   major:{name:'重大事项',kind:'events',accent:'#8b5cf6',hint:'记录人生关键节点与重要安排。'},
   todos:{name:'今日待办',kind:'todos',accent:'#0ea5e9',hint:'聚焦当下，完成今天最重要的几件事。'},
@@ -1637,7 +1635,6 @@ let a2Year = new Date().getFullYear();
 let a2Model = { opening:null, ending:null, groups:[], arrange:2, arrangeRecId:null };
 let a2Gen = 0;
 let a2LoadedYear = null;
-let a2Drag = null;
 const A2_TITLE_PALETTE = ['#fee2e2','#fef3c7','#dcfce7','#dbeafe','#f3e8ff','#ffe4e6','#cffafe','#fce7f3','#ecfccb','#ffedd5','#e0e7ff','#ccfbf1'];
 function a2RandColor(){ return A2_TITLE_PALETTE[Math.floor(Math.random()*A2_TITLE_PALETTE.length)]; }
 function a2BuildModel(recs, year){
@@ -1688,17 +1685,18 @@ async function a2Patch(id, fields){ try{ await apiJson('/annual2/'+id, {method:'
 function a2CellHTML(rec, kind){
   return `<div class="a2-cell a2-${kind}" style="background:${rec.cellColor};color:${rec.textColor}">
     <div class="a2-actions">
-      <span class="a2-btn" title="编辑颜色" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();a2EditColor(event,'${kind}',${rec.id})">✎</span>
+      <span class="a2-btn" title="文字颜色" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();a2EditTextColor(event,'${kind}','${rec.id}')">✎</span>
+      <span class="a2-btn a2-fill" title="格子颜色" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();a2EditCellColor(event,'${kind}','${rec.id}')">🎨</span>
       <span class="a2-btn a2-del" title="删除" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();a2DelCell('${kind}')">🗑</span>
     </div>
     <div class="a2-text" contenteditable="true" onblur="a2CellText('${kind}',this.innerText)">${esc(rec.text)}</div>
   </div>`;
 }
 function a2TitleHTML(rec, g){
-  return `<div class="a2-cell a2-title" data-g="${g}" style="background:${rec.cellColor};color:${rec.textColor}" title="拖动左侧 ☰ 调整分组顺序">
-    <span class="a2-drag" title="拖拽排序" onpointerdown="a2TitleDown(event,${g})">☰</span>
+  return `<div class="a2-cell a2-title" data-g="${g}" style="background:${rec.cellColor};color:${rec.textColor}">
     <div class="a2-actions">
-      <span class="a2-btn" title="编辑颜色" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();a2EditColor(event,'title',${rec.id})">✎</span>
+      <span class="a2-btn" title="文字颜色" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();a2EditTextColor(event,'title','${rec.id}')">✎</span>
+      <span class="a2-btn a2-fill" title="格子颜色" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();a2EditCellColor(event,'title','${rec.id}')">🎨</span>
       <span class="a2-btn a2-del" title="删除该分组（含其下内容）" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();a2DelGroup(${g})">🗑</span>
     </div>
     <div class="a2-text" contenteditable="true" onblur="a2TitleText(${g},this.innerText)">${esc(rec.text)}</div>
@@ -1743,44 +1741,42 @@ const A2_PALETTE = [
   { name:'绿', v:'#22c55e' }, { name:'橙', v:'#f97316' }, { name:'粉', v:'#ec4899' },
   { name:'青', v:'#06b6d4' }, { name:'灰', v:'#9ca3af' }, { name:'深蓝', v:'#1e3a8a' },
 ];
-function a2Swatches(cur, which){
-  return A2_PALETTE.map(p=>`<button type="button" class="a2-sw${p.v.toLowerCase()===String(cur).toLowerCase()?' sel':''}" style="background:${p.v}" title="${p.name}" data-v="${p.v}" onclick="a2SwPick(event,'${which}','${p.v}')"></button>`).join('');
+function a2Swatches(cur){
+  return A2_PALETTE.map(p=>`<button type="button" class="a2-sw${String(p.v).toLowerCase()===String(cur).toLowerCase()?' sel':''}" style="background:${p.v}" title="${p.name}" onclick="a2SwPick(event,'${p.v}')"></button>`).join('');
 }
-function a2EditColor(ev, kind, id){
-  let rec = null;
-  if(kind==='opening') rec=a2Model.opening;
-  else if(kind==='ending') rec=a2Model.ending;
-  else if(kind==='title'){ const grp=a2Model.groups.find(x=>x.title&&x.title.id===id); rec=grp?grp.title:null; }
-  if(!rec) return;
-  a2OpenPalette(ev.currentTarget, { hasCell:true, cell:rec.cellColor, text:rec.textColor, onApply:(cell,text)=>{ rec.cellColor=cell; rec.textColor=text; a2Patch(rec.id,{cellColor:cell,textColor:text}); a2Paint(); } });
+function a2ResolveRec(kind, id){
+  if(kind==='opening') return a2Model.opening;
+  if(kind==='ending') return a2Model.ending;
+  if(kind==='title'){ const grp=a2Model.groups.find(x=>x.title&&String(x.title.id)===String(id)); return grp?grp.title:null; }
+  return null;
+}
+function a2EditTextColor(ev, kind, id){
+  const rec=a2ResolveRec(kind,id); if(!rec) return;
+  a2OpenPalette(ev.currentTarget, '文字颜色', rec.textColor, v=>{ rec.textColor=v; a2Patch(rec.id,{textColor:v}); a2Paint(); });
+}
+function a2EditCellColor(ev, kind, id){
+  const rec=a2ResolveRec(kind,id); if(!rec) return;
+  a2OpenPalette(ev.currentTarget, '格子颜色', rec.cellColor, v=>{ rec.cellColor=v; a2Patch(rec.id,{cellColor:v}); a2Paint(); });
 }
 function a2EditItemColor(ev, id){
   const c=a2FindContent(id); if(!c) return;
-  a2OpenPalette(ev.currentTarget, { hasCell:false, cell:undefined, text:c.textColor, onApply:(_cell,text)=>{ c.textColor=text; a2Patch(id,{textColor:text}); a2Paint(); } });
+  a2OpenPalette(ev.currentTarget, '文字颜色', c.textColor, v=>{ c.textColor=v; a2Patch(id,{textColor:v}); a2Paint(); });
 }
-function a2OpenPalette(anchor, cfg){
-  const old=document.getElementById('a2ColorPop'); if(old) old.remove();
+function a2OpenPalette(anchor, label, cur, onPick){
+  a2PopCancel();
   const pop=document.createElement('div'); pop.id='a2ColorPop'; pop.className='a2-pop';
-  pop.innerHTML = `
-    ${cfg.hasCell?`<div class="a2-pop-row"><div class="a2-pop-label">格子颜色</div><div class="a2-swatches" id="a2swc">${a2Swatches(cfg.cell,'cell')}</div></div>`:''}
-    <div class="a2-pop-row"><div class="a2-pop-label">文字颜色</div><div class="a2-swatches" id="a2swt">${a2Swatches(cfg.text,'text')}</div></div>
-    <div class="a2-pop-btns"><button class="primary" onclick="a2PopApply()">应用</button><button onclick="a2PopCancel()">取消</button></div>`;
+  pop.innerHTML = `<div class="a2-pop-row"><div class="a2-pop-label">${label}</div><div class="a2-swatches">${a2Swatches(cur)}</div></div>
+    <div class="a2-pop-btns"><button onclick="a2PopCancel()">取消</button></div>`;
   document.body.appendChild(pop);
   const r=anchor.getBoundingClientRect();
-  pop.style.left = Math.min(r.left, window.innerWidth-260)+'px';
-  pop.style.top = Math.min(r.bottom+6, window.innerHeight-200)+'px';
-  window.__a2pop = { onApply: cfg.onApply, hasCell: cfg.hasCell, cell:cfg.cell, text:cfg.text };
+  pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth-250))+'px';
+  pop.style.top  = Math.max(8, Math.min(r.bottom+6, window.innerHeight-170))+'px';
+  window.__a2pop = { onPick };
+  setTimeout(()=>document.addEventListener('pointerdown', a2PopOutside), 0);
 }
-function a2SwPick(ev, which, v){
-  ev.stopPropagation();
-  const cont = document.getElementById(which==='cell'?'a2swc':'a2swt');
-  if(!cont) return;
-  cont.querySelectorAll('.a2-sw').forEach(b=>b.classList.remove('sel'));
-  ev.currentTarget.classList.add('sel');
-  if(which==='cell') window.__a2pop.cell=v; else window.__a2pop.text=v;
-}
-function a2PopApply(){ const p=window.__a2pop; if(!p) return; p.onApply(p.cell, p.text); a2PopCancel(); }
-function a2PopCancel(){ const p=document.getElementById('a2ColorPop'); if(p) p.remove(); window.__a2pop=null; }
+function a2PopOutside(e){ const p=document.getElementById('a2ColorPop'); if(p && !p.contains(e.target)) a2PopCancel(); }
+function a2SwPick(ev, v){ ev.stopPropagation(); const p=window.__a2pop; a2PopCancel(); if(p && p.onPick) p.onPick(v); }
+function a2PopCancel(){ const p=document.getElementById('a2ColorPop'); if(p) p.remove(); window.__a2pop=null; document.removeEventListener('pointerdown', a2PopOutside); }
 
 async function a2AddGroup(){
   const g = a2Model.groups.length;
@@ -1867,62 +1863,6 @@ async function a2SyncSorts(){
     grp.contents.forEach((c,j)=>{ const ns=20000+i*100+(j+1); if(c.sort!==ns){ c.sort=ns; jobs.push(a2Patch(c.id,{sort:ns})); } });
   });
   await Promise.all(jobs);
-}
-
-function a2TitleDown(e, g){
-  if(e.button!==undefined && e.button!==0) return;
-  e.preventDefault();
-  const el = e.currentTarget.closest('.a2-group');
-  a2Drag = { g, el, startX:e.clientX, startY:e.clientY, active:false, timer:null, target:null };
-  a2Drag.timer = setTimeout(()=>{
-    if(!a2Drag) return;
-    a2Drag.active = true;
-    el.classList.add('dragging');
-    if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
-    document.addEventListener('pointermove', a2PointerMove);
-    document.addEventListener('pointerup', a2PointerUp);
-  }, 350);
-}
-function a2PointerMove(e){
-  if(!a2Drag) return;
-  if(!a2Drag.active){
-    const dx=e.clientX-a2Drag.startX, dy=e.clientY-a2Drag.startY;
-    if(dx*dx+dy*dy>64){ clearTimeout(a2Drag.timer); a2Drag=null; document.removeEventListener('pointermove',a2PointerMove); document.removeEventListener('pointerup',a2PointerUp); }
-    return;
-  }
-  const dx=e.clientX-a2Drag.startX, dy=e.clientY-a2Drag.startY;
-  a2Drag.el.style.transform = `translate(${dx}px,${dy}px)`;
-  const groups=[...document.querySelectorAll('.a2-group')];
-  let target=null;
-  for(const gr of groups){ if(gr===a2Drag.el) continue; const r=gr.getBoundingClientRect(); if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom){ target=gr; break; } }
-  a2Drag.target = target;
-}
-function a2PointerUp(){
-  if(!a2Drag) return;
-  clearTimeout(a2Drag.timer);
-  document.removeEventListener('pointermove', a2PointerMove);
-  document.removeEventListener('pointerup', a2PointerUp);
-  const d=a2Drag; a2Drag=null;
-  if(!d.active){ return; }
-  d.el.classList.remove('dragging'); d.el.style.transform='';
-  if(d.target){ const toG=Number(d.target.getAttribute('data-g')); a2Reorder(d.g, toG); }
-}
-async function a2Reorder(fromG, toG){
-  const list=a2Model.groups;
-  const fromIdx=list.findIndex(g=>g.g===fromG);
-  if(fromIdx<0) return;
-  const [moved]=list.splice(fromIdx,1);
-  let toIdx=list.findIndex(g=>g.g===toG);
-  if(toIdx<0) toIdx=list.length;
-  list.splice(toIdx,0,moved);
-  list.forEach((grp,i)=> grp.g=i);
-  const jobs=[];
-  for(const grp of list){
-    if(grp.title) jobs.push(a2Patch(grp.title.id, { sort: 20000+grp.g*100 }));
-    grp.contents.forEach((c,i)=>{ const ns=20000+grp.g*100+(i+1); if(c.sort!==ns){ c.sort=ns; jobs.push(a2Patch(c.id,{sort:ns})); } });
-  }
-  await Promise.all(jobs);
-  a2Paint();
 }
 
 async function renderAnnual2(){
