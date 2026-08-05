@@ -839,6 +839,27 @@ async function deleteAnnual2(id) {
   await deleteRecord(ANNUAL2_TABLE, id, BASE_TOKEN);
   return { ok: true };
 }
+// 自动确保「类型」单选字段存在「分组」选项（用于按年份保存每行分组数）。
+// 该选项在首次部署后由本函数按需补齐，无需手工改飞书表结构。
+let _a2GroupOptOk = false;
+async function ensureAnnual2GroupOption() {
+  if (_a2GroupOptOk) return;
+  try {
+    const pre = await basePrefix(BASE_TOKEN);
+    const tid = await tableId(ANNUAL2_TABLE, BASE_TOKEN);
+    const fj = await feishuRequest('GET', `${pre}/tables/${encodeURIComponent(tid)}/fields?page_size=200`);
+    const items = (fj.data && (fj.data.items || fj.data.fields)) || [];
+    const field = items.find(f => (f.field_name || f.name) === '类型');
+    if (!field) return;
+    const opts = (field.property && field.property.options) || [];
+    if (opts.some(o => (o.name || '') === '分组')) { _a2GroupOptOk = true; return; }
+    await feishuRequest('POST', `${pre}/tables/${encodeURIComponent(tid)}/fields/${field.field_id}/options`, { options: [{ name: '分组' }] });
+    _a2GroupOptOk = true;
+    console.log('✅ 已为「年度计划.类型」补齐单选选项：分组');
+  } catch (e) {
+    console.warn('[annual2] 确保「分组」选项失败（下次请求重试）：', e.message || e);
+  }
+}
 
 /* ===================== 分类表（级联下拉数据源） ===================== */
 let _catCache = null, _catTime = 0;
@@ -1043,8 +1064,8 @@ async function route(method, url, body, res, req) {
     if ((m = (req.url.split('?')[0]).match(/^\/api\/annual2$/))) {
       const u = new URL(req.url, 'http://localhost');
       const year = Number(u.searchParams.get('year')) || new Date().getFullYear();
-      if (method === 'GET') return send(res, 200, await getAnnual2(year));
-      if (method === 'POST') { const id = await createAnnual2(body || {}); return send(res, 200, { ok: true, record_id: id }); }
+      if (method === 'GET') { await ensureAnnual2GroupOption(); return send(res, 200, await getAnnual2(year)); }
+      if (method === 'POST') { await ensureAnnual2GroupOption(); const id = await createAnnual2(body || {}); return send(res, 200, { ok: true, record_id: id }); }
       return send(res, 405, { error: '方法不允许' });
     }
     if ((m = (req.url.split('?')[0]).match(/^\/api\/annual2\/([\w]+)$/))) {
