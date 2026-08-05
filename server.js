@@ -791,6 +791,55 @@ async function saveAnnual(year, data) {
   return { ok: true };
 }
 
+/* ===================== 年度计划 2.0（模块式：飞书「年度计划」表） ===================== */
+const ANNUAL2_TABLE = process.env.ANNUAL2_TABLE || '年度计划';
+async function getAnnual2(year) {
+  const rows = await listTable(ANNUAL2_TABLE, BASE_TOKEN);
+  const out = rows
+    .filter(r => Number(r['年份']) === Number(year))
+    .map(r => ({
+      id: r.record_id,
+      year: Number(r['年份']),
+      type: sel(r['类型']) || '',
+      cellColor: (r['格子颜色'] || '') || '#ffffff',
+      text: (r['文案'] || ''),
+      textColor: (r['文字颜色'] || '') || '#0f172a',
+      sort: Number(r['排序']) || 0,
+      done: !!r['完成标记'],
+    }));
+  out.sort((a, b) => a.sort - b.sort);
+  return out;
+}
+async function createAnnual2(rec) {
+  const fields = {
+    年份: Number(rec.year),
+    类型: rec.type,
+    格子颜色: rec.cellColor || '#ffffff',
+    文案: rec.text || '',
+    文字颜色: rec.textColor || '#0f172a',
+    排序: Number(rec.sort),
+    完成标记: !!rec.done,
+  };
+  const id = await createRecord(ANNUAL2_TABLE, fields, BASE_TOKEN);
+  return id;
+}
+async function updateAnnual2(id, rec) {
+  const fields = {};
+  if (rec.year != null) fields['年份'] = Number(rec.year);
+  if (rec.type != null) fields['类型'] = rec.type;
+  if (rec.cellColor != null) fields['格子颜色'] = rec.cellColor;
+  if (rec.text != null) fields['文案'] = rec.text;
+  if (rec.textColor != null) fields['文字颜色'] = rec.textColor;
+  if (rec.sort != null) fields['排序'] = Number(rec.sort);
+  if (rec.done != null) fields['完成标记'] = !!rec.done;
+  await updateRecord(ANNUAL2_TABLE, id, fields, BASE_TOKEN);
+  return { ok: true };
+}
+async function deleteAnnual2(id) {
+  await deleteRecord(ANNUAL2_TABLE, id, BASE_TOKEN);
+  return { ok: true };
+}
+
 /* ===================== 分类表（级联下拉数据源） ===================== */
 let _catCache = null, _catTime = 0;
 async function getCategory() {
@@ -989,6 +1038,19 @@ async function route(method, url, body, res, req) {
       const year = Number(u.searchParams.get('year')) || new Date().getFullYear();
       if (method === 'GET') return send(res, 200, await getAnnual(year));
       if (method === 'PUT') { await saveAnnual(year, (body && body.data) || {}); return send(res, 200, { ok: true }); }
+      return send(res, 405, { error: '方法不允许' });
+    }
+    if ((m = (req.url.split('?')[0]).match(/^\/api\/annual2$/))) {
+      const u = new URL(req.url, 'http://localhost');
+      const year = Number(u.searchParams.get('year')) || new Date().getFullYear();
+      if (method === 'GET') return send(res, 200, await getAnnual2(year));
+      if (method === 'POST') { const id = await createAnnual2(body || {}); return send(res, 200, { ok: true, record_id: id }); }
+      return send(res, 405, { error: '方法不允许' });
+    }
+    if ((m = (req.url.split('?')[0]).match(/^\/api\/annual2\/([\w]+)$/))) {
+      const id = m[1];
+      if (method === 'PUT') { await updateAnnual2(id, body || {}); return send(res, 200, { ok: true }); }
+      if (method === 'DELETE') { await deleteAnnual2(id); return send(res, 200, { ok: true }); }
       return send(res, 405, { error: '方法不允许' });
     }
     if ((m = (req.url.split('?')[0]).match(/^\/api\/section\/([\w]+)(?:\/(.+))?$/))) {

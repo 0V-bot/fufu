@@ -318,6 +318,39 @@
   .diary-view .dv-meta{display:flex; gap:8px; margin-bottom:12px;}
   .diary-view .dv-pill{background:var(--brand-soft); color:var(--brand); border-radius:999px; padding:5px 12px; font-size:13px; font-weight:600;}
   .diary-view .dv-content{white-space:pre-wrap; line-height:1.8; font-size:15px; background:var(--line2); border-radius:12px; padding:14px 16px;}
+
+  /* ===================== 年度计划 2.0 ===================== */
+  .annual2{display:flex; flex-direction:column;}
+  .a2-cell{position:relative; box-sizing:border-box; border:1px solid var(--line); min-height:56px; padding:14px 18px; overflow:hidden;}
+  .a2-opening, .a2-ending{width:100%;}
+  .a2-text{outline:none; min-height:24px; white-space:pre-wrap; word-break:break-word; line-height:1.7; font-size:15px;}
+  .a2-title{display:flex; align-items:center; justify-content:center; text-align:center; min-height:50px; font-weight:800; font-size:18px; cursor:grab;}
+  .a2-title .a2-text{text-align:center;}
+  .a2-title:active{cursor:grabbing;}
+  .a2-main{display:flex; align-items:stretch; gap:0; margin-top:0;}
+  .a2-groups{display:grid; grid-template-columns:repeat(2,1fr); gap:0; align-items:stretch; flex:1; min-width:0;}
+  .a2-group{display:flex; flex-direction:column; min-width:0; box-sizing:border-box;}
+  .a2-group.dragging{opacity:.55; box-shadow:0 8px 24px rgba(0,0,0,.18);}
+  .a2-content{flex:1; display:flex; flex-direction:column; padding:10px 12px; min-height:56px;}
+  .a2-item{display:flex; align-items:flex-start; gap:8px; padding:6px 2px; border-bottom:1px dashed var(--line);}
+  .a2-item:last-child{border-bottom:none;}
+  .a2-check{margin-top:4px; flex:0 0 auto; width:16px; height:16px; cursor:pointer;}
+  .a2-item-text{flex:1; outline:none; min-height:20px; white-space:pre-wrap; word-break:break-word; line-height:1.7; font-size:14px;}
+  .a2-edit{position:absolute; top:6px; right:6px; width:24px; height:24px; border-radius:6px; background:rgba(255,255,255,.75); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px; color:var(--ink); z-index:3;}
+  .a2-edit:hover{background:#fff; border-color:var(--brand);}
+  .a2-add-item{margin-top:8px; text-align:center; color:var(--brand); cursor:pointer; font-size:13px; padding:7px; border:1px dashed var(--brand-soft); border-radius:8px;}
+  .a2-add-item:hover{background:var(--brand-soft);}
+  .a2-addgroup{flex:0 0 44px; margin-left:8px; border:1px dashed var(--brand); border-radius:10px; background:#fff; color:var(--brand); font-size:24px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center;}
+  .a2-addgroup:hover{background:var(--brand-soft);}
+  .a2-addgroup-wrap{margin-top:10px; display:flex; justify-content:flex-end;}
+  .a2-arrange{margin-top:14px; font-size:13px; color:var(--muted); display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .a2-arrange input{width:56px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; font-family:inherit;}
+  .a2-pop{position:fixed; z-index:300; background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; box-shadow:0 10px 34px rgba(0,0,0,.2); display:flex; flex-direction:column; gap:10px;}
+  .a2-pop label{font-size:13px; color:var(--ink); display:flex; align-items:center; gap:8px;}
+  .a2-pop input[type=color]{width:42px; height:28px; border:1px solid var(--line); border-radius:6px; background:none; cursor:pointer; padding:0;}
+  .a2-pop-btns{display:flex; gap:8px; justify-content:flex-end;}
+  .a2-pop-btns button{border:1px solid var(--line); background:#fff; border-radius:8px; padding:5px 12px; cursor:pointer; font-family:inherit; font-size:13px;}
+  .a2-pop-btns button.primary{background:var(--brand); color:#fff; border-color:var(--brand);}
 </style>
 </head>
 <body>
@@ -391,6 +424,7 @@ const NAV = [
   {id:'dashboard', label:'首页', icon:'🏠'},
   {id:'strategy', label:'人生战略', icon:'🎯', children:[
     {id:'annual', label:'年计划'},
+    {id:'annual2', label:'年度计划2.0'},
     {id:'monthly', label:'月计划'},
     {id:'major', label:'重大事项'},
     {id:'wishes', label:'愿望清单'},
@@ -428,6 +462,7 @@ const NAV = [
 
 const SECTIONS = {
   annual:{name:'年计划',kind:'annual',accent:'#e11d48',hint:'按年份规划全年：顶部切换年份，下方写年度总结，四列记录具体计划，可拖动调整高度，底部「添加」新增一行四列。'},
+  annual2:{name:'年度计划2.0',kind:'annual2',accent:'#e11d48',hint:'模块式年度计划：开头 + 若干「标题+内容」分组 + 结尾；分组可拖拽排序、增删条目，标题随机配色并居中加粗；每行可排 2/3/4 组。数据存于飞书「年度计划」表。'},
   monthly:{name:'月计划',kind:'grid',accent:'#f59e0b',hint:'像 Excel 一样拆解每月动作：可加/删行列、合并拆分单元格、直接录入文字，记得点「保存」。'},
   major:{name:'重大事项',kind:'events',accent:'#8b5cf6',hint:'记录人生关键节点与重要安排。'},
   todos:{name:'今日待办',kind:'todos',accent:'#0ea5e9',hint:'聚焦当下，完成今天最重要的几件事。'},
@@ -1586,6 +1621,196 @@ function annualResizeEnd(){
   annualMarkDirty(); annualSave();
 }
 
+/* ---------- 年度计划 2.0（模块式：开头 + 标题/内容分组 + 结尾） ---------- */
+let a2Year = new Date().getFullYear();
+let a2Model = { opening:null, ending:null, groups:[], arrange:2 };
+let a2Gen = 0;
+let a2LoadedYear = null;
+let a2Drag = null;
+const A2_TITLE_PALETTE = ['#fee2e2','#fef3c7','#dcfce7','#dbeafe','#f3e8ff','#ffe4e6','#cffafe','#fce7f3','#ecfccb','#ffedd5','#e0e7ff','#ccfbf1'];
+function a2RandColor(){ return A2_TITLE_PALETTE[Math.floor(Math.random()*A2_TITLE_PALETTE.length)]; }
+function a2BuildModel(recs, year){
+  recs = (recs||[]).map(r=>({ id:r.id, year:Number(r.year)||year, type:r.type||'', cellColor:r.cellColor||'#ffffff', textColor:r.textColor||'#0f172a', text:r.text||'', sort:Number(r.sort)||0, done:!!r.done }));
+  recs.sort((a,b)=>a.sort-b.sort);
+  let opening=null, ending=null; const groups=[];
+  for(const r of recs){
+    if(r.type==='开头'){ opening=r; }
+    else if(r.type==='结尾'){ ending=r; }
+    else if(r.type==='标题'){ let g=Math.floor((r.sort-20000)/100); if(g<0)g=0; groups[g]={g,title:r,contents:[]}; }
+    else if(r.type==='内容'){ let g=Math.floor((r.sort-20000)/100); if(g<0)g=0; if(!groups[g]) groups[g]={g,title:null,contents:[]}; groups[g].contents.push(r); }
+  }
+  return { opening, ending, groups: groups.filter(Boolean), arrange:2 };
+}
+async function a2Load(year){
+  const gen = ++a2Gen; a2Year = year;
+  view.innerHTML = '<div class="empty">⏳ 加载中…</div>';
+  try{
+    let recs = await apiJson('/annual2?year='+year);
+    if(gen!==a2Gen) return;
+    if(!recs || !recs.length){
+      // 首次进入：自动播种 开头 / 一个默认分组(标题) / 结尾
+      await apiJson('/annual2', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year, type:'开头', cellColor:'#ffffff', textColor:'#0f172a', sort:10000, text:''})});
+      await apiJson('/annual2', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year, type:'标题', cellColor:a2RandColor(), textColor:'#0f172a', sort:20000, text:''})});
+      await apiJson('/annual2', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year, type:'结尾', cellColor:'#ffffff', textColor:'#0f172a', sort:30000, text:''})});
+      recs = await apiJson('/annual2?year='+year);
+    }
+    if(gen!==a2Gen) return;
+    a2Model = a2BuildModel(recs, year);
+    a2LoadedYear = year;
+    a2Paint();
+  }catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; }
+}
+function a2Switch(d){ a2Load(a2Year + d); }
+function a2FindContent(id){ for(const grp of a2Model.groups){ const c=grp.contents.find(x=>x.id===id); if(c) return c; } return null; }
+async function a2Patch(id, fields){ try{ await apiJson('/annual2/'+id, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(fields)}); }catch(e){ console.warn('年度计划2.0 保存失败', e); } }
+
+function a2CellHTML(rec, kind){
+  return `<div class="a2-cell a2-${kind}" style="background:${rec.cellColor};color:${rec.textColor}">
+    <div class="a2-edit" title="编辑颜色" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();a2EditColor(event,'${kind}',${rec.id})">✎</div>
+    <div class="a2-text" contenteditable="true" onblur="a2CellText('${kind}',this.innerText)">${esc(rec.text)}</div>
+  </div>`;
+}
+function a2TitleHTML(rec, g){
+  return `<div class="a2-cell a2-title" data-g="${g}" style="background:${rec.cellColor};color:${rec.textColor}" onpointerdown="a2TitleDown(event,${g})" title="长按拖拽调整分组顺序">
+    <div class="a2-edit" title="编辑颜色" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();a2EditColor(event,'title',${rec.id})">✎</div>
+    <div class="a2-text" contenteditable="true" onblur="a2TitleText(${g},this.innerText)">${esc(rec.text)}</div>
+  </div>`;
+}
+function a2ItemHTML(c){
+  return `<div class="a2-item" data-id="${c.id}">
+    <input type="checkbox" class="a2-check" ${c.done?'checked':''} onchange="a2ToggleDone('${c.id}',this.checked)">
+    <div class="a2-item-text" contenteditable="true" style="color:${c.textColor};text-decoration:${c.done?'line-through':''}" onblur="a2ItemText('${c.id}',this.innerText)">${esc(c.text)}</div>
+    <div class="a2-edit" title="文字颜色" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();a2EditItemColor(event,'${c.id}')">✎</div>
+  </div>`;
+}
+function a2Paint(){
+  let html = `<div class="annual2">`;
+  html += `<div class="annual-yearbar"><button class="yrbtn" onclick="a2Switch(-1)" title="上一年">‹</button><div class="yr">${a2Year} 年度计划</div><button class="yrbtn" onclick="a2Switch(1)" title="下一年">›</button></div>`;
+  if(a2Model.opening) html += a2CellHTML(a2Model.opening, 'opening');
+  html += `<div class="a2-main"><div class="a2-groups" style="grid-template-columns:repeat(${a2Model.arrange},1fr)">`;
+  a2Model.groups.forEach(grp => {
+    html += `<div class="a2-group" data-g="${grp.g}">`;
+    if(grp.title) html += a2TitleHTML(grp.title, grp.g);
+    html += `<div class="a2-cell a2-content">`;
+    grp.contents.forEach(c => html += a2ItemHTML(c));
+    html += `<div class="a2-add-item" onclick="a2AddItem(${grp.g})">＋ 添加一条</div>`;
+    html += `</div></div>`;
+  });
+  html += `</div><div class="a2-addgroup" title="添加一组标题+内容" onclick="a2AddGroup()">＋</div></div>`;
+  if(a2Model.ending) html += a2CellHTML(a2Model.ending, 'ending');
+  html += `<div class="a2-arrange">每行分组数：<input type="number" min="2" max="4" value="${a2Model.arrange}" onchange="a2SetArrange(Number(this.value))"> <span>（2=一行两组，3=一行三组，4=一行四组）</span></div>`;
+  html += `</div>`;
+  view.innerHTML = html;
+}
+function a2CellText(kind, t){ const rec = kind==='opening'?a2Model.opening:a2Model.ending; if(!rec) return; rec.text=t; a2Patch(rec.id, {text:t}); }
+function a2TitleText(g, t){ const grp=a2Model.groups.find(x=>x.g===g); if(!grp||!grp.title) return; grp.title.text=t; a2Patch(grp.title.id,{text:t}); }
+function a2ItemText(id, t){ const c=a2FindContent(id); if(!c) return; c.text=t; a2Patch(id,{text:t}); }
+function a2ToggleDone(id, checked){ const c=a2FindContent(id); if(!c) return; c.done=checked; a2Patch(id,{done:checked}); a2Paint(); }
+
+function a2EditColor(ev, kind, id){
+  let rec = null;
+  if(kind==='opening') rec=a2Model.opening;
+  else if(kind==='ending') rec=a2Model.ending;
+  else if(kind==='title'){ const grp=a2Model.groups.find(x=>x.title&&x.title.id===id); rec=grp?grp.title:null; }
+  if(!rec) return;
+  a2OpenColorEditor(ev.currentTarget, { cell:rec.cellColor, text:rec.textColor, onApply:(cell,text)=>{ rec.cellColor=cell; rec.textColor=text; a2Patch(rec.id,{cellColor:cell,textColor:text}); a2Paint(); } });
+}
+function a2EditItemColor(ev, id){
+  const c=a2FindContent(id); if(!c) return;
+  a2OpenColorEditor(ev.currentTarget, { text:c.textColor, onApply:(_cell,text)=>{ c.textColor=text; a2Patch(id,{textColor:text}); a2Paint(); } });
+}
+function a2OpenColorEditor(anchor, cfg){
+  const old=document.getElementById('a2ColorPop'); if(old) old.remove();
+  const pop=document.createElement('div'); pop.id='a2ColorPop'; pop.className='a2-pop';
+  pop.innerHTML = `
+    ${cfg.cell!==undefined?`<label>格子颜色 <input type="color" id="a2pc" value="${cfg.cell}"></label>`:''}
+    <label>文字颜色 <input type="color" id="a2pt" value="${cfg.text}"></label>
+    <div class="a2-pop-btns"><button class="primary" onclick="a2PopApply()">应用</button><button onclick="a2PopCancel()">取消</button></div>`;
+  document.body.appendChild(pop);
+  const r=anchor.getBoundingClientRect();
+  pop.style.left = Math.min(r.left, window.innerWidth-230)+'px';
+  pop.style.top = Math.min(r.bottom+6, window.innerHeight-160)+'px';
+  window.__a2pop = { onApply: cfg.onApply, hasCell: cfg.cell!==undefined };
+}
+function a2PopApply(){ const p=window.__a2pop; if(!p) return; const cell=p.hasCell?document.getElementById('a2pc').value:undefined; const text=document.getElementById('a2pt').value; p.onApply(cell,text); a2PopCancel(); }
+function a2PopCancel(){ const p=document.getElementById('a2ColorPop'); if(p) p.remove(); window.__a2pop=null; }
+
+async function a2AddGroup(){
+  const g = a2Model.groups.length;
+  const color = a2RandColor();
+  try{
+    const r = await apiJson('/annual2', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year:a2Year, type:'标题', cellColor:color, textColor:'#0f172a', sort:20000+g*100, text:''})});
+    a2Model.groups.push({ g, title:{id:r.record_id, year:a2Year, type:'标题', cellColor:color, textColor:'#0f172a', text:'', sort:20000+g*100, done:false}, contents:[] });
+    a2Paint();
+  }catch(e){ alert('添加分组失败：'+(e.message||e)); }
+}
+async function a2AddItem(g){
+  const grp=a2Model.groups.find(x=>x.g===g); if(!grp) return;
+  const c = grp.contents.length + 1;
+  try{
+    const r = await apiJson('/annual2', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year:a2Year, type:'内容', cellColor:'#ffffff', textColor:'#0f172a', sort:20000+g*100+c, text:''})});
+    grp.contents.push({id:r.record_id, year:a2Year, type:'内容', cellColor:'#ffffff', textColor:'#0f172a', text:'', sort:20000+g*100+c, done:false});
+    a2Paint();
+    const last=view.querySelector('.a2-group[data-g="'+g+'"] .a2-item:last-child .a2-item-text'); if(last) last.focus();
+  }catch(e){ alert('添加条目失败：'+(e.message||e)); }
+}
+function a2SetArrange(v){ v=Math.max(2,Math.min(4,Math.round(v)||2)); a2Model.arrange=v; a2Paint(); }
+
+function a2TitleDown(e, g){
+  if(e.button!==undefined && e.button!==0) return;
+  const el = e.currentTarget.closest('.a2-group');
+  a2Drag = { g, el, startX:e.clientX, startY:e.clientY, active:false, timer:null, target:null };
+  a2Drag.timer = setTimeout(()=>{
+    if(!a2Drag) return;
+    a2Drag.active = true;
+    el.classList.add('dragging');
+    if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    document.addEventListener('pointermove', a2PointerMove);
+    document.addEventListener('pointerup', a2PointerUp);
+  }, 350);
+}
+function a2PointerMove(e){
+  if(!a2Drag) return;
+  if(!a2Drag.active){
+    const dx=e.clientX-a2Drag.startX, dy=e.clientY-a2Drag.startY;
+    if(dx*dx+dy*dy>64){ clearTimeout(a2Drag.timer); a2Drag=null; document.removeEventListener('pointermove',a2PointerMove); document.removeEventListener('pointerup',a2PointerUp); }
+    return;
+  }
+  const dx=e.clientX-a2Drag.startX, dy=e.clientY-a2Drag.startY;
+  a2Drag.el.style.transform = `translate(${dx}px,${dy}px)`;
+  const groups=[...document.querySelectorAll('.a2-group')];
+  let target=null;
+  for(const gr of groups){ if(gr===a2Drag.el) continue; const r=gr.getBoundingClientRect(); if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom){ target=gr; break; } }
+  a2Drag.target = target;
+}
+function a2PointerUp(){
+  if(!a2Drag) return;
+  clearTimeout(a2Drag.timer);
+  document.removeEventListener('pointermove', a2PointerMove);
+  document.removeEventListener('pointerup', a2PointerUp);
+  const d=a2Drag; a2Drag=null;
+  if(!d.active){ return; }
+  d.el.classList.remove('dragging'); d.el.style.transform='';
+  if(d.target){ const toG=Number(d.target.getAttribute('data-g')); a2Reorder(d.g, toG); }
+}
+async function a2Reorder(fromG, toG){
+  const list=a2Model.groups;
+  const fromIdx=list.findIndex(g=>g.g===fromG);
+  if(fromIdx<0) return;
+  const [moved]=list.splice(fromIdx,1);
+  let toIdx=list.findIndex(g=>g.g===toG);
+  if(toIdx<0) toIdx=list.length;
+  list.splice(toIdx,0,moved);
+  list.forEach((grp,i)=> grp.g=i);
+  const jobs=[];
+  for(const grp of list){
+    if(grp.title) jobs.push(a2Patch(grp.title.id, { sort: 20000+grp.g*100 }));
+    grp.contents.forEach((c,i)=>{ const ns=20000+grp.g*100+(i+1); if(c.sort!==ns){ c.sort=ns; jobs.push(a2Patch(c.id,{sort:ns})); } });
+  }
+  await Promise.all(jobs);
+  a2Paint();
+}
+
 /* ---------- 类 Excel 表格编辑器（年计划 / 月计划） ---------- */
 let gridSectionId = null;
 let gridState = null;        // {rows, cols, data:[[{t,rs,cs}]]}
@@ -1798,6 +2023,7 @@ async function render(){
     if(kind==='project') return await renderProject(current);
     if(kind==='article') return await renderArticle();
     if(kind==='annual') return await renderAnnual();
+    if(kind==='annual2') return await renderAnnual2();
     if(kind==='grid') return await renderGrid(current);
     if(kind==='wishes') return await renderWishes();
     if(kind==='insprec') return await renderInsp();
