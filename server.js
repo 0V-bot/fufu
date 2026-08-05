@@ -794,6 +794,8 @@ async function saveAnnual(year, data) {
 
 /* ===================== 年度计划 2.0（模块式：飞书「年度计划」表） ===================== */
 const ANNUAL2_TABLE = process.env.ANNUAL2_TABLE || '年度计划';
+/* ===================== 月度计划 2.0（飞书「月度计划」表） ===================== */
+const MONTHPLAN2_TABLE = process.env.MONTHPLAN2_TABLE || '月度计划';
 async function getAnnual2(year) {
   const rows = await listTable(ANNUAL2_TABLE, BASE_TOKEN);
   const out = rows
@@ -838,6 +840,50 @@ async function updateAnnual2(id, rec) {
 }
 async function deleteAnnual2(id) {
   await deleteRecord(ANNUAL2_TABLE, id, BASE_TOKEN);
+  return { ok: true };
+}
+// 月度计划2.0：按 年份+月份 读取；年份/月份/序号为整型，完成标签 0/1。
+async function getMonthPlan2(year, month) {
+  const rows = await listTable(MONTHPLAN2_TABLE, BASE_TOKEN);
+  const out = rows
+    .filter(r => Number(r['年份']) === Number(year) && Number(r['月份']) === Number(month))
+    .map(r => ({
+      id: r.record_id,
+      year: Number(r['年份']),
+      month: Number(r['月份']),
+      seq: num(r['序号']),
+      item: (r['计划事项'] || ''),
+      content: (r['计划内容'] || ''),
+      deadline: dateOnly(r['截止时间']),
+      done: Number(r['完成标签']) ? 1 : 0,
+    }))
+    .sort((a, b) => (a.seq - b.seq) || String(a.deadline || '').localeCompare(String(b.deadline || '')) || String(a.id).localeCompare(String(b.id)));
+  return out;
+}
+async function createMonthPlan2(rec) {
+  const fields = {
+    年份: Number(rec.year),
+    月份: Number(rec.month),
+    序号: Number(rec.seq),
+    计划事项: rec.item || '',
+    计划内容: rec.content || '',
+    截止时间: toFeishuDate(rec.deadline),
+    完成标签: rec.done ? 1 : 0,
+  };
+  const id = await createRecord(MONTHPLAN2_TABLE, fields, BASE_TOKEN);
+  return id;
+}
+async function updateMonthPlan2(id, rec) {
+  const fields = {};
+  if (rec.item != null) fields['计划事项'] = rec.item;
+  if (rec.content != null) fields['计划内容'] = rec.content;
+  if (rec.deadline !== undefined) fields['截止时间'] = toFeishuDate(rec.deadline);
+  if (rec.done != null) fields['完成标签'] = rec.done ? 1 : 0;
+  await updateRecord(MONTHPLAN2_TABLE, id, fields, BASE_TOKEN);
+  return { ok: true };
+}
+async function deleteMonthPlan2(id) {
+  await deleteRecord(MONTHPLAN2_TABLE, id, BASE_TOKEN);
   return { ok: true };
 }
 // 向某表的单选字段追加一个新选项。
@@ -1110,6 +1156,20 @@ async function route(method, url, body, res, req) {
       const id = m[1];
       if (method === 'PUT') { await updateAnnual2(id, body || {}); return send(res, 200, { ok: true }); }
       if (method === 'DELETE') { await deleteAnnual2(id); return send(res, 200, { ok: true }); }
+      return send(res, 405, { error: '方法不允许' });
+    }
+    if ((m = (req.url.split('?')[0]).match(/^\/api\/monthplan2$/))) {
+      const u = new URL(req.url, 'http://localhost');
+      const year = Number(u.searchParams.get('year')) || new Date().getFullYear();
+      const month = Number(u.searchParams.get('month')) || (new Date().getMonth() + 1);
+      if (method === 'GET') return send(res, 200, await getMonthPlan2(year, month));
+      if (method === 'POST') { const id = await createMonthPlan2(body || {}); return send(res, 200, { ok: true, record_id: id }); }
+      return send(res, 405, { error: '方法不允许' });
+    }
+    if ((m = (req.url.split('?')[0]).match(/^\/api\/monthplan2\/([\w]+)$/))) {
+      const id = m[1];
+      if (method === 'PUT') { await updateMonthPlan2(id, body || {}); return send(res, 200, { ok: true }); }
+      if (method === 'DELETE') { await deleteMonthPlan2(id); return send(res, 200, { ok: true }); }
       return send(res, 405, { error: '方法不允许' });
     }
     if ((m = (req.url.split('?')[0]).match(/^\/api\/section\/([\w]+)(?:\/(.+))?$/))) {

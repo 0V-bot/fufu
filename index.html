@@ -363,6 +363,41 @@
   .a2-confirm-msg{margin:10px 0 18px; color:var(--muted); line-height:1.6;}
   .btn.danger{background:#ef4444; border-color:#ef4444; color:#fff;}
   .btn.danger:hover{background:#dc2626;}
+
+  /* ===================== 月度计划 2.0 ===================== */
+  .mp2{display:flex; flex-direction:column; gap:14px;}
+  .mp2-topbar{display:flex; align-items:center; justify-content:center; gap:18px; padding:4px 0 2px;}
+  .mp2-nav{width:38px; height:38px; border-radius:50%; border:1px solid var(--line); background:var(--card); color:var(--brand); font-size:20px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center;}
+  .mp2-nav:hover{background:var(--brand-soft);}
+  .mp2-title{font-size:20px; font-weight:800; letter-spacing:.5px; min-width:200px; text-align:center;}
+  .mp2-table{border-collapse:collapse; width:100%; background:var(--card); border-radius:14px; overflow:hidden; box-shadow:0 1px 3px rgba(15,23,42,.06);}
+  .mp2-table th, .mp2-table td{border:1px solid var(--line); padding:10px 12px; vertical-align:top; text-align:left; font-size:14px;}
+  .mp2-table th{background:var(--brand-soft); color:var(--brand); font-weight:700; text-align:center; white-space:nowrap;}
+  .mp2-table th:nth-child(1){width:54px;}
+  .mp2-table th:nth-child(2){width:150px;}
+  .mp2-table th:nth-child(4){width:160px;}
+  .mp2-table th:nth-child(5){width:120px;}
+  .col-seq{text-align:center; font-weight:800; font-size:16px; color:var(--brand); background:var(--brand-soft); vertical-align:middle;}
+  .col-item{background:var(--bg);}
+  .mp2-item{outline:none; min-height:22px; white-space:pre-wrap; word-break:break-word; line-height:1.6; font-weight:600; cursor:text;}
+  .mp2-content{outline:none; min-height:22px; white-space:pre-wrap; word-break:break-word; line-height:1.6; cursor:text;}
+  .col-content, .col-deadline{border-left:3px solid transparent;}
+  .mp2-date{border:1px solid var(--line); border-radius:8px; padding:5px 8px; font-size:13px; background:#fff; color:#0f172a; width:100%; box-sizing:border-box;}
+  .col-done{text-align:center; white-space:nowrap; vertical-align:middle;}
+  .mp2-check{display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border:2px solid var(--muted); border-radius:6px; cursor:pointer; font-weight:800; color:transparent; user-select:none; transition:.15s;}
+  .mp2-check:hover{border-color:var(--brand);}
+  .mp2-check.on{background:#22c55e; border-color:#22c55e; color:#fff;}
+  .mp2-del{margin-left:8px; border:none; background:transparent; color:var(--muted); cursor:pointer; font-size:15px; vertical-align:middle;}
+  .mp2-del:hover{color:#ef4444;}
+  .mp2-empty{text-align:center; color:var(--muted); padding:24px;}
+  /* 颜色标记：完成绿 / 今日橙 / 超期红（作用于 计划内容 + 截止时间 两列） */
+  .mp2-green.col-content, .mp2-green.col-deadline{background:#dcfce7; border-left-color:#22c55e;}
+  .mp2-orange.col-content, .mp2-orange.col-deadline{background:#ffedd5; border-left-color:#f97316;}
+  .mp2-red.col-content, .mp2-red.col-deadline{background:#fee2e2; border-left-color:#ef4444;}
+  .mp2-add{margin:2px auto 0; width:fit-content; padding:10px 22px; border:1.5px dashed var(--brand); color:var(--brand); border-radius:12px; cursor:pointer; font-weight:700; background:var(--card);}
+  .mp2-add:hover{background:var(--brand-soft);}
+  .mp2-hint{font-size:12px; color:var(--muted); margin:4px 0 2px; line-height:1.5;}
+  .mp2-seq-input{width:120px;}
 </style>
 </head>
 <body>
@@ -441,6 +476,7 @@ const NAV = [
     {id:'annual', label:'年计划'},
     {id:'annual2', label:'年度计划2.0'},
     {id:'monthly', label:'月计划'},
+    {id:'monthplan2', label:'月度计划2.0'},
     {id:'major', label:'重大事项'},
     {id:'wishes', label:'愿望清单'},
     {id:'bookcorner', label:'精神角落'},
@@ -479,6 +515,7 @@ const SECTIONS = {
   annual:{name:'年计划',kind:'annual',accent:'#e11d48',hint:'按年份规划全年：顶部切换年份，下方写年度总结，四列记录具体计划，可拖动调整高度，底部「添加」新增一行四列。'},
   annual2:{name:'年度计划2.0',kind:'annual2',accent:'#e11d48',hint:'模块式年度计划：开头 + 若干「标题+内容」分组 + 结尾；✎ 改文字颜色、🎨 改格子颜色、🗑 删除；标题随机配色并居中加粗；每行可排 2/3/4 组。数据存于飞书「年度计划」表。'},
   monthly:{name:'月计划',kind:'grid',accent:'#f59e0b',hint:'像 Excel 一样拆解每月动作：可加/删行列、合并拆分单元格、直接录入文字，记得点「保存」。'},
+  monthplan2:{name:'月度计划2.0',kind:'monthplan2',accent:'#0ea5e9',hint:'按月清单式计划：顶部切换年月，五列展示（序号/计划事项/计划内容/截止时间/是否完成）；同年同月序号自动合并、计划事项一致则合并；底部加号新增，完成方块打勾，超期红/今日橙/完成绿。数据存于飞书「月度计划」表。'},
   major:{name:'重大事项',kind:'events',accent:'#8b5cf6',hint:'记录人生关键节点与重要安排。'},
   todos:{name:'今日待办',kind:'todos',accent:'#0ea5e9',hint:'聚焦当下，完成今天最重要的几件事。'},
   habits:{name:'微习惯',kind:'habits',accent:'#10b981',hint:'每天一点点，用复利改变自己。'},
@@ -1925,6 +1962,167 @@ async function renderAnnual2(){
   await a2Load(a2Year);
 }
 
+/* ---------- 月度计划 2.0（飞书「月度计划」表） ---------- */
+let mp2Year = null, mp2Month = null, mp2Data = [], mp2Gen = 0;
+function mp2Today(){
+  const d = new Date(Date.now() + 8 * 3600 * 1000), p = n => n < 10 ? '0' + n : '' + n;
+  return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate());
+}
+async function renderMonthPlan2(){
+  if (mp2Year == null) { const n = new Date(); mp2Year = n.getFullYear(); mp2Month = n.getMonth() + 1; }
+  await mp2Load();
+}
+async function mp2Load(){
+  const gen = ++mp2Gen;
+  view.innerHTML = '<div class="empty">⏳ 加载中…</div>';
+  try {
+    const d = await apiJson('/monthplan2?year=' + mp2Year + '&month=' + mp2Month);
+    if (gen !== mp2Gen) return;
+    mp2Data = d || [];
+    mp2Paint();
+  } catch (e) { view.innerHTML = '<div class="empty">⚠️ 加载失败：' + esc(e.message || e) + '</div>'; }
+}
+function mp2SwitchMonth(d){
+  const n = new Date(mp2Year, mp2Month - 1 + d, 1);
+  mp2Year = n.getFullYear(); mp2Month = n.getMonth() + 1;
+  mp2Load();
+}
+function mp2BuildGroups(rows){
+  const sorted = rows.slice().sort((a, b) =>
+    (a.seq - b.seq) ||
+    String(a.deadline || '').localeCompare(String(b.deadline || '')) ||
+    String(a.id).localeCompare(String(b.id)));
+  const groups = [], map = new Map();
+  for (const r of sorted) {
+    if (!map.has(r.seq)) { const g = { seq: r.seq, rows: [] }; map.set(r.seq, g); groups.push(g); }
+    map.get(r.seq).rows.push(r);
+  }
+  return groups;
+}
+function mp2CellClass(r){
+  if (r.done) return 'mp2-green';
+  const t = mp2Today();
+  if (!r.deadline) return '';
+  if (r.deadline === t) return 'mp2-orange';
+  if (r.deadline < t) return 'mp2-red';
+  return '';
+}
+function mp2DeadlineHTML(r){
+  return `<input type="date" class="mp2-date" value="${esc(r.deadline || '')}" onchange="mp2EditDeadline('${r.id}', this.value)">`;
+}
+function mp2DoneHTML(r){
+  return `<span class="mp2-check ${r.done ? 'on' : ''}" title="点击标记完成/未完成" onclick="mp2ToggleDone('${r.id}', ${r.done ? 0 : 1})">${r.done ? '✓' : ''}</span>`;
+}
+function mp2Paint(){
+  const groups = mp2BuildGroups(mp2Data);
+  let html = '<div class="mp2">';
+  html += `<div class="mp2-topbar">
+    <button class="mp2-nav" onclick="mp2SwitchMonth(-1)" title="上个月">‹</button>
+    <div class="mp2-title">${mp2Year}年${mp2Month}月计划清单</div>
+    <button class="mp2-nav" onclick="mp2SwitchMonth(1)" title="下个月">›</button>
+  </div>`;
+  html += '<table class="mp2-table"><thead><tr><th>序号</th><th>计划事项</th><th>计划内容</th><th>截止时间</th><th>是否完成</th></tr></thead><tbody>';
+  if (!groups.length) {
+    html += '<tr><td colspan="5" class="mp2-empty">暂无计划，点击底部「＋ 添加计划」</td></tr>';
+  }
+  for (const g of groups) {
+    const seqRowspan = g.rows.length;
+    let i = 0;
+    while (i < g.rows.length) {
+      const first = g.rows[i];
+      let j = i;
+      while (j < g.rows.length && (g.rows[j].item || '') === (first.item || '')) j++;
+      const itemRowspan = j - i;
+      for (let k = i; k < j; k++) {
+        const r = g.rows[k];
+        const isFirstOfRun = (k === i);
+        const isFirstSeq = (i === 0 && k === 0);
+        const cc = mp2CellClass(r);
+        html += '<tr data-id="' + r.id + '">';
+        if (isFirstSeq) html += `<td class="col-seq" rowspan="${seqRowspan}">${r.seq}</td>`;
+        if (isFirstOfRun) html += `<td class="col-item" rowspan="${itemRowspan}"><div class="mp2-item" contenteditable="true" onblur="mp2EditItem('${r.id}', this.innerText)">${esc(r.item)}</div></td>`;
+        html += `<td class="col-content ${cc}"><div class="mp2-content" contenteditable="true" onblur="mp2EditContent('${r.id}', this.innerText)">${esc(r.content)}</div></td>`;
+        html += `<td class="col-deadline ${cc}">${mp2DeadlineHTML(r)}</td>`;
+        html += `<td class="col-done">${mp2DoneHTML(r)}<button class="mp2-del" title="删除此条" onclick="mp2Del('${r.id}')">🗑</button></td>`;
+        html += '</tr>';
+      }
+      i = j;
+    }
+  }
+  html += '</tbody></table>';
+  html += '<div class="mp2-add" onclick="mp2Add()">＋ 添加计划</div>';
+  html += '</div>';
+  view.innerHTML = html;
+}
+async function mp2EditItem(id, text){
+  text = (text || '').trim();
+  const old = mp2Data.find(x => x.id === id); if (!old) return;
+  const oldText = old.item;
+  if (text === oldText) return;
+  if (!text) { alert('计划事项不能为空'); return; }
+  // 级联：修改计划事项时，本月内其它相同文字的计划事项一并更新
+  const affected = mp2Data.filter(x => x.item === oldText);
+  try {
+    await Promise.all(affected.map(x => apiJson('/monthplan2/' + x.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: text }) })));
+    await mp2Load();
+  } catch (e) { alert('保存失败：' + (e.message || e)); }
+}
+async function mp2EditContent(id, text){
+  const r = mp2Data.find(x => x.id === id); if (!r) return;
+  const t = (text || '');
+  if (t === r.content) return;
+  try { await apiJson('/monthplan2/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: t }) }); r.content = t; }
+  catch (e) { alert('保存失败：' + (e.message || e)); }
+}
+async function mp2EditDeadline(id, val){
+  const r = mp2Data.find(x => x.id === id); if (!r) return;
+  try { await apiJson('/monthplan2/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deadline: val || null }) }); r.deadline = val; mp2Paint(); }
+  catch (e) { alert('保存失败：' + (e.message || e)); }
+}
+async function mp2ToggleDone(id, next){
+  const r = mp2Data.find(x => x.id === id); if (!r) return;
+  try { await apiJson('/monthplan2/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ done: next ? 1 : 0 }) }); r.done = next ? 1 : 0; mp2Paint(); }
+  catch (e) { alert('保存失败：' + (e.message || e)); }
+}
+async function mp2Del(id){
+  if (!confirm('确定删除这条计划？')) return;
+  try { await apiJson('/monthplan2/' + id, { method: 'DELETE' }); await mp2Load(); }
+  catch (e) { alert('删除失败：' + (e.message || e)); }
+}
+function mp2Add(){
+  const existingSeqs = [...new Set(mp2Data.map(r => r.seq))].filter(Boolean).sort((a, b) => a - b);
+  const maxSeq = existingSeqs.length ? existingSeqs[existingSeqs.length - 1] : 0;
+  const def = maxSeq ? maxSeq : 1;
+  const seqItems = {};
+  mp2Data.forEach(r => { if (seqItems[r.seq] === undefined) seqItems[r.seq] = r.item; });
+  modal.innerHTML = `<h3>添加月度计划</h3>
+    <div class="field"><label>序号</label><input id="mp2seq" type="number" min="1" step="1" value="${def}" class="mp2-seq-input"></div>
+    <div class="field"><label>计划事项</label><input id="mp2item" type="text" placeholder="选择已有序号将自动读取；新序号请手动输入"></div>
+    <div class="mp2-hint">序号只能为「已有序号」或更大（递增）的新序号；确定后不可修改。新增后会在该序号下插入一行，可在表格里补计划内容与截止时间。</div>
+    <div class="modal-ops"><button class="btn soft" onclick="closeModal()">取消</button><button class="btn" onclick="mp2ConfirmAdd()">确认</button></div>`;
+  const seqEl = document.getElementById('mp2seq');
+  const itemEl = document.getElementById('mp2item');
+  function syncItem(){ const s = Number(seqEl.value); itemEl.value = (seqItems[s] !== undefined) ? seqItems[s] : ''; }
+  seqEl.addEventListener('input', syncItem);
+  if (seqItems[def] !== undefined) itemEl.value = seqItems[def];
+  modal._mp2 = { existingSeqs, maxSeq };
+  overlay.classList.add('show');
+}
+async function mp2ConfirmAdd(){
+  const st = modal._mp2 || { existingSeqs: [], maxSeq: 0 };
+  const seqRaw = document.getElementById('mp2seq').value;
+  const seq = Number(seqRaw);
+  const item = document.getElementById('mp2item').value.trim();
+  if (!seqRaw || !Number.isInteger(seq) || seq < 1) { alert('序号必须为正整数'); return; }
+  if (!item) { alert('请输入计划事项'); return; }
+  if (!st.existingSeqs.includes(seq) && seq <= st.maxSeq) { alert('序号只能选择已有序号，或更大的（递增）新序号'); return; }
+  closeModal();
+  try {
+    await apiJson('/monthplan2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ year: mp2Year, month: mp2Month, seq, item, content: '', deadline: null, done: 0 }) });
+    await mp2Load();
+  } catch (e) { alert('添加失败：' + (e.message || e)); }
+}
+
 /* ---------- 类 Excel 表格编辑器（年计划 / 月计划） ---------- */
 let gridSectionId = null;
 let gridState = null;        // {rows, cols, data:[[{t,rs,cs}]]}
@@ -2138,6 +2336,7 @@ async function render(){
     if(kind==='article') return await renderArticle();
     if(kind==='annual') return await renderAnnual();
     if(kind==='annual2') return await renderAnnual2();
+    if(kind==='monthplan2') return await renderMonthPlan2();
     if(kind==='grid') return await renderGrid(current);
     if(kind==='wishes') return await renderWishes();
     if(kind==='insprec') return await renderInsp();
