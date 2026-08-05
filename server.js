@@ -43,11 +43,12 @@ const dateOnly = s => {
   return s || '';
 };
 // 飞书日期字段写入需毫秒时间戳数字（避免 DatetimeFieldConvFail）；纯日期补零时区转时间戳
+// ⚠️ 空值必须返回 null（飞书允许"不填/清空"）；若返回 '' 空字符串会被拒收并导致整条写入失败(1254064)。
 const toFeishuDate = s => {
-  if (!s) return s;
+  if (!s) return null;
   if (typeof s === 'number') return s;
   const ms = Date.parse(s.includes(' ') ? s : s + ' 00:00:00');
-  return isNaN(ms) ? s : ms;
+  return isNaN(ms) ? null : ms;   // 解析失败也返回 null，避免脏值让整条写入失败
 };
 // 截止时间等带时刻的字段：前端传来 "2026-08-02T14:30"（本地北京时间），
 // 飞书 datetime 字段只接受 unix 毫秒（UTC 瞬时）。按北京时间(+8)换算成正确 UTC 毫秒，
@@ -339,7 +340,7 @@ function readRec(kind, r) {
     // 知识库分类页与人生灵感库同源同结构，返回完整字段，供富详情弹窗展示/编辑
     case 'knowledge': return readInspireFields(r);
     case 'ptask':     return { id: r.record_id, title: r['任务'], status: sel(r['状态']) || '', note: r['备注'] || '' };
-    case 'books':     return { id: r.record_id, title: r['书名'] || '', author: r['作者'] || '', category: sel(r['分类']) || '', status: sel(r['状态']) || '', rating: num(r['评分']), note: r['读后感'] || '', source: r['来源'] || '', date: dateOnly(r['日期']) };
+    case 'books':     return { id: r.record_id, title: r['书名'] || '', author: r['作者'] || '', category: sel(r['分类']) || '', status: sel(r['状态']) || '', note: r['读后感'] || '', source: r['来源'] || '', link: r['链接'] || '', date: dateOnly(r['日期']) };
   }
   return { id: r.record_id };
 }
@@ -374,7 +375,7 @@ function writeRec(kind, o, fix) {
     case 'ptask':     return { '任务': o.title, '项目': [PROJ_MAP[fix]], '状态': o.status || '待办', '备注': o.note || '' };
     case 'books': {
       // 注意：单选字段（分类/状态）传空字符串会被飞书拒绝(not_found)，故空值不写入
-      const f = { '书名': o.title, '作者': o.author || '', '状态': o.status || '想读', '评分': num(o.rating), '读后感': o.note || '', '来源': o.source || '', '日期': toFeishuDate(o.date) };
+      const f = { '书名': o.title, '作者': o.author || '', '状态': o.status || '想读', '读后感': o.note || '', '来源': o.source || '', '链接': o.link || '', '日期': toFeishuDate(o.date) };
       if (o.category && String(o.category).trim()) f['分类'] = String(o.category).trim();
       return f;
     }
@@ -839,21 +840,47 @@ async function deleteAnnual2(id) {
   await deleteRecord(ANNUAL2_TABLE, id, BASE_TOKEN);
   return { ok: true };
 }
+// 向某表的单选字段追加一个新选项。
+// ⚠️ 飞书不支持 POST .../fields/{id}/options 追加（返回 404），必须 PUT 全量 options：
+//    已有项带原 id，新项只给 name，由飞书分配 id。
+async function addSingleSelectOption(baseToken, tableName, fieldName, newName) {
+  newName = (newName || '').toString().trim();
+  if (!newName) throw new Error('选项名称不能为空');
+  const pre = await basePrefix(baseToken);
+  const tid = await tableId(tableName, baseToken);
+  const fj = await feishuRequest('GET', `${pre}/tables/${encodeURIComponent(tid)}/fields?page_size=200`);
+  const items = (fj.data && (fj.data.items || fj.data.fields)) || [];
+  const field = items.find(f => (f.field_name || f.name) === fieldName);
+  if (!field) throw new Error('未找到字段：' + fieldName);
+  const opts = (field.property && field.property.options) || [];
+  if (opts.some(o => (o.name || '') === newName)) return opts.map(o => o.name); // 已存在，直接返回
+  const fullOpts = opts.map(o => ({ id: o.id, name: o.name }));
+  fullOpts.push({ name: newName });
+  await feishuRequest('PUT', `${pre}/tables/${encodeURIComponent(tid)}/fields/${field.field_id}`, {
+    field_name: field.field_name || field.name,
+    type: field.type || 3,                       // 单选字段 type=3
+    property: { options: fullOpts }
+  });
+  return fullOpts.map(o => o.name);
+}
+// 读取某表单选字段当前所有选项的文本列表
+async function getSingleSelectOptions(baseToken, tableName, fieldName) {
+  const pre = await basePrefix(baseToken);
+  const tid = await tableId(tableName, baseToken);
+  const fj = await feishuRequest('GET', `${pre}/tables/${encodeURIComponent(tid)}/fields?page_size=200`);
+  const items = (fj.data && (fj.data.items || fj.data.fields)) || [];
+  const field = items.find(f => (f.field_name || f.name) === fieldName);
+  if (!field) return [];
+  const opts = (field.property && field.property.options) || [];
+  return opts.map(o => o.name).filter(Boolean);
+}
 // 自动确保「类型」单选字段存在「分组」选项（用于按年份保存每行分组数）。
 // 该选项在首次部署后由本函数按需补齐，无需手工改飞书表结构。
 let _a2GroupOptOk = false;
 async function ensureAnnual2GroupOption() {
   if (_a2GroupOptOk) return;
   try {
-    const pre = await basePrefix(BASE_TOKEN);
-    const tid = await tableId(ANNUAL2_TABLE, BASE_TOKEN);
-    const fj = await feishuRequest('GET', `${pre}/tables/${encodeURIComponent(tid)}/fields?page_size=200`);
-    const items = (fj.data && (fj.data.items || fj.data.fields)) || [];
-    const field = items.find(f => (f.field_name || f.name) === '类型');
-    if (!field) return;
-    const opts = (field.property && field.property.options) || [];
-    if (opts.some(o => (o.name || '') === '分组')) { _a2GroupOptOk = true; return; }
-    await feishuRequest('POST', `${pre}/tables/${encodeURIComponent(tid)}/fields/${field.field_id}/options`, { options: [{ name: '分组' }] });
+    await addSingleSelectOption(BASE_TOKEN, ANNUAL2_TABLE, '类型', '分组');
     _a2GroupOptOk = true;
     console.log('✅ 已为「年度计划.类型」补齐单选选项：分组');
   } catch (e) {
@@ -1014,6 +1041,17 @@ async function route(method, url, body, res, req) {
       const t = (body && body.type || '').toString().trim();
       if (!t) return send(res, 400, { error: '类型名称不能为空' });
       return send(res, 200, { types: await addInspType(t) });
+    }
+    // 精神角落「分类」单选：读取当前选项 / 追加自定义新分类（即时生效）
+    if (method === 'GET' && url === '/api/book-categories') {
+      try { return send(res, 200, { options: await getSingleSelectOptions(BASE_TOKEN, '精神角落', '分类') }); }
+      catch (e) { console.warn('[book-categories] 读取失败：', e.message || e); return send(res, 200, { options: [] }); }
+    }
+    if (method === 'POST' && url === '/api/book-categories') {
+      const name = (body && body.name || '').toString().trim();
+      if (!name) return send(res, 400, { error: '分类名称不能为空' });
+      try { return send(res, 200, { ok: true, options: await addSingleSelectOption(BASE_TOKEN, '精神角落', '分类', name) }); }
+      catch (e) { return send(res, 500, { error: e.message || '添加分类失败' }); }
     }
     if (method === 'GET' && url === '/api/habits') return send(res, 200, await getHabits());
     if (method === 'POST' && url === '/api/habits') return send(res, 200, await createHabit(body.name));

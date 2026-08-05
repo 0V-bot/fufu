@@ -265,6 +265,9 @@
   .cat-row .field{margin-bottom:0;}
   .modal-ops{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;}
   .muted{color:var(--muted);}
+  /* 下拉「＋ 新增分类」内联输入框 */
+  .add-row{display:flex;gap:6px;align-items:center;}
+  .add-row input{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--card);color:var(--text);}
   /* 年计划：年份切换 + 四列可调整高度 + 添加 */
   .annual-yearbar{display:flex;align-items:center;gap:16px;margin:6px 0 16px;}
   .annual-yearbar .yr{flex:1;text-align:center;font-size:25px;font-weight:800;letter-spacing:1px;color:var(--ink);}
@@ -409,7 +412,10 @@ const cache = {};
 async function apiJson(url, opts){
   const r = await fetch(API+url, opts||{});
   if(r.status===401){ showGate(); throw new Error('需要重新输入访问密码'); }
-  return r.json();
+  const j = await r.json().catch(()=>({}));
+  // ⚠️ 服务端出错（如 500）时必须抛错，否则写入失败会被静默吞掉、弹窗关闭却数据丢失且无提示
+  if(!r.ok) throw new Error((j && (j.error||j.msg)) || ('请求失败 ('+r.status+')'));
+  return j;
 }
 const apiList   = id => apiJson('/section/'+id);
 const apiCreate = (id,obj) => apiJson('/section/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});
@@ -526,9 +532,9 @@ const SCHEMA = {
   books:[
     {key:'title',label:'书名',type:'text',required:true},
     {key:'author',label:'作者',type:'text'},
-    {key:'category',label:'分类',type:'select',options:['小说','非虚构','工具书','传记','心理学','其他']},
+    {key:'category',label:'分类',type:'select',addable:true,dynamic:'book-categories',options:['小说','非虚构','工具书','传记','心理学','其他']},
     {key:'status',label:'阅读状态',type:'select',options:['想读','在读','已读']},
-    {key:'rating',label:'评分 (0-5)',type:'number',min:0,max:5,default:0},
+    {key:'link',label:'链接地址',type:'text',placeholder:'书籍/资源链接（可选）'},
     {key:'note',label:'读后感 / 笔记',type:'textarea'},
     {key:'source',label:'来源',type:'text'},
     {key:'date',label:'完成日期',type:'date'},
@@ -629,11 +635,19 @@ function openModal(title, schema, values, onSave){
     const v = values[f.key]!=null?values[f.key]:(f.default!=null?f.default:'');
     if(f.type==='textarea') return `<div class="field"><label>${f.label}</label><textarea data-k="${f.key}">${esc(v)}</textarea></div>`;
     if(f.type==='select'){
-      const opts = (f.options||[]).map(o=>`<option ${o===v?'selected':''}>${o}</option>`).join('');
-      return `<div class="field"><label>${f.label}</label><select data-k="${f.key}">${opts}</select></div>`;
+      let opts = (f.options||[]).map(o=>`<option ${o===v?'selected':''}>${esc(o)}</option>`).join('');
+      if(f.addable) opts += `<option value="__add_new__">＋ 新增分类…</option>`;
+      let extra = '';
+      if(f.addable) extra = `<div class="add-row" id="addrow_${f.key}" style="display:none;margin-top:6px">
+        <input type="text" id="addinp_${f.key}" placeholder="输入新分类名称" />
+        <button class="btn mini" type="button" onclick="confirmAddOption('${f.key}','${f.dynamic}')">确定</button>
+        <button class="btn soft mini" type="button" onclick="cancelAddOption('${f.key}')">取消</button>
+      </div>`;
+      return `<div class="field"><label>${f.label}</label><select data-k="${f.key}" onchange="onSelectChange('${f.key}')">${opts}</select>${extra}</div>`;
     }
     const min = f.min!=null?`min="${f.min}"`:'', max=f.max!=null?`max="${f.max}"`:'';
-    return `<div class="field"><label>${f.label}</label><input data-k="${f.key}" type="${f.type==='number'?'number':'text'}" value="${esc(v)}" ${min} ${max}/></div>`;
+    const ph = f.placeholder?` placeholder="${esc(f.placeholder)}"`:'';
+    return `<div class="field"><label>${f.label}</label><input data-k="${f.key}" type="${f.type==='number'?'number':'text'}" value="${esc(v)}" ${min} ${max}${ph}/></div>`;
   }).join('');
   modal.innerHTML = `<h3>${title}</h3>${fields}
     <div class="modal-ops">
@@ -642,6 +656,36 @@ function openModal(title, schema, values, onSave){
     </div>`;
   modal._schema = schema; modal._onSave = onSave; modal._values = values;
   overlay.classList.add('show');
+}
+// 选择「＋ 新增分类…」时展开内联输入框
+function onSelectChange(key){
+  const row = document.getElementById('addrow_'+key);
+  if(!row) return;
+  const sel = modal.querySelector(`[data-k="${key}"]`);
+  if(sel.value === '__add_new__'){ row.style.display='flex'; document.getElementById('addinp_'+key).focus(); }
+  else row.style.display='none';
+}
+function cancelAddOption(key){
+  const row = document.getElementById('addrow_'+key);
+  if(row) row.style.display='none';
+  const sel = modal.querySelector(`[data-k="${key}"]`);
+  if(sel) sel.selectedIndex = 0;   // 恢复为第一个真实选项
+}
+async function confirmAddOption(key, dyn){
+  const inp = document.getElementById('addinp_'+key);
+  const name = (inp.value||'').trim();
+  if(!name){ alert('请输入分类名称'); return; }
+  try{
+    const j = await apiJson('/'+dyn, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name})});
+    const opts = (j && j.options) || [];
+    const sel = modal.querySelector(`[data-k="${key}"]`);
+    // 重建下拉：保留全部真实选项 + 「新增分类」项，并选中刚新建的分类
+    sel.innerHTML = opts.map(o=>`<option ${o===name?'selected':''}>${esc(o)}</option>`).join('') + `<option value="__add_new__">＋ 新增分类…</option>`;
+    sel.value = name;
+    const row = document.getElementById('addrow_'+key);
+    if(row) row.style.display='none';
+    inp.value='';
+  }catch(e){ alert('新增分类失败：'+(e.message||e)); }
 }
 function closeModal(){ overlay.classList.remove('show'); modal.classList.remove('wide'); }
 overlay.addEventListener('click', e=>{ if(e.target===overlay) closeModal(); });
@@ -697,6 +741,7 @@ function genericBody(kind,it){
     let v = it[f.key]; if(v==null||v==='') return;
     if(f.key==='tags'){ meta += (v.split(',').map(t=>`<span class="chip">${esc(t.trim())}</span>`).join('')); return; }
     if(f.key==='content'||f.key==='detail'||f.key==='note'||f.key==='result'){ meta += `<div class="meta">${esc(v)}</div>`; return; }
+    if(f.key==='link'){ const safe = esc(String(v).trim()); meta += `<div class="meta"><b>${f.label}：</b><a href="${safe}" target="_blank" rel="noopener">${safe}</a></div>`; return; }
     meta += `<div class="meta"><b>${f.label}：</b>${esc(v)}</div>`;
   });
   let prog = '';
@@ -948,10 +993,21 @@ async function saveWisdom(recId){
   try{ await apiUpdate('inspiration', recId, fields); closeModal(); await render(); }
   catch(e){ alert('保存失败：'+(e.message||e)); }
 }
-function addGeneric(id){ openModal('添加 · '+SECTIONS[id].name, SCHEMA[SECTIONS[id].kind], {}, async v=>{ try{ await apiCreate(id,v); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); } }); }
+function getBookCategories(){ return apiJson('/book-categories').then(j=> (j && j.options) || []).catch(()=> []); }
+// 把动态读取到的分类列表注入 books 表单 schema（仅 category 字段）
+function withBookCat(schema, opts){ if(!opts || !opts.length) return schema; return schema.map(f=> f.key==='category' ? {...f, options: opts} : f); }
+function addGeneric(id){
+  const base = SCHEMA[SECTIONS[id].kind];
+  const open = sch => openModal('添加 · '+SECTIONS[id].name, sch, {}, async v=>{ try{ await apiCreate(id,v); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); } });
+  if(id==='bookcorner'){ getBookCategories().then(opts=> open(withBookCat(base, opts))).catch(()=> open(base)); }
+  else open(base);
+}
 function editGeneric(id,itemId){
   const a = cache[id]||[]; const it = a.find(x=>x.id===itemId); if(!it) return;
-  openModal('编辑 · '+SECTIONS[id].name, SCHEMA[SECTIONS[id].kind], it, async v=>{ try{ await apiUpdate(id,itemId,v); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); } });
+  const base = SCHEMA[SECTIONS[id].kind];
+  const open = sch => openModal('编辑 · '+SECTIONS[id].name, sch, it, async v=>{ try{ await apiUpdate(id,itemId,v); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); } });
+  if(id==='bookcorner'){ getBookCategories().then(opts=> open(withBookCat(base, opts))).catch(()=> open(base)); }
+  else open(base);
 }
 async function delGeneric(id,itemId){ if(!confirm('确认删除？')) return; try{ await apiDelete(id,itemId); await render(); }catch(e){ alert('删除失败：'+(e.message||e)); } }
 
