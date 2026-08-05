@@ -1811,6 +1811,10 @@ async function a2Reorder(fromG, toG){
   a2Paint();
 }
 
+async function renderAnnual2(){
+  await a2Load(a2Year);
+}
+
 /* ---------- 类 Excel 表格编辑器（年计划 / 月计划） ---------- */
 let gridSectionId = null;
 let gridState = null;        // {rows, cols, data:[[{t,rs,cs}]]}
