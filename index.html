@@ -62,6 +62,9 @@
   .nav-item:hover{background:#1e293b; color:#e2e8f0;}
   .nav-item.active{background:var(--brand); color:#fff; font-weight:600;}
   .nav-item .dot{width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.7;}
+  .nav-item.red{color:#ef4444;}
+  .nav-item.red .dot{background:#ef4444;opacity:1;}
+  .nav-item.red:hover{color:#fca5a5;}
 
   /* Main */
   .main{flex:1; min-width:0; padding:26px 30px 60px;}
@@ -498,17 +501,17 @@ const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':
 const NAV = [
   {id:'dashboard', label:'首页', icon:'🏠'},
   {id:'strategy', label:'人生战略', icon:'🎯', children:[
-    {id:'annual', label:'年计划'},
+    {id:'annual', label:'年计划', red:true},
     {id:'annual2', label:'年度计划2.0'},
-    {id:'monthly', label:'月计划'},
+    {id:'monthly', label:'月计划', red:true},
     {id:'monthplan2', label:'月度计划2.0'},
-    {id:'major', label:'重大事项'},
+    {id:'major', label:'重大事项', red:true},
     {id:'wishes', label:'愿望清单'},
     {id:'bookcorner', label:'精神角落'},
   ]},
   {id:'daily', label:'每日管理', icon:'📅', children:[
     {id:'todos', label:'今日待办'},
-    {id:'habits', label:'微习惯'},
+    {id:'habits', label:'微习惯', red:true},
     {id:'review', label:'日复盘'},
     {id:'diary', label:'写日记'},
   ]},
@@ -520,8 +523,8 @@ const NAV = [
   ]},
   {id:'content', label:'灵感库', icon:'✍️', children:[
     {id:'insprec', label:'灵感记录'},
-    {id:'topics', label:'选题库'},
-    {id:'publish', label:'发布记录'},
+    {id:'topics', label:'选题库', red:true},
+    {id:'publish', label:'发布记录', red:true},
   ]},
   {id:'knowledge', label:'知识库', icon:'📚', children:[
     {id:'articleInput', label:'文章录入'},
@@ -644,7 +647,7 @@ function buildNav(){
           <span class="ic">${g.icon}</span><span>${g.label}</span><span class="arrow">▾</span>
         </div><div class="nav-items">`;
       g.children.forEach(c=>{
-        html += `<div class="nav-item" data-id="${c.id}" onclick="go('${c.id}')"><span class="dot"></span>${c.label}</div>`;
+        html += `<div class="nav-item${c.red?' red':''}" data-id="${c.id}" onclick="go('${c.id}')"><span class="dot"></span>${c.label}</div>`;
       });
       html += `</div></div>`;
     } else {
