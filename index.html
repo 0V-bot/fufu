@@ -364,6 +364,31 @@
   .btn.danger{background:#ef4444; border-color:#ef4444; color:#fff;}
   .btn.danger:hover{background:#dc2626;}
 
+  /* ===================== 任务思维导图 ===================== */
+  .mindmap{margin-top:6px;}
+  .mm-node{position:relative;}
+  .mm-children{margin-left:20px; padding-left:14px; border-left:2px solid #e5e7eb;}
+  .mm-card{display:flex; align-items:center; gap:8px; padding:9px 12px; margin:7px 0; background:#fff; border:1px solid #e5e7eb; border-left:4px solid #cbd5e1; border-radius:10px;}
+  .mm-card.root{background:linear-gradient(90deg,#f8fafc,#fff); font-weight:700; border-left-color:#4f46e5;}
+  .mm-toggle{cursor:pointer; width:16px; text-align:center; color:#94a3b8; user-select:none; flex:none; font-size:13px;}
+  .mm-id{font-size:12px; color:#94a3b8; flex:none;}
+  .mm-title{font-weight:600; flex:1; min-width:0; word-break:break-word;}
+  .mm-badge{font-size:11px; padding:2px 8px; border-radius:999px; flex:none; white-space:nowrap;}
+  .mm-badge.st-todo{background:#fef3c7; color:#92400e;}
+  .mm-badge.st-doing{background:#dbeafe; color:#1e40af;}
+  .mm-badge.st-done{background:#dcfce7; color:#166534;}
+  .mm-card.st-todo{border-left-color:#f59e0b;}
+  .mm-card.st-doing{border-left-color:#3b82f6;}
+  .mm-card.st-done{border-left-color:#22c55e;}
+  .mm-ops{display:flex; gap:6px; flex:none;}
+  .mm-content{margin:0 0 6px 30px; padding:8px 10px; background:#f8fafc; border-radius:8px; color:#475569; font-size:13px; white-space:pre-wrap; line-height:1.5;}
+  .mm-node.collapsed > .mm-children,
+  .mm-node.collapsed > .mm-content{display:none;}
+  .title-combo{display:flex; gap:8px; align-items:center;}
+  .title-combo input{flex:1; min-width:0;}
+  .title-combo select{flex:none; width:auto; min-width:170px;}
+
+
   /* ===================== 月度计划 2.0 ===================== */
   .mp2{display:flex; flex-direction:column; gap:14px;}
   .mp2-topbar{display:flex; align-items:center; justify-content:center; gap:18px; padding:4px 0 2px;}
@@ -1033,20 +1058,82 @@ async function saveWisdom(recId){
 function getBookCategories(){ return apiJson('/book-categories').then(j=> (j && j.options) || []).catch(()=> []); }
 // 把动态读取到的分类列表注入 books 表单 schema（仅 category 字段）
 function withBookCat(schema, opts){ if(!opts || !opts.length) return schema; return schema.map(f=> f.key==='category' ? {...f, options: opts} : f); }
+const isProjectKind = id => SECTIONS[id] && SECTIONS[id].kind === 'project';
+const doCreate = id => async v => { try { await apiCreate(id, v); await render(); } catch (e) { alert('保存失败：' + (e.message || e)); } };
+const doUpdate = (id, itemId) => async v => { try { await apiUpdate(id, itemId, v); await render(); } catch (e) { alert('保存失败：' + (e.message || e)); } };
 function addGeneric(id){
-  const base = SCHEMA[SECTIONS[id].kind];
-  const open = sch => openModal('添加 · '+SECTIONS[id].name, sch, {}, async v=>{ try{ await apiCreate(id,v); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); } });
-  if(id==='bookcorner'){ getBookCategories().then(opts=> open(withBookCat(base, opts))).catch(()=> open(base)); }
-  else open(base);
+  if(id==='bookcorner'){ const base=SCHEMA[SECTIONS[id].kind]; getBookCategories().then(opts=>openModal('添加 · '+SECTIONS[id].name, withBookCat(base,opts), {}, doCreate(id))).catch(()=>openModal('添加 · '+SECTIONS[id].name, base, {}, doCreate(id))); return; }
+  if(isProjectKind(id)){ openTaskModal(id, null); return; }
+  openModal('添加 · '+SECTIONS[id].name, SCHEMA[SECTIONS[id].kind], {}, doCreate(id));
 }
 function editGeneric(id,itemId){
   const a = cache[id]||[]; const it = a.find(x=>x.id===itemId); if(!it) return;
-  const base = SCHEMA[SECTIONS[id].kind];
-  const open = sch => openModal('编辑 · '+SECTIONS[id].name, sch, it, async v=>{ try{ await apiUpdate(id,itemId,v); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); } });
-  if(id==='bookcorner'){ getBookCategories().then(opts=> open(withBookCat(base, opts))).catch(()=> open(base)); }
-  else open(base);
+  if(id==='bookcorner'){ const base=SCHEMA[SECTIONS[id].kind]; getBookCategories().then(opts=>openModal('编辑 · '+SECTIONS[id].name, withBookCat(base,opts), it, doUpdate(id,itemId))).catch(()=>openModal('编辑 · '+SECTIONS[id].name, base, it, doUpdate(id,itemId))); return; }
+  if(isProjectKind(id)){ openTaskModal(id, it); return; }
+  openModal('编辑 · '+SECTIONS[id].name, SCHEMA[SECTIONS[id].kind], it, doUpdate(id,itemId));
 }
 async function delGeneric(id,itemId){ if(!confirm('确认删除？')) return; try{ await apiDelete(id,itemId); await render(); }catch(e){ alert('删除失败：'+(e.message||e)); } }
+
+/* ---------- 项目任务：自定义创建/编辑弹窗（标题组合框 + 上级任务下拉） ---------- */
+async function openTaskModal(id, item){
+  const s = SECTIONS[id];
+  const tasks = cache[id] || [];
+  const titles = [...new Set(tasks.map(t => (t.taskTitle || '').trim()).filter(Boolean))];
+  const isEdit = !!item;
+  const itemVal = item ? (item.taskTitle || '') : '';
+  const parentVal = item ? (item.parent || '') : '';
+  const contentVal = item ? (item.content || '') : '';
+  const statusVal = item ? (item.status || '待办') : '待办';
+  const noteVal = item ? (item.note || '') : '';
+  const titleOpts = ['<option value="">（新建自定义标题）</option>'].concat(
+    titles.map(t => `<option value="${esc(t)}" ${t === itemVal ? 'selected' : ''}>${esc(t)}</option>`)
+  ).join('');
+  const parentOpts = ['<option value="">（无 / 顶级任务）</option>'].concat(
+    titles.map(t => `<option value="${esc(t)}" ${t === parentVal ? 'selected' : ''}>${esc(t)}</option>`)
+  ).join('');
+  const statusOpts = ['待办', '进行中', '已完成'].map(o => `<option value="${o}" ${o === statusVal ? 'selected' : ''}>${o}</option>`).join('');
+  modal.innerHTML = `<h3>${isEdit ? '编辑' : '添加'} · ${s.name} 任务</h3>
+    <div class="field"><label>任务标题</label>
+      <div class="title-combo">
+        <input data-k="taskTitle" id="taskTitle" value="${esc(itemVal)}" placeholder="输入任务标题，或从右侧选择已有标题" />
+        <select id="titlePick" onchange="onTaskTitlePick()">${titleOpts}</select>
+      </div>
+      <div class="muted" style="margin-top:4px">若下拉里没有合适的标题，直接在输入框写一个新标题，保存时自动新建。</div>
+    </div>
+    <div class="field"><label>上级任务标题（父任务）</label><select data-k="parent">${parentOpts}</select>
+      <div class="muted" style="margin-top:4px">留空＝顶级任务；选择已有标题可让本任务成为其子节点，在思维导图里缩进展示。</div></div>
+    <div class="field"><label>任务内容</label><textarea data-k="content" placeholder="具体要做的事、交付物、思路…">${esc(contentVal)}</textarea></div>
+    <div class="field"><label>状态</label><select data-k="status">${statusOpts}</select></div>
+    <div class="field"><label>备注</label><textarea data-k="note">${esc(noteVal)}</textarea></div>
+    <div class="modal-ops">
+      <button class="btn soft" onclick="closeModal()">取消</button>
+      <button class="btn" onclick="submitTaskModal('${id}','${item ? item.id : ''}')">保存</button>
+    </div>`;
+  overlay.classList.add('show');
+}
+function onTaskTitlePick(){
+  const pick = document.getElementById('titlePick');
+  const inp = document.getElementById('taskTitle');
+  if (pick && inp && pick.value) inp.value = pick.value;
+}
+async function submitTaskModal(id, recId){
+  const g = k => { const el = modal.querySelector(`[data-k="${k}"]`); return el ? el.value.trim() : ''; };
+  const taskTitle = g('taskTitle');
+  if (!taskTitle) { alert('请填写任务标题'); return; }
+  const obj = { taskTitle, parent: g('parent'), content: g('content'), status: g('status'), note: g('note') };
+  if (recId) { const it = (cache[id] || []).find(x => x.id === recId); if (it && it.tid) obj.tid = it.tid; }
+  try {
+    if (recId) await apiUpdate(id, recId, obj);
+    else await apiCreate(id, obj);
+    closeModal();
+    await render();
+  } catch (e) { alert('保存失败：' + (e.message || e)); }
+}
+function editTask(id, recId){ const it = (cache[id] || []).find(x => x.id === recId); if (it) openTaskModal(id, it); }
+function toggleMM(recId){
+  const n = document.querySelector(`.mm-node[data-id="${recId}"]`);
+  if (n) n.classList.toggle('collapsed');
+}
 
 /* ---------- article input ---------- */
 async function renderArticle(){
@@ -2245,17 +2332,57 @@ async function renderProject(id){
     <div class="t" style="font-weight:700;margin-bottom:10px">📌 项目说明</div>
     <textarea class="note" id="projDesc" style="min-height:90px" placeholder="这个项目的目标、背景与关键里程碑…" onblur="saveProjDesc('${id}')">${esc(data.desc||'')}</textarea>
   </div>
-  <div class="card"><div class="h"><div class="t">任务清单（${tasks.length}）</div>
+  <div class="card"><div class="h"><div class="t">任务思维导图（${tasks.length}）</div>
     <button class="btn" onclick="addGeneric('${id}')">+ 任务</button></div>`;
-  if(!tasks.length) html += `<div class="empty">还没有任务，添加第一个吧</div></div>`;
-  else {
-    html += '<div class="grid cols-2">';
-    tasks.forEach(it=>{ html += `<div class="item"><div class="ops">
-        <button class="btn ghost mini" onclick="editGeneric('${id}','${it.id}')">编辑</button>
-        <button class="btn danger mini" onclick="delGeneric('${id}','${it.id}')">删除</button></div>${genericBody('project',it)}</div>`; });
-    html += '</div></div>';
-  }
+  if(!tasks.length) html += `<div class="empty">还没有任务，点击「+ 任务」添加第一个吧</div></div>`;
+  else html += renderTaskMindmap(id, tasks, s) + `</div>`;
   view.innerHTML = html;
+}
+// 由「上级任务标题」构建思维导图：根=项目名，父级按标题匹配子任务，可折叠
+function renderTaskMindmap(id, tasks, s){
+  const titleSet = new Set(tasks.map(t => (t.taskTitle || '').trim()).filter(Boolean));
+  const visited = new Set();
+  const statusClass = st => ({ '待办': 'st-todo', '进行中': 'st-doing', '已完成': 'st-done' }[st] || 'st-todo');
+  const renderNode = (t) => {
+    if (visited.has(t.id)) return '';
+    visited.add(t.id);
+    const p = (t.taskTitle || '').trim();
+    const childTasks = [];
+    if (p) tasks.forEach(c => { if (!visited.has(c.id) && (c.parent || '').trim() === p) childTasks.push(c); });
+    const hasKids = childTasks.length > 0;
+    const idTag = t.tid ? ('#' + t.tid + ' ') : '';
+    const badge = `<span class="mm-badge ${statusClass(t.status)}">${esc(t.status || '待办')}</span>`;
+    const content = (t.content || '').trim() ? `<div class="mm-content">${esc(t.content)}</div>` : '';
+    const kidsHtml = hasKids ? `<div class="mm-children">${childTasks.map(renderNode).join('')}</div>` : '';
+    return `<div class="mm-node ${hasKids ? 'has-kids' : ''}" data-id="${t.id}">
+      <div class="mm-card ${statusClass(t.status)}">
+        <span class="mm-toggle" onclick="toggleMM('${t.id}')">${hasKids ? '▾' : '·'}</span>
+        <span class="mm-id">${idTag}</span>
+        <span class="mm-title">${esc(t.taskTitle || '(未命名)')}</span>
+        ${badge}
+        <span class="mm-ops">
+          <button class="btn ghost mini" type="button" onclick="editTask('${id}','${t.id}')">编辑</button>
+          <button class="btn danger mini" type="button" onclick="delGeneric('${id}','${t.id}')">删除</button>
+        </span>
+      </div>
+      ${content}
+      ${kidsHtml}
+    </div>`;
+  };
+  // 顶层任务：parent 为空，或 parent 指向不存在的标题
+  const top = tasks.filter(t => { const p = (t.parent || '').trim(); return !p || !titleSet.has(p); });
+  const rootChildren = top.map(renderNode).join('');
+  const orphans = tasks.filter(t => !visited.has(t.id)).map(renderNode).join('');
+  return `<div class="mindmap">
+    <div class="mm-node mm-root">
+      <div class="mm-card root" style="border-color:${s.accent}">
+        <span class="mm-toggle">▣</span>
+        <span class="mm-title">${esc(s.name)}</span>
+        <span class="mm-badge">${tasks.length} 个任务</span>
+      </div>
+      <div class="mm-children">${rootChildren}${orphans}</div>
+    </div>
+  </div>`;
 }
 async function saveProjDesc(id){ const v=document.getElementById('projDesc').value; try{ await apiSaveProjectDesc(id,v); }catch(e){ alert('保存失败：'+(e.message||e)); } }
 

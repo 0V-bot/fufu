@@ -74,9 +74,15 @@ const sel = v => {
   if (v && typeof v === 'object') return v.text;
   return v;
 };
-// 关联字段读回可能是 ["rec_"] 或 [{id:"rec_"}]，统一取首个 record_id
+// 关联字段读回格式多样：可能是 ["rec_"]、[{id:"rec_"}]，或飞书双向关联 [{record_ids:["rec_"],...}]，统一取首个 record_id
 const linkId = v => {
-  if (Array.isArray(v)) { const e = v[0]; return e && typeof e === 'object' ? (e.id || e.record_id) : e; }
+  if (Array.isArray(v)) {
+    const e = v[0];
+    if (!e) return undefined;
+    if (typeof e === 'object') return e.id || e.record_id || (e.record_ids && e.record_ids[0]);
+    return e;
+  }
+  if (v && typeof v === 'object') return v.id || v.record_id || (v.record_ids && v.record_ids[0]);
   return v;
 };
 const NET_RE = /network|EOF|transport|timeout|500|502|503|504/i;
@@ -339,12 +345,21 @@ function readRec(kind, r) {
     case 'publish':   return { id: r.record_id, date: dateOnly(r['日期']), platform: r['平台'] || '', title: r['标题'], link: r['链接'] || '', result: r['数据反馈'] || '' };
     // 知识库分类页与人生灵感库同源同结构，返回完整字段，供富详情弹窗展示/编辑
     case 'knowledge': return readInspireFields(r);
-    case 'ptask':     return { id: r.record_id, title: r['任务'], status: sel(r['状态']) || '', note: r['备注'] || '' };
+    case 'ptask':     return {
+      id: r.record_id,
+      tid: num(r['ID']),
+      title: r['任务标题'] || r['任务'] || '',
+      taskTitle: r['任务标题'] || '',
+      parent: r['上级任务标题'] || '',
+      content: r['任务内容'] || '',
+      status: sel(r['状态']) || '',
+      note: r['备注'] || ''
+    };
     case 'books':     return { id: r.record_id, title: r['书名'] || '', author: r['作者'] || '', category: sel(r['分类']) || '', status: sel(r['状态']) || '', note: r['读后感'] || '', source: r['来源'] || '', link: r['链接'] || '', date: dateOnly(r['日期']) };
   }
   return { id: r.record_id };
 }
-function writeRec(kind, o, fix) {
+async function writeRec(kind, o, fix) {
   switch (kind) {
     case 'goals':     return { '目标': o.title, '类型': fix, '说明': o.detail || '', '进度': num(o.progress), '状态': o.status || '进行中' };
     case 'events':    return { '事项': o.title, '日期': toFeishuDate(o.date), '状态': o.status || '计划中', '备注': o.note || '' };
@@ -372,7 +387,20 @@ function writeRec(kind, o, fix) {
     case 'topics':    return { '选题': o.title, '平台': o.platform || '', '状态': o.status || '灵感', '备注': o.note || '' };
     case 'publish':   return { '标题': o.title, '日期': toFeishuDate(o.date), '平台': o.platform || '', '链接': o.link || '', '数据反馈': o.result || '' };
     case 'knowledge': return { '文案标题': o.title, '标签': o.tags || '', '来源': o.source || '', 'AI总结': o.content || '' };
-    case 'ptask':     return { '任务': o.title, '项目': [PROJ_MAP[fix]], '状态': o.status || '待办', '备注': o.note || '' };
+    case 'ptask': {
+      const proj = PROJ_MAP[fix];
+      // 自增 ID：编辑时保留原 ID，新建时取该项目下现有最大 ID + 1（飞书无原生自增字段，由代码维护）
+      const tid = (o.tid != null && o.tid !== '') ? Number(o.tid) : await nextTaskId(proj);
+      return {
+        'ID': tid,
+        '项目': [proj],
+        '任务标题': o.taskTitle || o.title || '',
+        '上级任务标题': o.parent || '',
+        '任务内容': o.content || '',
+        '状态': o.status || '待办',
+        '备注': o.note || ''
+      };
+    }
     case 'books': {
       // 注意：单选字段（分类/状态）传空字符串会被飞书拒绝(not_found)，故空值不写入
       const f = { '书名': o.title, '作者': o.author || '', '状态': o.status || '想读', '读后感': o.note || '', '来源': o.source || '', '链接': o.link || '', '日期': toFeishuDate(o.date) };
@@ -488,13 +516,13 @@ async function sectionCreate(id, o) {
   const cfg = SECTIONS[id];
   const base = cfg.base || BASE_TOKEN;
   if (cfg.kind === 'ptask') await ensureProjects();
-  return { id: await createRecord(cfg.table, writeRec(cfg.kind, o, cfg.fix || cfg.proj), base) };
+  return { id: await createRecord(cfg.table, await writeRec(cfg.kind, o, cfg.fix || cfg.proj), base) };
 }
 async function sectionUpdate(id, rec, o) {
   const cfg = SECTIONS[id];
   const base = cfg.base || BASE_TOKEN;
   if (cfg.kind === 'ptask') await ensureProjects();
-  await updateRecord(cfg.table, rec, writeRec(cfg.kind, o, cfg.fix || cfg.proj), base);
+  await updateRecord(cfg.table, rec, await writeRec(cfg.kind, o, cfg.fix || cfg.proj), base);
   return { ok: true };
 }
 async function sectionDelete(id, rec) {
@@ -624,8 +652,17 @@ async function getProject(section) {
   await ensureProjects();
   const cfg = SECTIONS[section];
   const projRec = PROJ_MAP[cfg.proj];
-  const tasks = (await listTable('项目任务')).filter(r => linkId(r['项目']) === projRec).map(r => readRec('ptask', r));
+  const tasks = (await listTable('项目任务')).filter(r => linkId(r['项目']) === projRec)
+    .map(r => readRec('ptask', r))
+    .sort((a, b) => (a.tid || 0) - (b.tid || 0));
   return { tasks, desc: PROJ_DESC[projRec] || '' };
+}
+// 项目任务自增 ID：取该项目下现有最大 ID + 1（飞书无原生自增字段，由代码维护）
+async function nextTaskId(projRec) {
+  const rows = (await listTable('项目任务')).filter(r => linkId(r['项目']) === projRec);
+  let max = 0;
+  rows.forEach(r => { const v = num(r['ID']); if (v > max) max = v; });
+  return max + 1;
 }
 async function saveProjectDesc(section, desc) {
   await ensureProjects();
