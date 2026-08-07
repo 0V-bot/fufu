@@ -2347,7 +2347,6 @@ async function mmSaveNote(id, recId){
 
 function renderTaskMindmap(id, tasks, s){
   const tidSet = new Set(tasks.map(t => String(t.tid)).filter(Boolean));
-  const titleSet = new Set(tasks.map(t => (t.taskTitle || '').trim()).filter(Boolean));
   const tStr = today();
   const visited = new Set();
 
@@ -2397,7 +2396,8 @@ function renderTaskMindmap(id, tasks, s){
     tasks.forEach(c => {
       if (!visited.has(c.id)) {
         const cp = (c.parent || '').trim();
-        if (cp === String(t.tid) || cp === (t.taskTitle || '').trim()) childTasks.push(c);
+        // 仅按「上级任务标题」字段(存父任务 ID)判定父子关系，避免标题巧合造成错挂
+        if (cp === String(t.tid)) childTasks.push(c);
       }
     });
     const hasKids = childTasks.length > 0;
@@ -2421,8 +2421,8 @@ function renderTaskMindmap(id, tasks, s){
       ${kidsHtml}
     </div>`;
   };
-  // 顶层任务：parent 为空，或 parent 既不等于任何任务 ID 也不等于任何任务标题（兼容历史标题关联）
-  const isTop = t => { const p = (t.parent || '').trim(); return !p || (!tidSet.has(p) && !titleSet.has(p)); };
+  // 顶层任务：parent 为空，或 parent 不等于本项目任何任务 ID（按「上级任务标题」字段判定）
+  const isTop = t => { const p = (t.parent || '').trim(); return !p || !tidSet.has(p); };
   const top = tasks.filter(isTop);
   const rootChildren = top.map(renderNode).join('');
   const orphans = tasks.filter(t => !visited.has(t.id)).map(renderNode).join('');
