@@ -136,12 +136,14 @@
   .cal-cur{font-weight:700;font-size:14px;min-width:92px;text-align:center;}
   .cal-wrap{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;}
   .cal-left{width:258px;flex:none;background:#fbfcfe;border:1px solid var(--line);border-radius:12px;padding:12px;}
-  .cal-left-h{font-weight:700;font-size:14px;margin-bottom:10px;text-align:center;}
+  .cal-left-h{display:flex;align-items:center;justify-content:center;gap:10px;font-weight:700;font-size:14px;margin-bottom:10px;}
+  .cal-mnav{width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--brand);cursor:pointer;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center;transition:.12s;}
+  .cal-mnav:hover{background:var(--brand);color:#fff;border-color:var(--brand);}
+  .cal-mname{min-width:96px;text-align:center;}
   .cal-mgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
   .cal-mhead{font-size:11px;color:var(--muted);text-align:center;padding:2px 0;}
-  .cal-mcell{font-size:12.5px;text-align:center;padding:6px 0;border-radius:7px;cursor:pointer;color:#475569;transition:.12s;}
-  .cal-mcell:hover{background:#eef0ff;}
-  .cal-mempty{cursor:default;}
+  .cal-mcell{font-size:12.5px;text-align:center;padding:6px 0;border-radius:7px;color:#475569;transition:.12s;}
+  .cal-mempty{}
   .cal-mtoday{background:#e0f2fe;color:#0369a1;font-weight:700;}
   .cal-msel{outline:2px solid var(--brand);}
   .cal-mhas{position:relative;}
@@ -154,19 +156,34 @@
   .cal-cell:hover{border-color:#d7ddf0;box-shadow:0 4px 14px rgba(20,30,60,.05);}
   .cal-empty{background:transparent;border:none;box-shadow:none;}
   .cal-today{border-color:var(--brand);background:#f5f8ff;}
-  .cal-today .cal-cnum{color:var(--brand);font-weight:800;}
+  .cal-today .cal-d{color:var(--brand);font-weight:800;}
   .cal-sel{outline:2px solid var(--brand);}
-  .cal-cnum{font-size:13px;font-weight:700;color:#475569;}
+  .cal-cnum{display:flex;align-items:baseline;gap:5px;}
+  .cal-d{font-size:13px;font-weight:700;color:#475569;}
+  .cal-lunar{font-size:10px;color:var(--muted);}
   .cal-add{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--brand);cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;transition:.12s;opacity:.5;}
   .cal-add:hover{opacity:1;background:var(--brand);color:#fff;border-color:var(--brand);}
   .cal-items{margin-top:6px;display:flex;flex-direction:column;gap:4px;}
   .cal-it{display:flex;align-items:center;gap:4px;font-size:12px;background:#eef0ff;border-radius:7px;padding:3px 6px;cursor:pointer;transition:.12s;}
   .cal-it:hover{background:#e0e4ff;}
-  .cal-it-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;}
-  .cal-it-time{color:#4f46e5;font-weight:600;margin-right:2px;}
+  .cal-it-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;text-align:left;}
+  .cal-it-time{color:#4f46e5;font-weight:600;margin-right:2px;flex:none;}
   .cal-it-del{color:#94a3b8;font-size:11px;flex:none;padding:0 2px;}
   .cal-it-del:hover{color:#dc2626;}
+  .cal-rem{font-size:10.5px;font-weight:700;padding:1px 5px;border-radius:6px;white-space:nowrap;flex:none;}
+  .rem-def{color:#64748b;background:#f1f5f9;}
+  .rem-orange{color:#b45309;background:#fef3c7;}
+  .rem-red{color:#b91c1c;background:#fee2e2;}
+  .rem-purple{color:#7c3aed;background:#f3e8ff;}
+  .cal-rem-off{border:none;background:transparent;cursor:pointer;font-size:11px;padding:0 1px;color:#94a3b8;flex:none;}
+  .cal-rem-off:hover{color:#dc2626;}
   @media(max-width:760px){ .cal-right{min-width:100%;} .cal-left{width:100%;} }
+
+  /* 弹窗：时间双下拉 + 内联复选框 */
+  .time-row{display:flex;align-items:center;gap:6px;}
+  .time-row select{width:auto;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:13.5px;outline:none;}
+  .time-row select:focus{border-color:#a5b4fc;box-shadow:0 0 0 3px rgba(99,102,241,.08);}
+  .inline-chk{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#475069;font-weight:600;margin-left:14px;}
 
   .chip.type{background:#eaf1ff;color:#2563eb;}
   .chip.scene{background:#eafaf1;color:#16a34a;}
@@ -751,9 +768,9 @@ const SCHEMA = {
   calendar:[
     {key:'date',label:'日期',type:'date',required:true},
     {key:'title',label:'日程 / 提醒',type:'text',required:true},
-    {key:'time',label:'时间',type:'text',placeholder:'如 14:30（可选）'},
+    {key:'time',label:'时间',type:'time'},
     {key:'note',label:'备注',type:'textarea'},
-    {key:'remind',label:'提醒',type:'checkbox'},
+    {key:'remind',label:'提醒',type:'checkbox', inline:true},
   ],
   knowledge:[
     {key:'title',label:'标题',type:'text',required:true},
@@ -803,6 +820,7 @@ buildNav();
 /* ---------- routing ---------- */
 let current = 'dashboard';
 function go(id){
+  if(current==='calendar' && calIntervalId){ clearInterval(calIntervalId); calIntervalId=null; }
   current = id;
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.id===id));
   render();
@@ -834,9 +852,24 @@ const overlay = document.getElementById('overlay');
 const modal = document.getElementById('modal');
 function openModal(title, schema, values, onSave){
   values = values||{};
-  let fields = schema.map(f=>{
+  let fields = [];
+  schema.forEach(f=>{
     const v = values[f.key]!=null?values[f.key]:(f.default!=null?f.default:'');
-    if(f.type==='textarea') return `<div class="field"><label>${f.label}</label><textarea data-k="${f.key}">${esc(v)}</textarea></div>`;
+    if(f.inline){
+      const cv = values[f.key]!=null?values[f.key]:false;
+      const html = `<label class="inline-chk"><input type="checkbox" data-k="${f.key}" ${cv?'checked':''}/> ${esc(f.label)}</label>`;
+      if(fields.length) fields[fields.length-1] = fields[fields.length-1].replace(/<\/div>$/, html + '</div>');
+      return;
+    }
+    if(f.type==='textarea'){ fields.push(`<div class="field"><label>${f.label}</label><textarea data-k="${f.key}">${esc(v)}</textarea></div>`); return; }
+    if(f.type==='time'){
+      const parts=String(v||'').split(':'); const hh=parts[0]||'', mm=parts[1]||'';
+      let hOpts='', mOpts='';
+      for(let h=0;h<24;h++) hOpts+=`<option ${String(h)===hh||pad(h)===hh?'selected':''}>${pad(h)}</option>`;
+      for(let m=0;m<60;m++) mOpts+=`<option ${String(m)===mm||pad(m)===mm?'selected':''}>${pad(m)}</option>`;
+      fields.push(`<div class="field"><label>${f.label}</label><div class="time-row"><select data-k="time_h">${hOpts}</select><span>:</span><select data-k="time_m">${mOpts}</select></div></div>`);
+      return;
+    }
     if(f.type==='select'){
       let opts = (f.options||[]).map(o=>`<option ${o===v?'selected':''}>${esc(o)}</option>`).join('');
       if(f.addable) opts += `<option value="__add_new__">＋ 新增分类…</option>`;
@@ -846,13 +879,15 @@ function openModal(title, schema, values, onSave){
         <button class="btn mini" type="button" onclick="confirmAddOption('${f.key}','${f.dynamic}')">确定</button>
         <button class="btn soft mini" type="button" onclick="cancelAddOption('${f.key}')">取消</button>
       </div>`;
-      return `<div class="field"><label>${f.label}</label><select data-k="${f.key}" onchange="onSelectChange('${f.key}')">${opts}</select>${extra}</div>`;
+      fields.push(`<div class="field"><label>${f.label}</label><select data-k="${f.key}" onchange="onSelectChange('${f.key}')">${opts}</select>${extra}</div>`);
+      return;
     }
     const min = f.min!=null?`min="${f.min}"`:'', max=f.max!=null?`max="${f.max}"`:'';
     const ph = f.placeholder?` placeholder="${esc(f.placeholder)}"`:'';
-    if(f.type==='checkbox') return `<div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" data-k="${f.key}" ${v?'checked':''}/> ${esc(f.label)}</label></div>`;
-    return `<div class="field"><label>${f.label}</label><input data-k="${f.key}" type="${f.type==='number'?'number':'text'}" value="${esc(v)}" ${min} ${max}${ph}/></div>`;
-  }).join('');
+    if(f.type==='checkbox'){ fields.push(`<div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" data-k="${f.key}" ${v?'checked':''}/> ${esc(f.label)}</label></div>`); return; }
+    fields.push(`<div class="field"><label>${f.label}</label><input data-k="${f.key}" type="${f.type==='number'?'number':'text'}" value="${esc(v)}" ${min} ${max}${ph}/></div>`);
+  });
+  fields = fields.join('');
   modal.innerHTML = `<h3>${title}</h3>${fields}
     <div class="modal-ops">
       <button class="btn soft" onclick="closeModal()">取消</button>
@@ -897,10 +932,16 @@ async function submitModal(){
   const schema = modal._schema, vals = modal._values;
   const out = Object.assign({}, vals);
   for(const f of schema){
-    const el = modal.querySelector(`[data-k="${f.key}"]`);
-    let v = el.value;
-    if(f.type==='number') v = v===''?0:Number(v);
-    if(f.type==='checkbox') v = el.checked;
+    let v;
+    if(f.type==='time'){
+      const h=modal.querySelector('[data-k="time_h"]'), m=modal.querySelector('[data-k="time_m"]');
+      v = (h&&m)? (pad(Number(h.value))+':'+pad(Number(m.value))) : '';
+    } else {
+      const el = modal.querySelector(`[data-k="${f.key}"]`);
+      v = el.value;
+      if(f.type==='number') v = v===''?0:Number(v);
+      if(f.type==='checkbox') v = el.checked;
+    }
     out[f.key]=v;
     if(f.required && !String(v).trim()){ alert('请填写：'+f.label); return; }
   }
@@ -2415,8 +2456,100 @@ async function expandMajor(recId){
 }
 
 /* ---------- 日历：左侧小月历（切换月份）+ 右侧当月展开格子 ---------- */
-let calYear=null, calMonth=null, calSelDay=null;
+let calYear=null, calMonth=null, calSelDay=null, calIntervalId=null;
 function pad(n){ return (n<10?'0':'')+n; }
+
+/* ---------- 公历转农历（1900-2100） ---------- */
+const lunarInfo=[0x04bd8,0x04ae0,0x0a570,0x054d5,0x0d260,0x0d950,0x16554,0x056a0,0x09ad0,0x055d2,
+0x04ae0,0x0a5b6,0x0a4d0,0x0d250,0x1d255,0x0b540,0x0d6a0,0x0ada2,0x095b0,0x14977,
+0x04970,0x0a4b0,0x0b4b5,0x06a50,0x06d40,0x1ab54,0x02b60,0x09570,0x052f2,0x04970,
+0x06566,0x0d4a0,0x0ea50,0x06e95,0x05ad0,0x02b60,0x186e3,0x092e0,0x1c8d7,0x0c950,
+0x0d4a0,0x1d8a6,0x0b550,0x056a0,0x1a5b4,0x025d0,0x092d0,0x0d2b2,0x0a950,0x0b557,
+0x06ca0,0x0b550,0x15355,0x04da0,0x0a5b0,0x14573,0x052b0,0x0a9a8,0x0e950,0x06aa0,
+0x0aea6,0x0ab50,0x04b60,0x0aae4,0x0a570,0x05260,0x0f263,0x0d950,0x05b57,0x056a0,
+0x096d0,0x04dd5,0x04ad0,0x0a4d0,0x0d4d4,0x0d250,0x0d558,0x0b540,0x0b6a0,0x195a6,
+0x095b0,0x049b0,0x0a974,0x0a4b0,0x0b27a,0x06a50,0x06d40,0x0af46,0x0ab60,0x09570,
+0x04af5,0x04970,0x064b0,0x074a3,0x0ea50,0x06b58,0x055c0,0x0ab60,0x096d5,0x092e0,
+0x0c960,0x0d954,0x0d4a0,0x0da50,0x07552,0x056a0,0x0abb7,0x025d0,0x092d0,0x0cab5,
+0x0a950,0x0b4a0,0x0baa4,0x0ad50,0x055d9,0x04ba0,0x0a5b0,0x15176,0x052b0,0x0a930,
+0x07954,0x06aa0,0x0ad50,0x05b52,0x04b60,0x0a6e6,0x0a4e0,0x0d260,0x0ea65,0x0d530,
+0x05aa0,0x076a3,0x096d0,0x04afb,0x04ad0,0x0a4d0,0x1d0b6,0x0d250,0x0d520,0x0dd45,
+0x0b5a0,0x056d0,0x055b2,0x049b0,0x0a577,0x0a4b0,0x0aa50,0x1b255,0x06d20,0x0ada0,
+0x14b63,0x09370,0x049f8,0x04970,0x064b0,0x168a6,0x0ea50,0x06b20,0x1a6c4,0x0aae0,
+0x0a2e0,0x0d2e3,0x0c960,0x0d557,0x0d4a0,0x0da50,0x05d55,0x056a0,0x0a6d0,0x055d4,
+0x052d0,0x0a9b8,0x0a950,0x0b4a0,0x0b6a6,0x0ad50,0x055a0,0x0aba4,0x0a5b0,0x052b0,
+0x0b273,0x06930,0x07337,0x06aa0,0x0ad50,0x14b55,0x04b60,0x0a570,0x054e4,0x0d160,
+0x0e968,0x0d520,0x0daa0,0x16aa6,0x056d0,0x04ae0,0x0a9d4,0x0a2d0,0x0d150,0x0f252,
+0x0d520];
+function lYearDays(y){let sum=348;for(let i=0x8000;i>0x8;i>>=1)sum+=(lunarInfo[y-1900]&i)?1:0;return sum+leapDays(y);}
+function leapDays(y){if(leapMonth(y)){return ((lunarInfo[y-1900]&0x10000)?30:29);}return 0;}
+function leapMonth(y){return (lunarInfo[y-1900]&0xf);}
+function monthDays(y,m){return ((lunarInfo[y-1900]&(0x10000>>m))?30:29);}
+function solarToLunar(yy,mm,dd){
+  const baseDate=new Date(1900,0,31);
+  const objDate=new Date(yy,mm-1,dd);
+  let offset=Math.round((objDate-baseDate)/86400000);
+  let i=1900,temp=0;
+  for(i=1900;i<2101&&offset>0;i++){ temp=lYearDays(i); offset-=temp; }
+  if(offset<0){ offset+=temp; i--; }
+  const lunarY=i;
+  const leap=leapMonth(i);
+  let isLeap=false,m=1;
+  for(m=1;m<13&&offset>0;m++){
+    if(leap>0&&m===(leap+1)&&!isLeap){ m--; isLeap=true; temp=leapDays(i); }
+    else { temp=monthDays(i,m); }
+    if(isLeap&&m===(leap+1)) isLeap=false;
+    offset-=temp;
+  }
+  if(offset===0&&leap>0&&m===leap+1){ if(isLeap){ isLeap=false; } else { isLeap=true; m--; } }
+  if(offset<0){ offset+=temp; m--; }
+  return {lunarYear:lunarY,lunarMonth:m,lunarDay:offset+1,isLeap:isLeap};
+}
+const lunarMonthNames=['正','二','三','四','五','六','七','八','九','十','冬','腊'];
+const lunarDay1='初十廿三', lunarDay2='一二三四五六七八九十';
+function cnLunarDay(d){
+  if(d===10)return '初十';
+  if(d===20)return '二十';
+  if(d===30)return '三十';
+  if(d<10)return '初'+lunarDay2[d-1];
+  if(d<20)return '十'+lunarDay2[d-11];
+  if(d<30)return '廿'+lunarDay2[d-21];
+  return '';
+}
+function lunarText(yy,mm,dd){
+  const L=solarToLunar(yy,mm,dd);
+  const m=(L.isLeap?'闰':'')+lunarMonthNames[L.lunarMonth-1]+'月';
+  return m+cnLunarDay(L.lunarDay);
+}
+
+/* ---------- 提醒配色（按当前真实时间相对提醒时间） ---------- */
+// 提醒时间前1小时~前10分钟：橙黄；前后10分钟：红；后10分钟之后：紫；更早：默认
+function remColorClass(atMs){
+  const diff=atMs-Date.now();
+  if(diff < -600000) return 'purple';
+  if(diff <= 600000) return 'red';
+  if(diff < 3600000) return 'orange';
+  return 'def';
+}
+function scheduleAtMs(s){
+  if(!s.remind||!s.date||!s.time) return 0;
+  const p=s.date.split('-'), t=s.time.split(':');
+  return new Date(+p[0], +p[1]-1, +p[2], +(t[0]||0), +(t[1]||0), 0, 0).getTime();
+}
+function refreshReminderColors(){
+  document.querySelectorAll('.cal-rem').forEach(el=>{
+    const at=Number(el.getAttribute('data-at'))||0;
+    el.className='cal-rem rem-'+remColorClass(at);
+  });
+}
+async function calCloseRemind(id){
+  try{
+    const rec=(cache['calendar']||[]).find(x=>x.id===id);
+    if(!rec) return;
+    await apiUpdate('calendar', id, Object.assign({}, rec, {remind:false}));
+    await render();
+  }catch(e){ alert('关闭提醒失败：'+(e.message||e)); }
+}
 
 async function renderCalendar(){
   const s = SECTIONS.calendar;
@@ -2436,16 +2569,15 @@ async function renderCalendar(){
   const lead = (first.getDay()+6)%7; // 周一为一周起点
   const daysInMonth = new Date(y, m, 0).getDate();
   const tStr = today.getFullYear()+'-'+pad(today.getMonth()+1)+'-'+pad(today.getDate());
-  const selStr = calSelDay;
   const wk = ['一','二','三','四','五','六','日'];
 
-  // 左侧：可切换月份的小月历
+  // 左侧：可切换月份的小月历（月份两侧切换，格子不可点击，今日高亮）
   let miniCells = '';
   for(let i=0;i<lead;i++) miniCells += `<div class="cal-mcell cal-mempty"></div>`;
   for(let d=1; d<=daysInMonth; d++){
     const ymd = y+'-'+pad(m)+'-'+pad(d);
-    const cls = 'cal-mcell' + (ymd===tStr?' cal-mtoday':'') + (ymd===selStr?' cal-msel':'') + (byDate[ymd]&&byDate[ymd].length?' cal-mhas':'');
-    miniCells += `<div class="${cls}" onclick="calSelectDay('${ymd}')">${d}</div>`;
+    const cls = 'cal-mcell' + (ymd===tStr?' cal-mtoday':'') + (byDate[ymd]&&byDate[ymd].length?' cal-mhas':'');
+    miniCells += `<div class="${cls}">${d}</div>`;
   }
 
   // 右侧：展开的当月格子
@@ -2454,47 +2586,51 @@ async function renderCalendar(){
   for(let i=0;i<lead;i++) cells += `<div class="cal-cell cal-empty"></div>`;
   for(let d=1; d<=daysInMonth; d++){
     const ymd = y+'-'+pad(m)+'-'+pad(d);
-    const cls = 'cal-cell' + (ymd===tStr?' cal-today':'') + (ymd===selStr?' cal-sel':'');
+    const cls = 'cal-cell' + (ymd===tStr?' cal-today':'');
     const items = byDate[ymd]||[];
     const listHtml = items.map(it=>{
-      const t = it.time? `<span class="cal-it-time">${esc(it.time)}</span>`:'';
-      const rem = it.remind? ' 🔔':'';
+      const showRem = it.remind && !!it.time;
+      const at = showRem ? scheduleAtMs(it) : 0;
+      const remHtml = showRem
+        ? `<span class="cal-rem rem-${remColorClass(at)}" data-at="${at}">⏰ ${esc(it.time)} 提醒</span><button class="cal-rem-off" title="关闭提醒" onclick="event.stopPropagation();calCloseRemind('${it.id}')">🔕</button>`
+        : '';
       return `<div class="cal-it" onclick="calEditSchedule('${it.id}')">
-        <span class="cal-it-title">${t}${esc(it.title)}${rem}</span>
+        ${it.time?`<span class="cal-it-time">${esc(it.time)}</span>`:''}
+        <span class="cal-it-title">${esc(it.title)}</span>
+        ${remHtml}
         <span class="cal-it-del" onclick="event.stopPropagation();calDelSchedule('${it.id}')">✕</span>
       </div>`;
     }).join('');
     cells += `<div class="${cls}">
-      <div class="cal-cnum">${d}</div>
+      <div class="cal-cnum"><span class="cal-d">${d}</span><span class="cal-lunar">${lunarText(y,m,d)}</span></div>
       <button class="cal-add" title="添加当天日程" onclick="calAddDay('${ymd}')">＋</button>
       <div class="cal-items">${listHtml}</div>
     </div>`;
   }
 
-  view.innerHTML = `<div class="card"><div class="h"><div class="t">${s.name}</div>
-      <div class="cal-nav">
-        <button class="btn soft mini" onclick="calPrevMonth()">◀ 上月</button>
-        <span class="cal-cur">${monthName}</span>
-        <button class="btn soft mini" onclick="calNextMonth()">下月 ▶</button>
-        <button class="btn soft mini" onclick="calGoToday()">今天</button>
-      </div>
-    </div>
+  view.innerHTML = `<div class="card"><div class="h"><div class="t">${s.name}</div></div>
     <div class="cal-wrap">
       <div class="cal-left">
-        <div class="cal-left-h">${monthName}</div>
+        <div class="cal-left-h">
+          <button class="cal-mnav" title="上一月" onclick="calPrevMonth()">◀</button>
+          <span class="cal-mname">${monthName}</span>
+          <button class="cal-mnav" title="下一月" onclick="calNextMonth()">▶</button>
+        </div>
         <div class="cal-mgrid">${wk.map(w=>`<div class="cal-mhead">${w}</div>`).join('')}${miniCells}</div>
-        <div class="cal-hint">点击左侧日期可在右侧高亮；右侧每格右上角「＋」添加当天日程，点击日程可编辑、✕ 删除。</div>
+        <div class="cal-hint">右侧每格右上角「＋」添加当天日程；点击日程可编辑、✕ 删除；傍边带「·」的日期有日程，今日以高亮显示。</div>
       </div>
       <div class="cal-right">
         <div class="cal-big">${head}${cells}</div>
       </div>
     </div>
   </div>`;
+
+  if(calIntervalId) clearInterval(calIntervalId);
+  calIntervalId = setInterval(()=>{ if(current==='calendar') refreshReminderColors(); }, 20000);
+  refreshReminderColors();
 }
 function calPrevMonth(){ if(calMonth===1){calMonth=12;calYear--;}else calMonth--; render(); }
 function calNextMonth(){ if(calMonth===12){calMonth=1;calYear++;}else calMonth++; render(); }
-function calGoToday(){ const t=new Date(); calYear=t.getFullYear(); calMonth=t.getMonth()+1; calSelDay=t.getFullYear()+'-'+pad(t.getMonth()+1)+'-'+pad(t.getDate()); render(); }
-function calSelectDay(ymd){ calSelDay = (calSelDay===ymd)?null:ymd; render(); }
 function calAddDay(ymd){ openModal('添加日程 · '+ymd, SCHEMA.calendar, {date:ymd, remind:true}, doCreate('calendar')); }
 function calEditSchedule(id){ editGeneric('calendar', id); }
 async function calDelSchedule(id){
