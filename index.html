@@ -152,7 +152,7 @@
   .cal-right{flex:1;min-width:440px;}
   .cal-big{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
   .cal-chead{font-size:12px;color:var(--muted);text-align:center;padding:4px 0;font-weight:600;}
-  .cal-cell{background:#fbfcfe;border:1px solid var(--line);border-radius:11px;min-height:96px;padding:8px 8px 10px;position:relative;transition:.15s;}
+  .cal-cell{background:#fbfcfe;border:1px solid var(--line);border-radius:11px;aspect-ratio:1;padding:8px 8px 10px;position:relative;transition:.15s;overflow:hidden;}
   .cal-cell:hover{border-color:#d7ddf0;box-shadow:0 4px 14px rgba(20,30,60,.05);}
   .cal-empty{background:transparent;border:none;box-shadow:none;}
   .cal-today{border-color:var(--brand);background:#f5f8ff;}
@@ -163,11 +163,10 @@
   .cal-lunar{font-size:10px;color:var(--muted);}
   .cal-add{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--brand);cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;transition:.12s;opacity:0;}
   .cal-add:hover{opacity:1;background:var(--brand);color:#fff;border-color:var(--brand);}
-  .cal-items{margin-top:26px;display:flex;flex-direction:column;gap:4px;}
+  .cal-items{margin-top:26px;display:flex;flex-direction:column;gap:4px;max-height:calc(100% - 26px);overflow-y:auto;align-items:stretch;}
   .cal-it{display:flex;align-items:center;gap:4px;font-size:12px;background:#eef0ff;border-radius:7px;padding:3px 6px;cursor:pointer;transition:.12s;}
   .cal-it:hover{background:#e0e4ff;}
   .cal-it-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;text-align:left;}
-  .cal-it-time{color:#4f46e5;font-weight:600;margin-right:2px;flex:none;}
   .cal-it-del{color:#94a3b8;font-size:11px;flex:none;padding:0 2px;}
   .cal-it-del:hover{color:#dc2626;}
   .rem-orange{color:#b45309;}
@@ -2600,13 +2599,15 @@ async function renderCalendar(){
     const cls = 'cal-cell' + (ymd===tStr?' cal-today':'');
     const items = byDate[ymd]||[];
     const listHtml = items.map(it=>{
-      const showRem = it.remind && !!it.time;
+      const remOn = it.remind && !!it.time;
+      const isToday = ymd===tStr;          // 仅今天的提醒遵循变色规则
+      const showRem = remOn && isToday;     // 仅今天才上色
       const at = showRem ? scheduleAtMs(it) : 0;
       const rc = showRem ? remColorClass(at) : 'def';
       const remClass = rc!=='def' ? ('rem-'+rc) : '';
-      const bellHtml = showRem ? `<button class="cal-bell" title="关闭提醒" onclick="event.stopPropagation();calCloseRemind('${it.id}')">🔔</button>` : '';
+      // 闹钟图标：任意日期只要开启提醒就显示（可点击关闭）；但变色只作用于今天
+      const bellHtml = remOn ? `<button class="cal-bell" title="关闭提醒" onclick="event.stopPropagation();calCloseRemind('${it.id}')">🔔</button>` : '';
       return `<div class="cal-it" onclick="calEditSchedule('${it.id}')">
-        ${it.time?`<span class="cal-it-time">${esc(it.time)}</span>`:''}
         <span class="cal-it-title ${remClass}" ${showRem?`data-at="${at}"`:''}>${esc(it.title)}</span>
         ${bellHtml}
         <span class="cal-it-del" onclick="event.stopPropagation();calDelSchedule('${it.id}')">✕</span>
