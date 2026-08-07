@@ -200,15 +200,16 @@
   .wk-label{font-size:13px;font-weight:650;color:#475069;}
   .wk-nav .btn[disabled]{opacity:.4;cursor:not-allowed;}
   .habit-head{display:flex;align-items:center;gap:16px;margin:0 0 8px;padding:0 2px;}
-  .habit-head .left{flex:0 0 180px;}
+  .habit-head .left{flex:0 0 170px;}
   .habit-head .wkw{flex:1;min-width:240px;}
   .habit-head .wkcols{display:flex;gap:7px;}
   .habit-head .wkcols i{flex:1;text-align:center;font-style:normal;font-size:11px;color:var(--muted);font-weight:600;}
   .habit-head .del{flex:0 0 28px;}
   .habit .hr{display:flex;align-items:center;gap:16px;flex-wrap:nowrap;}
-  .habit .left{flex:0 0 180px;display:flex;align-items:center;gap:10px;min-width:0;}
+  .habit .left{flex:0 0 170px;display:flex;align-items:center;gap:8px;min-width:0;}
   .habit .nm{font-weight:650;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .habit .prog{flex:0 0 auto;font-size:13.5px;font-weight:700;color:#10b981;background:#ecfdf5;border:1px solid #bbf7d0;border-radius:20px;padding:3px 11px;white-space:nowrap;}
+  .habit .prog-head{flex:0 0 58px;text-align:center;font-size:11px;color:var(--muted);font-weight:600;}
+  .habit .prog{flex:0 0 58px;text-align:center;font-size:13.5px;font-weight:800;color:#047857;background:#d1fae5;border:1px solid #6ee7b7;border-radius:20px;padding:4px 0;white-space:nowrap;box-sizing:border-box;}
   .habit .wkw{flex:1;min-width:240px;}
   .habit .wkcells{display:flex;gap:7px;}
   .habit .wkcells .cell{height:30px;border-radius:9px;background:#eef1f7;cursor:pointer;display:grid;place-items:center;font-size:13px;transition:.12s;flex:1;}
@@ -1601,7 +1602,7 @@ async function renderHabits(){
     <button class="btn mini" ${nextDisabled} onclick="habitShiftWeek(1)">下周 ›</button></div>`;
   if(!arr.length){ html += `<div class="empty">还没有习惯，添加一个开始坚持吧 🌱</div></div>`; view.innerHTML=html; return; }
   const headCols = wd.map(x=>`<i>${x}</i>`).join('');
-  html += `<div class="habit-head"><div class="left"></div><div class="wkw"><div class="wkcols">${headCols}</div></div><div class="del"></div></div>`;
+  html += `<div class="habit-head"><div class="left"></div><div class="prog-head">进度</div><div class="wkw"><div class="wkcols">${headCols}</div></div><div class="del"></div></div>`;
   arr.forEach(h=>{
     const prog = habitMonthStats(h.history, a);
     let cells='';
@@ -1615,7 +1616,8 @@ async function renderHabits(){
       cells += `<div class="${cls.trim()}" ${onclick}>${on?'✓':''}</div>`;
     });
     html += `<div class="habit"><div class="hr">
-      <div class="left"><span class="nm">${esc(h.name)}</span><span class="prog">${prog}</span></div>
+      <div class="left"><span class="nm">${esc(h.name)}</span></div>
+      <span class="prog">${prog}</span>
       <div class="wkw"><div class="wkcells">${cells}</div></div>
       <button class="del" title="删除" onclick="delHabit('${h.id}')">🗑</button>
     </div></div>`;
