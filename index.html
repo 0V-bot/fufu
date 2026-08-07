@@ -170,17 +170,16 @@
   .cal-it-time{color:#4f46e5;font-weight:600;margin-right:2px;flex:none;}
   .cal-it-del{color:#94a3b8;font-size:11px;flex:none;padding:0 2px;}
   .cal-it-del:hover{color:#dc2626;}
-  .cal-rem{font-size:10.5px;font-weight:700;padding:1px 5px;border-radius:6px;white-space:nowrap;flex:none;}
-  .rem-def{color:#64748b;background:#f1f5f9;}
-  .rem-orange{color:#b45309;background:#fef3c7;}
-  .rem-red{color:#b91c1c;background:#fee2e2;}
-  .rem-purple{color:#7c3aed;background:#f3e8ff;}
-  .cal-rem-off{border:none;background:transparent;cursor:pointer;font-size:11px;padding:0 1px;color:#94a3b8;flex:none;}
-  .cal-rem-off:hover{color:#dc2626;}
+  .rem-orange{color:#b45309;}
+  .rem-red{color:#b91c1c;}
+  .rem-purple{color:#7c3aed;}
+  .cal-bell{border:none;background:transparent;cursor:pointer;font-size:14px;padding:0 2px;color:#f59e0b;flex:none;line-height:1;}
+  .cal-bell:hover{color:#dc2626;}
   @media(max-width:760px){ .cal-right{min-width:100%;} .cal-left{width:100%;} }
 
   /* 弹窗：时间双下拉 + 内联复选框 */
   .time-row{display:flex;align-items:center;gap:6px;}
+  .time-field{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
   .time-row select{width:auto;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:13.5px;outline:none;}
   .time-row select:focus{border-color:#a5b4fc;box-shadow:0 0 0 3px rgba(99,102,241,.08);}
   .inline-chk{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#475069;font-weight:600;margin-left:14px;}
@@ -858,7 +857,11 @@ function openModal(title, schema, values, onSave){
     if(f.inline){
       const cv = values[f.key]!=null?values[f.key]:false;
       const html = `<label class="inline-chk"><input type="checkbox" data-k="${f.key}" ${cv?'checked':''}/> ${esc(f.label)}</label>`;
-      if(fields.length) fields[fields.length-1] = fields[fields.length-1].replace(/<\/div>$/, html + '</div>');
+      if(fields.length){
+        const prev = fields[fields.length-1];
+        const inner = prev.replace(/^<div class="field">/, '').replace(/<\/div>$/, '');
+        fields[fields.length-1] = `<div class="field time-field">${inner}${html}</div>`;
+      }
       return;
     }
     if(f.type==='textarea'){ fields.push(`<div class="field"><label>${f.label}</label><textarea data-k="${f.key}">${esc(v)}</textarea></div>`); return; }
@@ -2544,9 +2547,10 @@ function scheduleAtMs(s){
   return new Date(+p[0], +p[1]-1, +p[2], +(t[0]||0), +(t[1]||0), 0, 0).getTime();
 }
 function refreshReminderColors(){
-  document.querySelectorAll('.cal-rem').forEach(el=>{
+  document.querySelectorAll('.cal-it-title[data-at]').forEach(el=>{
     const at=Number(el.getAttribute('data-at'))||0;
-    el.className='cal-rem rem-'+remColorClass(at);
+    const rc=remColorClass(at);
+    el.className='cal-it-title'+(rc!=='def'?(' rem-'+rc):'');
   });
 }
 async function calCloseRemind(id){
@@ -2598,13 +2602,13 @@ async function renderCalendar(){
     const listHtml = items.map(it=>{
       const showRem = it.remind && !!it.time;
       const at = showRem ? scheduleAtMs(it) : 0;
-      const remHtml = showRem
-        ? `<span class="cal-rem rem-${remColorClass(at)}" data-at="${at}">⏰ ${esc(it.time)} 提醒</span><button class="cal-rem-off" title="关闭提醒" onclick="event.stopPropagation();calCloseRemind('${it.id}')">🔕</button>`
-        : '';
+      const rc = showRem ? remColorClass(at) : 'def';
+      const remClass = rc!=='def' ? ('rem-'+rc) : '';
+      const bellHtml = showRem ? `<button class="cal-bell" title="关闭提醒" onclick="event.stopPropagation();calCloseRemind('${it.id}')">🔔</button>` : '';
       return `<div class="cal-it" onclick="calEditSchedule('${it.id}')">
         ${it.time?`<span class="cal-it-time">${esc(it.time)}</span>`:''}
-        <span class="cal-it-title">${esc(it.title)}</span>
-        ${remHtml}
+        <span class="cal-it-title ${remClass}" ${showRem?`data-at="${at}"`:''}>${esc(it.title)}</span>
+        ${bellHtml}
         <span class="cal-it-del" onclick="event.stopPropagation();calDelSchedule('${it.id}')">✕</span>
       </div>`;
     }).join('');
