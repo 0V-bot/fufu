@@ -196,11 +196,19 @@
   .habit .nm{font-weight:650;font-size:14.5px;}
   .streak{font-size:12px;color:var(--muted);}
   .streak b{color:#10b981;}
-  .days{display:flex;gap:7px;}
-  .day{flex:1;text-align:center;}
-  .day .dlabel{font-size:10.5px;color:var(--muted);margin-bottom:5px;}
-  .day .cell{height:30px;border-radius:9px;background:#eef1f7;cursor:pointer;display:grid;place-items:center;font-size:13px;transition:.12s;}
-  .day .cell.on{background:#10b981;color:#fff;}
+  .wk-nav{display:flex;align-items:center;justify-content:center;gap:18px;margin:4px 0 16px;}
+  .wk-label{font-size:13px;font-weight:650;color:#475069;}
+  .wk-nav .btn[disabled]{opacity:.4;cursor:not-allowed;}
+  .habit .hr{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+  .habit .nm{font-weight:650;font-size:14.5px;display:flex;align-items:center;gap:10px;min-width:120px;}
+  .habit .prog{flex:0 0 auto;font-size:14px;font-weight:700;color:#10b981;background:#ecfdf5;border:1px solid #bbf7d0;border-radius:20px;padding:4px 13px;white-space:nowrap;}
+  .habit .wkw{flex:1;min-width:240px;}
+  .habit .wkcols{display:flex;gap:7px;margin-bottom:4px;}
+  .habit .wkcols i{flex:1;text-align:center;font-style:normal;font-size:10.5px;color:var(--muted);}
+  .habit .wkcells{display:flex;gap:7px;}
+  .habit .wkcells .cell{height:30px;border-radius:9px;background:#eef1f7;cursor:pointer;display:grid;place-items:center;font-size:13px;transition:.12s;flex:1;}
+  .habit .wkcells .cell.on{background:#10b981;color:#fff;}
+  .habit .wkcells .cell.today{box-shadow:0 0 0 2px #f59e0b inset;}
 
   /* review */
   textarea.note{width:100%;min-height:200px;border:1px solid var(--line);border-radius:12px;padding:14px;font-family:inherit;font-size:14px;line-height:1.75;outline:none;resize:vertical;background:#fff;color:var(--ink);}
@@ -1546,30 +1554,59 @@ async function delInsp(id){
 }
 
 /* ---------- habits ---------- */
-function lastNDays(n){ const out=[]; const d=new Date(); for(let i=n-1;i>=0;i--){ const x=new Date(d); x.setDate(d.getDate()-i); out.push(x.toISOString().slice(0,10)); } return out; }
-function streakOf(hist){ let s=0; const d=new Date(); for(let i=0;;i++){ const x=new Date(d); x.setDate(d.getDate()-i); const k=x.toISOString().slice(0,10); if(hist&&hist[k]) s++; else { if(i===0){ continue; } break; } } return s; }
+let habitWeekOffset = 0;
+function bjDateStr(d){ const p=n=>n<10?'0'+n:''+n; const bj=new Date(d.getTime()+8*3600*1000); return bj.getUTCFullYear()+'-'+p(bj.getUTCMonth()+1)+'-'+p(bj.getUTCDate()); }
+function bjToday(){ return bjDateStr(new Date()); }
+function habitWeekDays(offset){
+  const now=new Date();
+  const dow=(now.getDay()+6)%7; // 周一=0
+  const mon=new Date(now.getFullYear(),now.getMonth(),now.getDate()-dow);
+  const start=new Date(mon); start.setDate(mon.getDate()+offset*7);
+  const out=[];
+  for(let i=0;i<7;i++){ const d=new Date(start); d.setDate(start.getDate()+i); out.push(d); }
+  return out;
+}
+function habitMonthStats(hist, ref){
+  const y=ref.getFullYear(), m=ref.getMonth();
+  const total=new Date(y,m+1,0).getDate();
+  let done=0;
+  if(hist) for(const k in hist){ const p=k.split('-'); if(+p[0]===y && +p[1]===m+1) done++; }
+  return done+'/'+total;
+}
+function habitShiftWeek(d){ habitWeekOffset+=d; renderHabits(); }
 async function renderHabits(){
   let arr;
   try{ arr = await apiHabits(); }
   catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
   cache.habits = arr;
-  const days = lastNDays(7);
+  const days = habitWeekDays(habitWeekOffset);
+  const a=days[0], b=days[6];
+  const wkNo=Math.ceil(a.getDate()/7);
+  const weekLabel = a.getFullYear()+'年'+(a.getMonth()+1)+'月 第'+wkNo+'周（'+(a.getMonth()+1)+'/'+a.getDate()+'~'+(b.getMonth()+1)+'/'+b.getDate()+'）';
+  const wd=['一','二','三','四','五','六','日'];
+  const nextDisabled = habitWeekOffset>=0 ? 'disabled' : '';
   let html = `<div class="card"><div class="h"><div class="t">微习惯打卡</div>
     <div class="inline-add" style="margin:0;width:auto"><input id="habitInput" placeholder="新增习惯名称…" style="padding:7px 11px"/>
     <button class="btn" onclick="addHabit()">+ 习惯</button></div></div>`;
+  html += `<div class="wk-nav"><button class="btn mini" onclick="habitShiftWeek(-1)">‹ 上一周</button>
+    <span class="wk-label">${weekLabel}</span>
+    <button class="btn mini" ${nextDisabled} onclick="habitShiftWeek(1)">下周 ›</button></div>`;
   if(!arr.length){ html += `<div class="empty">还没有习惯，添加一个开始坚持吧 🌱</div></div>`; view.innerHTML=html; return; }
   arr.forEach(h=>{
-    const st = streakOf(h.history);
-    let cells='';
-    days.forEach(dy=>{
+    const prog = habitMonthStats(h.history, a);
+    let cols='', cells='';
+    days.forEach((d,i)=>{
+      const dy=bjDateStr(d);
       const on = h.history && h.history[dy];
-      const lbl = new Date(dy).toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'}).replace('/','/');
-      cells += `<div class="day"><div class="dlabel">${lbl}</div><div class="cell ${on?'on':''}" onclick="toggleHabit('${h.id}','${dy}')">${on?'✓':''}</div></div>`;
+      const isToday = dy===bjToday();
+      cols += `<i>${wd[i]}</i>`;
+      cells += `<div class="cell ${on?'on':''} ${isToday?'today':''}" onclick="toggleHabit('${h.id}','${dy}')">${on?'✓':''}</div>`;
     });
-    html += `<div class="habit"><div class="top"><div class="nm">${esc(h.name)}</div>
-      <div style="display:flex;gap:10px;align-items:center"><span class="streak">🔥 连续 <b>${st}</b> 天</span>
-      <button class="btn danger mini" onclick="delHabit('${h.id}')">删除</button></div></div>
-      <div class="days">${cells}</div></div>`;
+    html += `<div class="habit"><div class="hr">
+      <div class="nm">${esc(h.name)} <button class="btn danger mini" onclick="delHabit('${h.id}')">删除</button></div>
+      <div class="prog">${prog}</div>
+      <div class="wkw"><div class="wkcols">${cols}</div><div class="wkcells">${cells}</div></div>
+    </div></div>`;
   });
   html += '</div>';
   view.innerHTML = html;
