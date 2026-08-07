@@ -429,6 +429,7 @@
   .mm-title{font-weight:600; color:var(--ink); flex:none; min-width:0; word-break:break-word; max-width:340px;}
   .mm-title.root-title{font-size:16px; font-weight:800;}
   .mm-title[contenteditable="true"]{outline:2px solid var(--brand); border-radius:6px; padding:2px 6px; background:#fff; min-width:80px; max-width:440px;}
+  .mm-title[contenteditable="true"]:empty:before{content:"输入任务标题…"; color:#94a3b8; pointer-events:none;}
   .mm-status{border:1px solid #fcd34d; background:#fef3c7; color:#92400e; border-radius:999px; padding:2px 11px; font-size:12px; font-weight:700; cursor:pointer; flex:none; white-space:nowrap;}
   .mm-status.done{border-color:#86efac; background:#dcfce7; color:#166534;}
   .mm-ops{display:flex; gap:1px; align-items:center; flex:none;}
@@ -1199,8 +1200,20 @@ function onDailyToggle(){
   if (chk.checked) { dl.value = ''; dl.disabled = true; }
   else { dl.disabled = false; }
 }
-// 在指定任务下创建子任务：预填「上级任务」为该任务的 ID
-function addSubTask(id, parentTid){ openTaskModal(id, null, String(parentTid || '')); }
+// 行内添加任务（不弹窗）：直接新建并进入标题编辑状态
+async function mmAddTask(id, parentTid){
+  try {
+    const res = await apiCreate(id, { taskTitle:'', parent: String(parentTid || ''), daily:'否', deadline: today(), status:'待办', note:'' });
+    await render();
+    const newId = res && res.id;
+    if (!newId) { mmRepaint(); return; }
+    mmEditTitleId = newId; mmEditNoteId = null;
+    mmRepaint();
+    const el = document.querySelector(`.mm-node[data-id="${newId}"] .mm-title`);
+    if (el) { el.focus(); placeCaretEnd(el); }
+  }
+  catch (e) { alert('添加失败：' + (e.message || e)); }
+}
 async function submitTaskModal(id, recId){
   const g = k => { const el = modal.querySelector(`[data-k="${k}"]`); return el ? el.value.trim() : ''; };
   const taskTitle = g('taskTitle');
@@ -2285,11 +2298,11 @@ async function mmToggleStatus(id, recId){
   try { await apiUpdate(id, recId, { status: next }); it.status = next; mmRepaint(); }
   catch (e) { alert('保存失败：' + (e.message || e)); }
 }
-// 「每日」勾选格子：打勾＝显示截止时间（非每日）；取消＝每日任务（隐藏截止时间）
+// 「每日」勾选格子：打勾＝每日任务（隐藏截止时间）；取消＝可设置截止时间
 async function mmToggleDaily(id, recId, checked){
   const it = (cache[id] || []).find(x => x.id === recId); if (!it) return;
-  const daily = checked ? '否' : '是';
-  const deadline = checked ? (it.deadline || today()) : null;
+  const daily = checked ? '是' : '否';
+  const deadline = checked ? null : (it.deadline || today());
   try { await apiUpdate(id, recId, { daily, deadline }); it.daily = daily; it.deadline = deadline; mmRepaint(); }
   catch (e) { alert('保存失败：' + (e.message || e)); }
 }
@@ -2343,20 +2356,20 @@ function renderTaskMindmap(id, tasks, s){
     const done = (t.status || '待办') === '已完成';
     return `<button class="mm-status ${done ? 'done' : ''}" title="点击切换 待办 / 完成" onclick="mmToggleStatus('${id}','${t.id}')">${done ? '完成' : '待办'}</button>`;
   };
-  // 「每日」勾选格子：打勾＝显示截止时间（非每日）；未打勾＝显示「每日」二字
+  // 「每日」勾选格子：打勾＝每日任务（显示「每日」二字，隐藏截止时间）；未打勾＝可设置截止时间
   const dailyHTML = t => {
-    const isDaily = (t.daily || '是') === '是';          // 未打勾 → 每日
-    const chk = isDaily ? '' : 'checked';                 // 打勾 → 显示截止时间
-    const box = `<label class="mm-daily-chk" title="勾选＝设置截止时间（非每日）；取消＝每日任务"><input type="checkbox" ${chk} onchange="mmToggleDaily('${id}','${t.id}', this.checked)"></label>`;
-    if (!isDaily) {
-      const dl = (t.deadline || '').trim();
-      let dc = '';
-      if ((t.status || '') === '已完成') dc = 'done';
-      else if (dl && dl === tStr) dc = 'today';
-      else if (dl && dl < tStr) dc = 'overdue';
-      return `${box}<span class="mm-dl"><input type="date" class="mm-date ${dc}" value="${esc(dl)}" onchange="mmSetDeadline('${id}','${t.id}', this.value)"><span class="mm-cal" title="设置日期" onclick="mmPickDate('${id}','${t.id}')">📅</span></span>`;
+    const isDaily = (t.daily || '否') === '是';          // 打勾 → 每日任务
+    const chk = isDaily ? 'checked' : '';                 // 打勾 → 显示「每日」二字
+    const box = `<label class="mm-daily-chk" title="勾选＝每日任务（隐藏截止时间）；取消＝可设置截止时间"><input type="checkbox" ${chk} onchange="mmToggleDaily('${id}','${t.id}', this.checked)"></label>`;
+    if (isDaily) {
+      return `${box}<span class="mm-daily-word">每日</span>`;
     }
-    return `${box}<span class="mm-daily-word">每日</span>`;
+    const dl = (t.deadline || '').trim();
+    let dc = '';
+    if ((t.status || '') === '已完成') dc = 'done';
+    else if (dl && dl === tStr) dc = 'today';
+    else if (dl && dl < tStr) dc = 'overdue';
+    return `${box}<span class="mm-dl"><input type="date" class="mm-date ${dc}" value="${esc(dl)}" onchange="mmSetDeadline('${id}','${t.id}', this.value)"><span class="mm-cal" title="设置日期" onclick="mmPickDate('${id}','${t.id}')">📅</span></span>`;
   };
   // 行内操作图标：＋子任务 / 编辑⇄保存 / 备注 / 删除（紧挨任务文字右边）
   const opsHTML = t => {
@@ -2365,7 +2378,7 @@ function renderTaskMindmap(id, tasks, s){
       ? `<button class="mm-ic" title="保存标题" onclick="mmSaveTitle('${id}','${t.id}')">💾</button>`
       : `<button class="mm-ic" title="编辑标题" onclick="mmEditTitle('${id}','${t.id}')">✎</button>`;
     return `<span class="mm-ops">
-      <button class="mm-ic" title="添加子任务" onclick="addSubTask('${id}','${String(t.tid || '')}')">＋</button>
+      <button class="mm-ic" title="添加子任务" onclick="mmAddTask('${id}','${String(t.tid || '')}')">＋</button>
       ${editBtn}
       <button class="mm-ic" title="备注" onclick="mmAddNote('${id}','${t.id}')">📝</button>
       <button class="mm-ic" title="删除" onclick="delGeneric('${id}','${t.id}')">🗑</button>
@@ -2393,12 +2406,13 @@ function renderTaskMindmap(id, tasks, s){
     const titleEditable = (t.id === mmEditTitleId);
     const titleCls = 'mm-title' + (titleEditable ? ' editing' : '');
     const titleAttr = titleEditable ? ' contenteditable="true"' : '';
+    const titleText = titleEditable ? esc(t.taskTitle || '') : esc(t.taskTitle || '(未命名)');
     const kidsHtml = hasKids ? `<div class="mm-children">${childTasks.map(renderNode).join('')}</div>` : '';
     return `<div class="mm-node ${coll}" data-id="${t.id}">
       <div class="mm-row">
         <span class="mm-toggle" onclick="toggleMM('${t.id}')">${hasKids ? '▾' : '·'}</span>
         ${idTag}
-        <span class="${titleCls}"${titleAttr}>${esc(t.taskTitle || '(未命名)')}</span>
+        <span class="${titleCls}"${titleAttr}>${titleText}</span>
         ${statusHTML(t)}
         ${dailyHTML(t)}
         ${opsHTML(t)}
@@ -2418,7 +2432,7 @@ function renderTaskMindmap(id, tasks, s){
       <div class="mm-row mm-root-row">
         <span class="mm-toggle root" title="项目根">▣</span>
         <span class="mm-title root-title">${esc(s.name)}</span>
-        <button class="mm-ic" title="添加任务" onclick="addGeneric('${id}')">＋</button>
+        <button class="mm-ic" title="添加任务" onclick="mmAddTask('${id}', '')">＋</button>
         <span class="mm-id">${tasks.length} 个任务</span>
       </div>
       <div class="mm-children">${rootChildren}${orphans}</div>
