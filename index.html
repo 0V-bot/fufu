@@ -239,25 +239,24 @@
   /* habits */
   .streak{font-size:12px;color:var(--muted);}
   .streak b{color:#10b981;}
-  .wk-nav{display:flex;align-items:center;justify-content:center;gap:18px;margin:4px 0 10px;}
-  .wk-label{font-size:13px;font-weight:650;color:#475069;}
-  .wk-nav .btn[disabled]{opacity:.4;cursor:not-allowed;}
-  .habit-head{display:flex;align-items:center;gap:14px;margin:0 0 4px;padding:0 2px;}
-  .habit-head .ph{flex:0 0 56px;text-align:center;font-size:11px;color:var(--muted);font-weight:600;}
-  .habit-head .nh{flex:0 0 170px;font-size:11px;color:var(--muted);font-weight:600;}
-  .habit-head .wkcols{flex:1;display:flex;gap:7px;}
-  .habit-head .wkcols i{flex:1;text-align:center;font-style:normal;font-size:11px;color:var(--muted);font-weight:600;}
+  .mo-nav{display:flex;align-items:center;justify-content:center;gap:18px;margin:4px 0 10px;}
+  .mo-label{font-size:13px;font-weight:650;color:#475069;}
+  .mo-nav .btn[disabled]{opacity:.4;cursor:not-allowed;}
+  .habit-head{display:flex;align-items:center;gap:6px;margin:0 0 6px;padding:0 2px;}
+  .habit-head .nh{flex:0 0 150px;font-size:11px;color:var(--muted);font-weight:600;}
+  .habit-head .daynums{flex:1;display:flex;gap:3px;}
+  .habit-head .daynums i{flex:1;text-align:center;font-style:normal;font-size:10px;color:var(--muted);font-weight:600;min-width:0;}
+  .habit-head .ph{flex:0 0 52px;text-align:center;font-size:11px;color:var(--muted);font-weight:600;}
   .habit-head .dh{flex:0 0 28px;}
-  .habit-row{display:flex;align-items:center;gap:14px;padding:11px 2px;border-top:1px solid var(--line);}
+  .habit-row{display:flex;align-items:center;gap:6px;padding:9px 2px;border-top:1px solid var(--line);}
   .habit-row:first-of-type{border-top:none;}
-  .habit-prog{flex:0 0 56px;text-align:center;font-size:14.5px;font-weight:800;color:#047857;background:#d1fae5;border:1px solid #6ee7b7;border-radius:20px;padding:5px 0;box-sizing:border-box;letter-spacing:.3px;}
-  .habit-nm{flex:0 0 170px;font-weight:650;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .habit-wk{flex:1;min-width:0;}
-  .habit-wk .wkcells{display:flex;gap:7px;}
-  .habit-wk .wkcells .cell{height:30px;border-radius:9px;background:#eef1f7;cursor:pointer;display:grid;place-items:center;font-size:13px;transition:.12s;flex:1;}
-  .habit-wk .wkcells .cell.on{background:#10b981;color:#fff;}
-  .habit-wk .wkcells .cell.today{box-shadow:0 0 0 2px #f59e0b inset;}
-  .habit-wk .wkcells .cell.disabled{cursor:not-allowed;opacity:.5;}
+  .habit-prog{flex:0 0 52px;text-align:center;font-size:13.5px;font-weight:800;color:#047857;background:#d1fae5;border:1px solid #6ee7b7;border-radius:20px;padding:5px 0;box-sizing:border-box;letter-spacing:.3px;}
+  .habit-nm{flex:0 0 150px;font-weight:650;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .habit-days{flex:1;min-width:0;display:flex;gap:3px;}
+  .habit-days .cell{height:26px;border-radius:7px;background:#eef1f7;cursor:pointer;display:grid;place-items:center;font-size:12px;transition:.12s;flex:1;min-width:0;}
+  .habit-days .cell.on{background:#10b981;color:#fff;}
+  .habit-days .cell.today{box-shadow:0 0 0 2px #f59e0b inset;}
+  .habit-days .cell.disabled{cursor:not-allowed;opacity:.5;}
   .habit-del{flex:0 0 28px;text-align:center;border:none;background:transparent;cursor:pointer;font-size:15px;line-height:1;padding:6px;border-radius:8px;color:#cbd2e0;transition:.12s;}
   .habit-del:hover{background:#fee2e2;color:#ef4444;}
 
@@ -1623,50 +1622,45 @@ async function delInsp(id){
 }
 
 /* ---------- habits ---------- */
-let habitWeekOffset = 0;
+let habitMonthOffset = 0;
 function bjDateStr(d){ const p=n=>n<10?'0'+n:''+n; const bj=new Date(d.getTime()+8*3600*1000); return bj.getUTCFullYear()+'-'+p(bj.getUTCMonth()+1)+'-'+p(bj.getUTCDate()); }
 function bjToday(){ return bjDateStr(new Date()); }
-function habitWeekDays(offset){
+function habitMonthInfo(offset){
   const now=new Date();
-  const dow=(now.getDay()+6)%7; // 周一=0
-  const mon=new Date(now.getFullYear(),now.getMonth(),now.getDate()-dow);
-  const start=new Date(mon); start.setDate(mon.getDate()+offset*7);
-  const out=[];
-  for(let i=0;i<7;i++){ const d=new Date(start); d.setDate(start.getDate()+i); out.push(d); }
-  return out;
+  const base=new Date(now.getFullYear(), now.getMonth()+offset, 1);
+  const y=base.getFullYear(), m=base.getMonth();
+  const dim=new Date(y,m+1,0).getDate();
+  const days=[];
+  for(let i=1;i<=dim;i++) days.push(new Date(y,m,i));
+  return {y,m,dim,days,label:y+'年'+(m+1)+'月'};
 }
-function habitMonthStats(hist, ref){
-  const y=ref.getFullYear(), m=ref.getMonth();
+function habitMonthStats(hist, y, m){
   const total=new Date(y,m+1,0).getDate();
   let done=0;
   if(hist) for(const k in hist){ const p=k.split('-'); if(+p[0]===y && +p[1]===m+1) done++; }
   return done+'/'+total;
 }
-function habitShiftWeek(d){ habitWeekOffset+=d; renderHabits(); }
+function habitShiftMonth(d){ habitMonthOffset+=d; renderHabits(); }
 async function renderHabits(){
   let arr;
   try{ arr = await apiHabits(); }
   catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
   cache.habits = arr;
-  const days = habitWeekDays(habitWeekOffset);
-  const a=days[0], b=days[6];
-  const wkNo=Math.ceil(a.getDate()/7);
-  const weekLabel = a.getFullYear()+'年'+(a.getMonth()+1)+'月 第'+wkNo+'周（'+(a.getMonth()+1)+'/'+a.getDate()+'~'+(b.getMonth()+1)+'/'+b.getDate()+'）';
-  const wd=['周一','周二','周三','周四','周五','周六','周日'];
-  const nextDisabled = habitWeekOffset>=0 ? 'disabled' : '';
+  const info = habitMonthInfo(habitMonthOffset);
+  const nextDisabled = habitMonthOffset>=0 ? 'disabled' : '';
   let html = `<div class="card"><div class="h"><div class="t">微习惯打卡</div>
     <div class="inline-add" style="margin:0;width:auto"><input id="habitInput" placeholder="新增习惯名称…" style="padding:7px 11px"/>
     <button class="btn" onclick="addHabit()">+ 习惯</button></div></div>`;
-  html += `<div class="wk-nav"><button class="btn mini" onclick="habitShiftWeek(-1)">‹ 上一周</button>
-    <span class="wk-label">${weekLabel}</span>
-    <button class="btn mini" ${nextDisabled} onclick="habitShiftWeek(1)">下周 ›</button></div>`;
+  html += `<div class="mo-nav"><button class="btn mini" onclick="habitShiftMonth(-1)">‹ 上一月</button>
+    <span class="mo-label">${info.label}</span>
+    <button class="btn mini" ${nextDisabled} onclick="habitShiftMonth(1)">下一月 ›</button></div>`;
   if(!arr.length){ html += `<div class="empty">还没有习惯，添加一个开始坚持吧 🌱</div></div>`; view.innerHTML=html; return; }
-  const headCols = wd.map(x=>`<i>${x}</i>`).join('');
-  html += `<div class="habit-head"><div class="ph">进度</div><div class="nh">名称</div><div class="wkcols">${headCols}</div><div class="dh"></div></div>`;
+  const headNums = info.days.map(d=>`<i>${d.getDate()}</i>`).join('');
+  html += `<div class="habit-head"><div class="nh">名称</div><div class="daynums">${headNums}</div><div class="ph">进度</div><div class="dh"></div></div>`;
   arr.forEach(h=>{
-    const prog = habitMonthStats(h.history, a);
+    const prog = habitMonthStats(h.history, info.y, info.m);
     let cells='';
-    days.forEach(d=>{
+    info.days.forEach(d=>{
       const dy=bjDateStr(d);
       const on = h.history && h.history[dy];
       const isToday = dy===bjToday();
@@ -1676,9 +1670,9 @@ async function renderHabits(){
       cells += `<div class="${cls.trim()}" ${onclick}>${on?'✓':''}</div>`;
     });
     html += `<div class="habit-row">
-      <span class="habit-prog">${prog}</span>
       <span class="habit-nm">${esc(h.name)}</span>
-      <div class="habit-wk"><div class="wkcells">${cells}</div></div>
+      <div class="habit-days">${cells}</div>
+      <span class="habit-prog">${prog}</span>
       <button class="habit-del" title="删除" onclick="delHabit('${h.id}')">🗑</button>
     </div>`;
   });
