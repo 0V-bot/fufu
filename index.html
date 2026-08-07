@@ -183,12 +183,54 @@
   .wish-item:hover .wish-del{opacity:1;}
   .wish-del:hover{color:#dc2626;background:#fee2e2;}
 
-  /* todos 三板块：添加行 + 只读态 */
-  .todo-add{display:flex;gap:9px;margin-top:4px;align-items:center;}
+  /* todos 三列：未完成项 / 今日待办 / 明日计划 */
+  .todos-3col{display:grid;grid-template-columns:1fr 1.7fr 1fr;gap:16px;align-items:start;margin-top:2px;}
+  .tcol{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 15px;box-shadow:var(--shadow);}
+  .tcol.mid{box-shadow:0 6px 20px rgba(14,165,233,.10);border-color:#bfe3f5;}
+  .tcol-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line);}
+  .tcol-h .th-t{font-weight:700;font-size:14.5px;}
+  .tcol-h .th-n{font-size:12px;font-weight:700;color:#fff;background:var(--brand);border-radius:999px;padding:1px 9px;min-width:22px;text-align:center;}
+  .tcol-h .th-n.warn{background:#ef4444;}
+  /* 中间：今日待办 */
+  .tm-date{text-align:center;font-size:13px;color:var(--muted);margin-bottom:10px;}
+  .tm-date b{color:#0f172a;font-size:15px;font-weight:700;margin-right:6px;}
+  .tm-title{text-align:center;font-weight:700;font-size:16px;margin-bottom:10px;color:var(--brand);}
+  .todo-add{display:flex;gap:9px;margin-bottom:12px;align-items:center;}
   .todo-add .ti{flex:1;border:1px solid var(--line);border-radius:10px;padding:11px 14px;font-size:14px;font-family:inherit;outline:none;background:#fff;}
   .todo-add .ti:focus{border-color:var(--brand);}
-  .todo-add input[type=date]{border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;background:#fff;color:#334155;}
-  .tdeadline input[readonly], .tnote[readonly]{background:#f1f5f9;color:#94a3b8;cursor:default;resize:none;}
+  .tm-list{display:flex;flex-direction:column;gap:8px;}
+  .tm-row{display:flex;align-items:flex-start;gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:11px;background:#fff;transition:.12s;}
+  .tm-row:hover{background:#f8fafc;}
+  .tm-row.done{background:#f8fafc;opacity:.75;}
+  .tm-main{flex:1;min-width:0;}
+  .tm-text{font-size:14px;line-height:1.5;word-break:break-word;cursor:text;outline:none;}
+  .tm-text:focus{background:#f1f5f9;border-radius:6px;padding:3px 6px;}
+  .tm-row.done .tm-text{text-decoration:line-through;color:#94a3b8;}
+  .tm-note-line{font-size:12.5px;color:#64748b;margin-top:4px;line-height:1.5;word-break:break-word;}
+  .tm-note-ph{color:#cbd5e1;font-size:12.5px;}
+  .tm-deadline{flex:0 0 auto;align-self:center;}
+  .tm-deadline input{font-family:inherit;border:1px solid transparent;border-radius:8px;padding:4px 6px;font-size:12.5px;color:#475569;background:#f1f5f9;cursor:pointer;transition:.12s;max-width:128px;}
+  .tm-deadline input:hover{border-color:#93c5fd;background:#eaf2ff;}
+  .tm-actions{flex:0 0 auto;align-self:center;display:flex;gap:2px;align-items:center;}
+  .tm-notebtn{border:none;background:transparent;cursor:pointer;font-size:14px;line-height:1;padding:5px;border-radius:7px;color:#94a3b8;transition:.12s;}
+  .tm-notebtn:hover{background:#eef2ff;color:#6366f1;}
+  .tm-notebtn.has{color:#6366f1;}
+  .tm-del{border:none;background:transparent;cursor:pointer;font-size:15px;line-height:1;padding:5px;border-radius:7px;color:#cbd5e1;transition:.12s;}
+  .tm-del:hover{background:#fee2e2;color:#ef4444;}
+  .tm-note-edit{width:100%;border:1px solid #93c5fd;border-radius:8px;padding:7px 9px;font-family:inherit;font-size:13px;line-height:1.5;resize:vertical;min-height:46px;background:#fff;outline:none;margin-top:5px;}
+  /* 侧栏：未完成项 / 明日计划 */
+  .ts-list{display:flex;flex-direction:column;gap:8px;}
+  .ts-row{display:flex;align-items:flex-start;gap:9px;padding:9px 6px 9px 10px;border-radius:10px;transition:background .12s;}
+  .ts-row:hover{background:#f8fafc;}
+  .ts-row.ro{opacity:.92;}
+  .ts-main{flex:1;min-width:0;}
+  .ts-text{font-size:13.5px;line-height:1.5;word-break:break-word;color:#334155;}
+  .ts-deadline{font-size:11.5px;color:#94a3b8;margin-top:3px;}
+  .ts-note-line{font-size:12px;color:#64748b;margin-top:3px;line-height:1.5;word-break:break-word;}
+  .ts-del{border:none;background:transparent;cursor:pointer;font-size:14px;line-height:1;padding:4px 5px;border-radius:7px;color:#cbd5e1;transition:.12s;align-self:center;}
+  .ts-del:hover{background:#fee2e2;color:#ef4444;}
+  .empty.sm{color:#94a3b8;font-size:12.5px;text-align:center;padding:14px 0;}
+  @media(max-width:780px){ .todos-3col{grid-template-columns:1fr;} }
 
   /* habits */
   .streak{font-size:12px;color:var(--muted);}
@@ -1291,23 +1333,28 @@ function resetArticleForm(){
   document.getElementById('aiSummary').value='';
 }
 
-/* ---------- todos（三板块：今日待办 / 未完事项 / 已完成） ---------- */
+/* ---------- todos（三列：未完成项 / 今日待办 / 明日计划） ---------- */
 // 把飞书回传的截止时间（UTC 毫秒或字符串）归一为 datetime-local 值 "YYYY-MM-DDTHH:MM"
 function fmtDeadline(v){
   if(!v) return '';
   if(typeof v === 'number'){
-    const d = new Date(v + 8*3600*1000), p = n => (n<10?'0'+n:''+n);
+    const d = new Date(v + 8*3600*1000), p = n => (n<10?'0'+n:'');
     return `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())}T${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
   }
   return String(v).replace(' ','T').slice(0,16);
 }
 // 北京时间今天的 YYYY-MM-DD（与截止时间显示口径一致）
 function todayStr(){
-  const d = new Date(Date.now() + 8*3600*1000), p = n => (n<10?'0'+n:''+n);
+  const d = new Date(Date.now() + 8*3600*1000), p = n => (n<10?'0'+n:'');
   return `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())}`;
 }
 const datePart = s => s ? String(s).slice(0,10) : '';
-const isOverdue = (t, td) => { const d = datePart(t.deadline); return d !== '' && d < td; };
+const WK = ['日','一','二','三','四','五','六'];
+function niceDate(d){
+  const p=String(d).split('-').map(Number); if(p.length<3) return d;
+  return `${p[0]}年${p[1]}月${p[2]}日 周${WK[new Date(p[0],p[1]-1,p[2]).getDay()]}`;
+}
+function todoBucket(t, td){ return datePart(t.deadline) || td; }   // 截止日期（无则按今日）
 async function renderTodos(){
   let arr;
   try{ arr = await apiList('todos'); }
@@ -1315,100 +1362,105 @@ async function renderTodos(){
   cache.todos = arr;
   arr.forEach(t => { if (t.deadline) t.deadline = fmtDeadline(t.deadline); });
   const td = todayStr();
-  const todayList   = arr.filter(t => !t.done && !isOverdue(t, td)); // 今日待办（含今日及未来）
-  const overdueList = arr.filter(t => !t.done &&  isOverdue(t, td)); // 未完事项（已逾期）
-  const doneList    = arr.filter(t => t.done);                        // 已完成
-  let html = '';
-  // —— 板块一：今日待办 ——
-  html += `<div class="card">
-    <div class="h"><div class="t">今日待办 <span class="muted" style="font-weight:500">· 待完成 ${todayList.length}</span></div></div>
+  const overdue = arr.filter(t => !t.done && todoBucket(t, td) < td);  // 左：未完成项（逾期）
+  const mid     = arr.filter(t => todoBucket(t, td) === td);           // 中：今日待办（含已完成）
+  const future  = arr.filter(t => !t.done && todoBucket(t, td) > td);  // 右：明日计划（未来未完成）
+  let html = `<div class="todos-3col">`;
+  // —— 板块一：左侧未完成项 ——
+  html += `<div class="tcol">
+    <div class="tcol-h"><div class="th-t">未完成项</div><div class="th-n warn">${overdue.length}</div></div>
+    <div class="ts-list">`;
+  if(!overdue.length) html += `<div class="empty sm">🎉 没有逾期事项</div>`;
+  overdue.forEach(t => html += tsRow(t, false));
+  html += `</div></div>`;
+  // —— 板块二：中间今日待办（主展示位）——
+  html += `<div class="tcol mid">
+    <div class="tm-date"><b>${niceDate(td)}</b></div>
+    <div class="tm-title">待办事项</div>
     <div class="todo-add">
       <input id="todoInput" class="ti" placeholder="输入待办内容，回车添加…" onkeydown="if(event.key==='Enter')addTodo()"/>
-      <input type="date" id="todoDeadline" value="${td}">
-      <button class="btn primary" onclick="addTodo()">添加待办</button>
+      <button class="btn primary" onclick="addTodo()">＋</button>
     </div>
-    <div class="todo-grid">`;
-  if(!todayList.length) html += `<div class="empty" style="grid-column:1/-1">还没有待办，上面添加一条吧 ✅</div>`;
-  todayList.forEach(t => html += todoCard(t, 'today'));
+    <div class="tm-list">`;
+  if(!mid.length) html += `<div class="empty sm">今天还没有待办，上面加一条吧 ✅</div>`;
+  mid.forEach(t => html += tmRow(t));
   html += `</div></div>`;
-  // —— 板块二：未完事项（不显示勾选框）——
-  html += `<div class="card">
-    <div class="h"><div class="t">未完事项 <span class="muted" style="font-weight:500">· 已逾期 ${overdueList.length}</span></div></div>
-    <div class="todo-grid">`;
-  if(!overdueList.length) html += `<div class="empty" style="grid-column:1/-1">🎉 没有逾期事项</div>`;
-  overdueList.forEach(t => html += todoCard(t, 'overdue'));
+  // —— 板块三：右侧明日计划（只读）——
+  html += `<div class="tcol">
+    <div class="tcol-h"><div class="th-t">明日计划</div><div class="th-n">${future.length}</div></div>
+    <div class="ts-list">`;
+  if(!future.length) html += `<div class="empty sm">没有未来的计划 🌙</div>`;
+  future.forEach(t => html += tsRow(t, true));
   html += `</div></div>`;
-  // —— 板块三：已完成（只读，仅勾选框可取消）——
-  html += `<div class="card">
-    <div class="h"><div class="t">已完成 <span class="muted" style="font-weight:500">· 共 ${doneList.length} 条</span></div></div>
-    <div class="todo-grid">`;
-  if(!doneList.length) html += `<div class="empty" style="grid-column:1/-1">还没有已完成的事项</div>`;
-  doneList.forEach(t => html += todoCard(t, 'done'));
-  html += `</div></div>`;
+  html += `</div>`;
   view.innerHTML = html;
 }
-function todoCard(t, mode){
-  const did = t.id, dp = datePart(t.deadline);
-  const showCheck = (mode==='today' || mode==='done');   // 未完事项不显示勾选框
-  const ro = (mode==='done');                            // 已完成：截止时间/备注只读、无删除
-  const check = showCheck
-    ? `<div class="tcheck ${t.done?'on':''}" onclick="toggleTodo('${did}')" title="完成/取消">✓</div>`
-    : '';
-  const del = (mode!=='done')
-    ? `<button class="btn danger mini" style="margin-left:auto" onclick="delTodo('${did}')">删</button>`
-    : '';
-  const deadline = ro
-    ? `<input type="date" value="${dp}" readonly>`
-    : `<input type="date" value="${dp}" onchange="saveTodoField('${did}','deadline',this.value)">`;
-  const title = ro
-    ? `<textarea class="tcontent" placeholder="待办内容…" readonly>${esc(t.title||'')}</textarea>`
-    : `<textarea class="tcontent" placeholder="待办内容…" onblur="saveTodoField('${did}','title',this.value)">${esc(t.title||'')}</textarea>`;
-  const note = ro
-    ? `<textarea class="tnote" placeholder="备注…" readonly>${esc(t.note||'')}</textarea>`
-    : `<textarea class="tnote" placeholder="备注…" onblur="saveTodoField('${did}','note',this.value)">${esc(t.note||'')}</textarea>`;
-  return `<div class="tcard ${t.done?'done':''}" id="tcard-${did}">
-    <div class="tcard-top">
-      ${check}
-      <span class="muted" style="font-size:12px">⏰ ${dp||'无截止'}</span>
-      ${del}
+// 侧栏行：内容 + 截止时间 + 备注(下) + 删除（ro 时无删除）
+function tsRow(t, ro){
+  const dp = datePart(t.deadline) || todayStr();
+  const note = t.note ? `<div class="ts-note-line">📝 ${esc(t.note)}</div>` : '';
+  const del = ro ? '' : `<button class="ts-del" title="删除" onclick="delTodo('${t.id}')">🗑</button>`;
+  return `<div class="ts-row ${ro?'ro':''}">
+    <div class="ts-main">
+      <div class="ts-text">${esc(t.title||'')}</div>
+      <div class="ts-deadline">📅 ${dp}</div>
+      ${note}
     </div>
-    ${title}
-    <div class="tdeadline"><span>截止</span>${deadline}</div>
-    ${note}
+    ${del}
+  </div>`;
+}
+// 中间行：选框 / 内容 / 截止时间 / 备注图标 / 删除
+function tmRow(t){
+  const dp = datePart(t.deadline) || todayStr();
+  const noteClass = t.note ? ' has' : '';
+  const noteLine = t.note
+    ? `<div class="tm-note-line" id="tmnote-${t.id}">📝 ${esc(t.note)}</div>`
+    : `<div class="tm-note-line" id="tmnote-${t.id}" style="display:none"></div>`;
+  return `<div class="tm-row ${t.done?'done':''}" id="tmrow-${t.id}">
+    <div class="tcheck ${t.done?'on':''}" onclick="toggleTodo('${t.id}')" title="完成/取消">✓</div>
+    <div class="tm-main">
+      <div class="tm-text" contenteditable="true" onblur="saveTodoField('${t.id}','title',this.innerText)">${esc(t.title||'')}</div>
+      ${noteLine}
+    </div>
+    <div class="tm-deadline"><input type="date" value="${dp}" onchange="saveTodoField('${t.id}','deadline',this.value)"></div>
+    <div class="tm-actions">
+      <button class="tm-notebtn${noteClass}" title="备注" onclick="editNoteInline('${t.id}')">📝</button>
+      <button class="tm-del" title="删除" onclick="delTodo('${t.id}')">🗑</button>
+    </div>
   </div>`;
 }
 async function addTodo(){
-  const i=document.getElementById('todoInput'), d=document.getElementById('todoDeadline');
+  const i=document.getElementById('todoInput');
   const v=(i?i.value:'').trim();
-  const dl=(d?d.value:'') || todayStr();
   if(!v){ if(i) i.focus(); return; }
+  const dl=todayStr();  // 默认截止=今日，输入框无需选时间
   try{
-    const r = await apiCreate('todos',{title:v,done:false,date:dl,deadline:dl,note:''});
+    await apiCreate('todos',{title:v,done:false,date:dl,deadline:dl,note:''});
     await renderTodos();
   }catch(e){ alert('添加失败：'+(e.message||e)); }
 }
 async function toggleTodo(id){
   const t=(cache.todos||[]).find(x=>x.id===id); if(!t) return;
   t.done=!t.done;
-  if(t.done){
-    // 标记完成：在备注最前面加一行完成时间
-    const now=new Date(), p=n=>('0'+n).slice(-2);
-    const ts=`${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())} ${p(now.getHours())}:${p(now.getMinutes())}`;
-    t.note = (t.note && t.note.trim()) ? ('完成时间：'+ts+'\n'+t.note) : ('完成时间：'+ts);
-    t.date = datePart(t.deadline) || todayStr();
-  }else{
-    t.note = (t.note||'').replace(/^完成时间：.*\n?/, '');   // 取消完成：移除自动添加的完成时间行
-  }
   try{ await apiUpdate('todos', id, t); await renderTodos(); }
   catch(e){ alert('更新失败：'+(e.message||e)); }
 }
 async function saveTodoField(id, field, value){
   const t=(cache.todos||[]).find(x=>x.id===id); if(!t) return;
-  if(field==='title') t.title=value;
+  if(field==='title') t.title=value.trim();
   else if(field==='deadline'){ t.deadline=value; t.date=datePart(value)||todayStr(); }
-  else if(field==='note') t.note=value;
   try{ await apiUpdate('todos', id, t); await renderTodos(); }
   catch(e){ alert('保存失败：'+(e.message||e)); }
+}
+async function editNoteInline(id){
+  const line=document.getElementById('tmnote-'+id);
+  const t=(cache.todos||[]).find(x=>x.id===id); if(!t||!line) return;
+  if(line.querySelector('textarea')) return;   // 已在编辑
+  const ta=document.createElement('textarea');
+  ta.className='tm-note-edit'; ta.value=t.note||'';
+  line.style.display='block'; line.innerHTML=''; line.appendChild(ta); ta.focus();
+  ta.onblur=async()=>{ const v=ta.value.trim(); t.note=v; try{ await apiUpdate('todos', id, t); }catch(e){ alert('保存失败：'+(e.message||e)); } await renderTodos(); };
+  ta.onkeydown=e=>{ if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); ta.blur(); } };
 }
 async function delTodo(id){
   if(!confirm('删除这条待办？')) return;
