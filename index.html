@@ -214,6 +214,7 @@
   .habit .wkcells .cell{height:30px;border-radius:9px;background:#eef1f7;cursor:pointer;display:grid;place-items:center;font-size:13px;transition:.12s;flex:1;}
   .habit .wkcells .cell.on{background:#10b981;color:#fff;}
   .habit .wkcells .cell.today{box-shadow:0 0 0 2px #f59e0b inset;}
+  .habit .wkcells .cell.disabled{cursor:not-allowed;opacity:.5;}
   .habit .del{flex:0 0 28px;text-align:center;border:none;background:transparent;cursor:pointer;font-size:15px;line-height:1;padding:6px;border-radius:8px;color:#cbd2e0;transition:.12s;}
   .habit .del:hover{background:#fee2e2;color:#ef4444;}
 
@@ -1608,7 +1609,10 @@ async function renderHabits(){
       const dy=bjDateStr(d);
       const on = h.history && h.history[dy];
       const isToday = dy===bjToday();
-      cells += `<div class="cell ${on?'on':''} ${isToday?'today':''}" onclick="toggleHabit('${h.id}','${dy}')">${on?'✓':''}</div>`;
+      const clickable = isToday;
+      const cls = 'cell ' + (on?'on ':'') + (isToday?'today ':'') + (clickable?'':'disabled');
+      const onclick = clickable ? `onclick="toggleHabit('${h.id}','${dy}')"` : '';
+      cells += `<div class="${cls.trim()}" ${onclick}>${on?'✓':''}</div>`;
     });
     html += `<div class="habit"><div class="hr">
       <div class="left"><span class="nm">${esc(h.name)}</span><span class="prog">${prog}</span></div>

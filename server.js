@@ -620,6 +620,7 @@ async function deleteHabit(rec) {
   return { ok: true };
 }
 async function toggleHabit(hid, date) {
+  if (date !== dateOnly(new Date())) throw { status: 400, message: '只能打卡或取消当天的记录' };
   const checks = await listTable('习惯打卡');
   const found = checks.find(c => linkId(c['习惯']) === hid && dateOnly(c['打卡日期']) === date);
   if (found) await deleteRecord('习惯打卡', found.record_id);
