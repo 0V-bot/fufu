@@ -288,8 +288,6 @@ async function ensureProjects() { if (!projectsLoaded) { await loadProjects(); p
 
 /* ===================== 模块 → 飞书表 映射 ===================== */
 const SECTIONS = {
-  annual:      { table: GRID_TABLE, kind: 'annual',  fix: '年计划' },
-  monthly:     { table: GRID_TABLE, kind: 'grid',     fix: '月计划' },
   major:       { table: '重大事项', kind: 'events' },
   todos:       { table: '每日待办', kind: 'todos' },
   inspiration: { table: INSPIRE_TABLE, kind: 'wisdom', base: INSPIRE_BASE, readonly: true, allowDelete: true, allowEdit: true },
@@ -739,126 +737,6 @@ async function createTableOpen(name, fields) {
   }
   return tid;
 }
-let _gridReady = false, _gridTid = null;
-async function ensureGridTable() {
-  if (_gridReady) return _gridTid;
-  const tid = await tableExists(GRID_TABLE, BASE_TOKEN);
-  if (tid) { _gridTid = tid; _gridReady = true; return tid; }
-  // 表不存在则自动创建（仅 OpenAPI 模式；lark-cli 本地回退需手动建表）
-  if (USE_OPENAPI) {
-    _gridTid = await createTableOpen(GRID_TABLE, [{ name: '名称', type: 1 }, { name: '网格', type: 1 }]);
-    _gridReady = true;
-    // 清缓存，让 tableId 在下次需要时重新拉取整表列表（含新建的表），避免把表名当 id
-    _tableCache[BASE_TOKEN] = null;
-    return _gridTid;
-  }
-  _gridReady = true; _gridTid = GRID_TABLE;
-  return _gridTid;
-}
-function normGridObj(g) {
-  g = g || {}; g.rows = Number(g.rows) || 6; g.cols = Number(g.cols) || 4;
-  g.data = Array.isArray(g.data) ? g.data : [];
-  for (let r = 0; r < g.rows; r++) {
-    if (!g.data[r]) g.data[r] = [];
-    for (let c = 0; c < g.cols; c++) {
-      const cell = g.data[r][c] || {};
-      g.data[r][c] = { t: cell.t == null ? '' : String(cell.t), rs: Number(cell.rs) || 1, cs: Number(cell.cs) || 1 };
-    }
-    g.data[r].length = g.cols;
-  }
-  g.data.length = g.rows;
-  return g;
-}
-function defaultGrid() { return normGridObj({ rows: 6, cols: 4, data: [] }); }
-async function loadGrid(name) {
-  await ensureGridTable();
-  let rows = [];
-  try { rows = await getGridRows(); } catch (e) { rows = []; }
-  const rec = rows.find(x => (x['名称'] || '') === name);
-  if (rec && rec['网格']) {
-    try { return normGridObj(JSON.parse(rec['网格'])); } catch (e) {}
-  }
-  // 首次使用：尝试从旧「目标管理」(类型=name) 迁移成表格，避免已有数据丢失
-  try {
-    const goals = (await listTable('目标管理', BASE_TOKEN)).filter(r => sel(r['类型']) === name).map(r => readRec('goals', r));
-    if (goals.length) {
-      const g = defaultGrid(); g.rows = goals.length + 1; g.cols = 4; g.data = [];
-      const mk = t => ({ t: String(t == null ? '' : t), rs: 1, cs: 1 });
-      g.data.push([mk('目标'), mk('说明'), mk('进度'), mk('状态')]);
-      goals.forEach(go => g.data.push([mk(go.title), mk(go.detail), mk((Number(go.progress) || 0) + '%'), mk(go.status)]));
-      g.data.length = g.rows; g.data.forEach(row => row.length = g.cols);
-      return g;
-    }
-  } catch (e) {}
-  return defaultGrid();
-}
-async function saveGrid(name, grid) {
-  await ensureGridTable();
-  const g = normGridObj(grid);
-  let rows = [];
-  try { rows = await getGridRows(); } catch (e) { rows = []; }
-  const rec = rows.find(x => (x['名称'] || '') === name);
-  const payload = { '名称': name, '网格': JSON.stringify(g) };
-  if (rec) await feishuRetry(() => updateRecord(GRID_TABLE, rec.record_id, payload, BASE_TOKEN));
-  else await feishuRetry(() => createRecord(GRID_TABLE, payload, BASE_TOKEN));
-  invalidateGridRows();
-  return { ok: true };
-}
-
-/* ===================== 计划表格(GRID_TABLE) 列表缓存 ===================== */
-/* 年计划/月计划每次读写都会 listTable 整张「计划表格」，记录一多就很慢且放大飞书抖动。
-   这里加一个短 TTL 的内存缓存，避免同一时段重复全表拉取；任何写操作后失效。 */
-let _gridRowsCache = null, _gridRowsTime = 0;
-const GRID_ROWS_TTL = 8000;
-async function getGridRows(){
-  const now = Date.now();
-  if(_gridRowsCache && now - _gridRowsTime < GRID_ROWS_TTL) return _gridRowsCache;
-  const rows = await listTable(GRID_TABLE, BASE_TOKEN);
-  _gridRowsCache = rows; _gridRowsTime = now;
-  return rows;
-}
-function invalidateGridRows(){ _gridRowsCache = null; }
-
-/* ===================== 年计划（按年份存储：每页四列可调整高度） ===================== */
-const ANNUAL_COLS = 4;
-const annualName = y => '年计划-' + y;
-function normAnnual(d) {
-  d = d || {};
-  const rows = Array.isArray(d.rows) ? d.rows : [];
-  const clean = rows.map(r => {
-    const c = Array.isArray(r && r.c) ? r.c : [];
-    const cols = [];
-    for (let i = 0; i < ANNUAL_COLS; i++) cols.push(c[i] == null ? '' : String(c[i]));
-    cols.length = ANNUAL_COLS;
-    let h = Number(r && r.h) || 140;
-    if (h < 60) h = 60; if (h > 800) h = 800;
-    return { c: cols, h };
-  });
-  return { summary: d.summary == null ? '' : String(d.summary), cols: ANNUAL_COLS, rows: clean };
-}
-async function getAnnual(year) {
-  await ensureGridTable();
-  let rows = [];
-  try { rows = await getGridRows(); } catch (e) { rows = []; }
-  const rec = rows.find(x => (x['名称'] || '') === annualName(year));
-  if (rec && rec['网格']) {
-    try { return normAnnual(JSON.parse(rec['网格'])); } catch (e) {}
-  }
-  return normAnnual({ summary: '', rows: [] });
-}
-async function saveAnnual(year, data) {
-  await ensureGridTable();
-  const d = normAnnual(data);
-  let rows = [];
-  try { rows = await getGridRows(); } catch (e) { rows = []; }
-  const rec = rows.find(x => (x['名称'] || '') === annualName(year));
-  const payload = { '名称': annualName(year), '网格': JSON.stringify(d) };
-  if (rec) await feishuRetry(() => updateRecord(GRID_TABLE, rec.record_id, payload, BASE_TOKEN));
-  else await feishuRetry(() => createRecord(GRID_TABLE, payload, BASE_TOKEN));
-  invalidateGridRows();
-  return { ok: true };
-}
-
 /* ===================== 年度计划 2.0（模块式：飞书「年度计划」表） ===================== */
 const ANNUAL2_TABLE = process.env.ANNUAL2_TABLE || '年度计划';
 /* ===================== 月度计划 2.0（飞书「月度计划」表） ===================== */
@@ -1197,20 +1075,6 @@ async function route(method, url, body, res, req) {
       if (!content || !content.trim()) return send(res, 400, { error: '原始文案不能为空' });
       const id = await createDirectArticle({ title, content, source, sourceLink, reflection, cat1, cat2, cat3, tag, ctype, summary });
       return send(res, 200, { ok: true, record_id: id });
-    }
-    if ((m = url.match(/^\/api\/grid\/([\w]+)$/))) {
-      const id = m[1], cfg = SECTIONS[id];
-      if (!cfg || cfg.kind !== 'grid') return send(res, 404, { error: '非表格模块: ' + id });
-      if (method === 'GET') return send(res, 200, await loadGrid(cfg.fix));
-      if (method === 'PUT') { await saveGrid(cfg.fix, (body && body.grid) || {}); return send(res, 200, { ok: true }); }
-      return send(res, 405, { error: '方法不允许' });
-    }
-    if ((m = (req.url.split('?')[0]).match(/^\/api\/annual$/))) {
-      const u = new URL(req.url, 'http://localhost');
-      const year = Number(u.searchParams.get('year')) || new Date().getFullYear();
-      if (method === 'GET') return send(res, 200, await getAnnual(year));
-      if (method === 'PUT') { await saveAnnual(year, (body && body.data) || {}); return send(res, 200, { ok: true }); }
-      return send(res, 405, { error: '方法不允许' });
     }
     if ((m = (req.url.split('?')[0]).match(/^\/api\/annual2$/))) {
       const u = new URL(req.url, 'http://localhost');

@@ -312,14 +312,6 @@
   .field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#475069;}
   .field input,.field textarea,.field select{
     width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;outline:none;background:#fff;color:var(--ink);
-  /* ---------- 类 Excel 表格 ---------- */
-  .grid-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:11px 13px;border-bottom:1px solid var(--line);}
-  .grid-scroll{overflow:auto;padding:14px;}
-  table.xls{border-collapse:collapse;width:100%;table-layout:fixed;background:#fff;}
-  table.xls td.xc{border:1px solid #cbd5e1;padding:0;vertical-align:top;min-width:96px;height:36px;background:#fff;position:relative;}
-  table.xls td.xc .xc-t{padding:7px 9px;min-height:20px;white-space:pre-wrap;word-break:break-word;outline:none;font-size:13.5px;line-height:1.5;}
-  table.xls td.xc.sel{background:#dbeafe;box-shadow:inset 0 0 0 2px #3b82f6;}
-  table.xls td.xc .xc-t.editing{background:#fffbe6;box-shadow:inset 0 0 0 1px #f59e0b;}
   }
   .field input:focus,.field textarea:focus,.field select:focus{border-color:var(--brand);}
   .field textarea{min-height:84px;resize:vertical;}
@@ -334,19 +326,11 @@
   /* 下拉「＋ 新增分类」内联输入框 */
   .add-row{display:flex;gap:6px;align-items:center;}
   .add-row input{flex:1;min-width:0;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--card);color:var(--text);}
-  /* 年计划：年份切换 + 四列可调整高度 + 添加 */
+  /* 年度计划：年份切换（.annual-yearbar 由「年度计划」复用） */
   .annual-yearbar{display:flex;align-items:center;gap:16px;margin:6px 0 16px;}
   .annual-yearbar .yr{flex:1;text-align:center;font-size:25px;font-weight:800;letter-spacing:1px;color:var(--ink);}
   .annual-yearbar .yrbtn{width:42px;height:42px;border-radius:12px;border:1px solid var(--line);background:#fff;font-size:22px;line-height:1;cursor:pointer;color:var(--ink);transition:.15s;flex:0 0 auto;}
   .annual-yearbar .yrbtn:hover{background:var(--brand);color:#fff;border-color:var(--brand);}
-  .annual-summary{width:100%;min-height:96px;resize:vertical;margin-bottom:6px;}
-  .annual-rows{display:flex;flex-direction:column;gap:14px;margin-top:8px;}
-  .annual-row{position:relative;display:flex;gap:14px;align-items:stretch;}
-  .annual-col{flex:1 1 0;min-width:0;resize:none;overflow:auto;line-height:1.6;font-size:14px;}
-  .annual-resize{position:absolute;left:0;right:0;bottom:-8px;height:14px;cursor:ns-resize;z-index:2;}
-  .annual-resize::after{content:"";position:absolute;left:50%;top:6px;transform:translateX(-50%);width:42px;height:4px;border-radius:3px;background:#d7dcea;transition:.15s;}
-  .annual-resize:hover::after{background:var(--brand);}
-  .annual-add{margin-top:22px;display:flex;justify-content:center;}
   @media(max-width:900px){.cols-2,.cols-3{grid-template-columns:1fr;}.sidebar{display:none;}}
   /* 写日记 */
   .diary-layout{display:flex; gap:18px; align-items:flex-start;}
@@ -571,10 +555,8 @@ const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':
 const NAV = [
   {id:'dashboard', label:'首页', icon:'🏠'},
   {id:'strategy', label:'人生战略', icon:'🎯', children:[
-    {id:'annual', label:'年计划', red:true},
-    {id:'annual2', label:'年度计划2.0'},
-    {id:'monthly', label:'月计划', red:true},
-    {id:'monthplan2', label:'月度计划2.0'},
+    {id:'annual2', label:'年度计划'},
+    {id:'monthplan2', label:'月度计划'},
     {id:'major', label:'重大事项', red:true},
     {id:'wishes', label:'愿望清单'},
     {id:'bookcorner', label:'精神角落'},
@@ -610,10 +592,8 @@ const NAV = [
 ];
 
 const SECTIONS = {
-  annual:{name:'年计划',kind:'annual',accent:'#e11d48',hint:'按年份规划全年：顶部切换年份，下方写年度总结，四列记录具体计划，可拖动调整高度，底部「添加」新增一行四列。'},
-  annual2:{name:'年度计划2.0',kind:'annual2',accent:'#e11d48',hint:'模块式年度计划：开头 + 若干「标题+内容」分组 + 结尾；✎ 改文字颜色、🎨 改格子颜色、🗑 删除；标题随机配色并居中加粗；每行可排 2/3/4 组。数据存于飞书「年度计划」表。'},
-  monthly:{name:'月计划',kind:'grid',accent:'#f59e0b',hint:'像 Excel 一样拆解每月动作：可加/删行列、合并拆分单元格、直接录入文字，记得点「保存」。'},
-  monthplan2:{name:'月度计划2.0',kind:'monthplan2',accent:'#0ea5e9',hint:'按月清单式计划：顶部切换年月，五列展示（序号/计划事项/计划内容/截止时间/是否完成）；同年同月序号自动合并、计划事项一致则合并；底部加号新增，完成方块打勾，超期红/今日橙/完成绿。数据存于飞书「月度计划」表。'},
+  annual2:{name:'年度计划',kind:'annual2',accent:'#e11d48',hint:'模块式年度计划：开头 + 若干「标题+内容」分组 + 结尾；✎ 改文字颜色、🎨 改格子颜色、🗑 删除；标题随机配色并居中加粗；每行可排 2/3/4 组。数据存于飞书「年度计划」表。'},
+  monthplan2:{name:'月度计划',kind:'monthplan2',accent:'#0ea5e9',hint:'按月清单式计划：顶部切换年月，五列展示（序号/计划事项/计划内容/截止时间/是否完成）；同年同月序号自动合并、计划事项一致则合并；底部加号新增，完成方块打勾，超期红/今日橙/完成绿。数据存于飞书「月度计划」表。'},
   major:{name:'重大事项',kind:'events',accent:'#8b5cf6',hint:'记录人生关键节点与重要安排。'},
   todos:{name:'今日待办',kind:'todos',accent:'#0ea5e9',hint:'聚焦当下，完成今天最重要的几件事。'},
   habits:{name:'微习惯',kind:'habits',accent:'#10b981',hint:'每天一点点，用复利改变自己。'},
@@ -1839,131 +1819,6 @@ function viewDiary(date){
   overlay.classList.add('show');
 }
 
-/* ---------- 年计划（按年份：四列可调整高度 + 添加） ---------- */
-let annualYear = new Date().getFullYear();
-let annualLoadedYear = null;          // annualState 实际所属的年份（防止把旧年数据写进新年份）
-let annualState = { summary: '', rows: [] };
-let annualSaveTimer = null;
-let annualGen = 0;                    // 加载代次，丢弃过期加载结果，防止快速切换串数据
-let annualDirty = false;              // 是否有未保存改动（避免无改动时也发 PUT）
-const annualCache = {};               // year -> 已加载状态，用于秒切回看、不再请求
-function annualMarkDirty(){ annualDirty = true; }
-async function annualSave(flush){
-  clearTimeout(annualSaveTimer);
-  const doit = async () => {
-    // 关键守卫：只有「当前显示年份 == 已加载年份」才落库，杜绝竞态下旧年数据写进新年份
-    if(annualYear !== annualLoadedYear) return;
-    const y = annualYear;
-    const snap = JSON.parse(JSON.stringify(annualState));
-    try {
-      await apiJson('/annual?year='+y, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({data: snap})});
-      annualDirty = false;
-      annualCache[y] = snap;
-    } catch(e){ console.warn('年计划保存失败', e); }
-  };
-  if(flush) return doit();
-  annualSaveTimer = setTimeout(doit, 800);
-}
-async function renderAnnual(){
-  annualYear = new Date().getFullYear();
-  await annualLoad(annualYear);
-}
-async function annualLoad(year){
-  const gen = ++annualGen;
-  annualYear = year;
-  // 命中缓存且本地无未保存改动：立即渲染，零网络等待（解决切换卡顿）
-  if(annualCache[year] && !annualDirty){
-    annualState = annualCache[year];
-    annualLoadedYear = year;
-    annualPaint();
-    return;
-  }
-  // 否则展示加载态后再请求
-  view.innerHTML = `<div class="card"><div class="annual-yearbar">
-    <button class="yrbtn" onclick="annualSwitch(-1)" title="上一年">‹</button>
-    <div class="yr">${year} 年计划</div>
-    <button class="yrbtn" onclick="annualSwitch(1)" title="下一年">›</button>
-  </div><div class="empty">加载中…</div></div>`;
-  try {
-    const data = await apiJson('/annual?year='+year);
-    if(gen !== annualGen) return;            // 已有更新的加载，丢弃本次结果（防竞态）
-    const st = (data && Array.isArray(data.rows)) ? data : { summary:'', rows:[] };
-    if(st.summary == null) st.summary = '';
-    annualState = st; annualLoadedYear = year; annualDirty = false;
-    annualCache[year] = JSON.parse(JSON.stringify(st));
-    annualPaint();
-  } catch(e){
-    if(gen !== annualGen) return;
-    view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`;
-  }
-}
-function annualRowsHTML(){
-  if(!annualState.rows.length) return `<div class="muted" style="font-size:13px;padding:6px 2px">还没有任何计划，点击下方「添加」开始 ✨</div>`;
-  return annualState.rows.map((row,r)=>{
-    const h = row.h || 140;
-    const cols = (row.c||[]).map((v,c)=>`<textarea class="inp annual-col" data-r="${r}" data-c="${c}" oninput="annualCellInput(this)" style="height:${h}px">${esc(v)}</textarea>`).join('');
-    return `<div class="annual-row" data-r="${r}" style="height:${h}px">${cols}<div class="annual-resize" onmousedown="annualResizeStart(event,${r})"></div></div>`;
-  }).join('');
-}
-function annualPaint(){
-  const s = SECTIONS['annual'];
-  let html = `<div class="card"><div class="h"><div class="t">${s.name}</div></div>`;
-  html += `<div class="annual-yearbar">
-    <button class="yrbtn" onclick="annualSwitch(-1)" title="上一年">‹</button>
-    <div class="yr">${annualYear} 年计划</div>
-    <button class="yrbtn" onclick="annualSwitch(1)" title="下一年">›</button>
-  </div>`;
-  html += `<textarea class="inp annual-summary" placeholder="年度总结 / 备注……" oninput="annualSummaryInput(this.value)">${esc(annualState.summary)}</textarea>`;
-  html += `<div class="annual-rows" id="annualRows">${annualRowsHTML()}</div>`;
-  html += `<div class="annual-add"><button class="btn primary" onclick="annualAddRow()">＋ 添加</button></div>`;
-  html += `</div>`;
-  view.innerHTML = html;
-}
-function annualSummaryInput(v){ annualState.summary = v; annualMarkDirty(); annualSave(); }
-function annualCellInput(el){
-  const r = +el.dataset.r, c = +el.dataset.c;
-  if(!annualState.rows[r]) return;
-  if(!annualState.rows[r].c) annualState.rows[r].c = ['','','',''];
-  annualState.rows[r].c[c] = el.value;
-  annualMarkDirty(); annualSave();
-}
-function annualAddRow(){
-  annualState.rows.push({ c:['','','',''], h:140 });
-  const box = document.getElementById('annualRows');
-  if(box) box.innerHTML = annualRowsHTML();
-  annualMarkDirty(); annualSave();
-}
-async function annualSwitch(delta){
-  await annualSave(true);
-  await annualLoad(annualYear + delta);
-  window.scrollTo(0, 0);
-}
-let annualResizing = null;
-function annualResizeStart(e, r){
-  e.preventDefault();
-  const rowEl = e.target.closest('.annual-row');
-  if(!rowEl) return;
-  annualResizing = { r, startY: e.clientY, startH: (annualState.rows[r] && annualState.rows[r].h) || 140, rowEl, curH: (annualState.rows[r] && annualState.rows[r].h) || 140 };
-  document.addEventListener('mousemove', annualResizingMove);
-  document.addEventListener('mouseup', annualResizeEnd);
-}
-function annualResizingMove(e){
-  if(!annualResizing) return;
-  let h = annualResizing.startH + (e.clientY - annualResizing.startY);
-  if(h < 60) h = 60; if(h > 800) h = 800;
-  annualResizing.curH = h;
-  annualResizing.rowEl.style.height = h + 'px';
-  annualResizing.rowEl.querySelectorAll('.annual-col').forEach(t => t.style.height = h + 'px');
-}
-function annualResizeEnd(){
-  if(!annualResizing) return;
-  annualState.rows[annualResizing.r].h = annualResizing.curH;
-  document.removeEventListener('mousemove', annualResizingMove);
-  document.removeEventListener('mouseup', annualResizeEnd);
-  annualResizing = null;
-  annualMarkDirty(); annualSave();
-}
-
 /* ---------- 年度计划 2.0（模块式：开头 + 标题/内容分组 + 结尾） ---------- */
 let a2Year = new Date().getFullYear();
 let a2Model = { opening:null, ending:null, groups:[], arrange:2, arrangeRecId:null };
@@ -2364,116 +2219,6 @@ async function mp2ConfirmAdd(){
   } catch (e) { alert('添加失败：' + (e.message || e)); }
 }
 
-/* ---------- 类 Excel 表格编辑器（年计划 / 月计划） ---------- */
-let gridSectionId = null;
-let gridState = null;        // {rows, cols, data:[[{t,rs,cs}]]}
-let gridSel = null;          // {r1,c1,r2,c2}
-let gridSelecting = false;
-
-function gCell(t){ return { t: (t==null?'':String(t)), rs:1, cs:1 }; }
-function gBlank(rows,cols){ const d=[]; for(let r=0;r<rows;r++){ const row=[]; for(let c=0;c<cols;c++) row.push(gCell('')); d.push(row); } return d; }
-function gNorm(g){
-  g=g||{}; g.rows=Number(g.rows)||6; g.cols=Number(g.cols)||4; g.data=Array.isArray(g.data)?g.data:[];
-  for(let r=0;r<g.rows;r++){ if(!g.data[r]) g.data[r]=[]; for(let c=0;c<g.cols;c++){ const x=g.data[r][c]||{}; g.data[r][c]={t:x.t==null?'':String(x.t), rs:Number(x.rs)||1, cs:Number(x.cs)||1}; } g.data[r].length=g.cols; }
-  g.data.length=g.rows; return g;
-}
-function gNormSel(){ if(!gridSel) return null; const {r1,c1,r2,c2}=gridSel; return {r1:Math.min(r1,r2),c1:Math.min(c1,c2),r2:Math.max(r1,r2),c2:Math.max(c1,c2)}; }
-function gInSel(r,c){ const s=gNormSel(); return s && r>=s.r1&&r<=s.r2&&c>=s.c1&&c<=s.c2; }
-
-async function renderGrid(sectionId){
-  const s = SECTIONS[sectionId];
-  gridSectionId = sectionId;
-  let g;
-  try{ g = await apiJson('/grid/'+sectionId); }
-  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
-  gridState = gNorm(g && g.data ? g : {rows:6,cols:4,data:gBlank(6,4)});
-  gridSel = null;
-  let html = `<div class="card"><div class="h"><div class="t">${s.name}</div></div>`;
-  html += `<div class="grid-toolbar">
-    <button class="btn" onclick="gridAddRow()">＋ 行</button>
-    <button class="btn" onclick="gridAddCol()">＋ 列</button>
-    <button class="btn soft" onclick="gridDelRow()">删除行</button>
-    <button class="btn soft" onclick="gridDelCol()">删除列</button>
-    <button class="btn" onclick="gridMerge()">合并单元格</button>
-    <button class="btn" onclick="gridSplit()">拆分单元格</button>
-    <button class="btn primary" onclick="gridSave()">💾 保存</button>
-    <span class="muted" style="font-size:12px;margin-left:6px">单击选中 · 拖动框选 · 双击单元格编辑文字</span>
-  </div>`;
-  html += `<div class="grid-scroll"><table class="xls" id="xls">${gTableHTML()}</table></div></div>`;
-  view.innerHTML = html;
-  bindGrid();
-}
-function gTableHTML(){
-  const g = gridState; const covered = {};
-  let h = '<tbody>';
-  for(let r=0;r<g.rows;r++){
-    h += '<tr>';
-    for(let c=0;c<g.cols;c++){
-      const key = r+'-'+c; if(covered[key]) continue;
-      const cl = g.data[r][c] || gCell('');
-      const rs = Math.min(cl.rs||1, g.rows-r);
-      const cs = Math.min(cl.cs||1, g.cols-c);
-      for(let i=0;i<rs;i++) for(let j=0;j<cs;j++){ if(i!==0||j!==0) covered[(r+i)+'-'+(c+j)] = true; }
-      const sel = gInSel(r,c) ? ' sel' : '';
-      h += `<td class="xc${sel}" data-r="${r}" data-c="${c}" rowspan="${rs}" colspan="${cs}"><div class="xc-t">${esc(cl.t)}</div></td>`;
-    }
-    h += '</tr>';
-  }
-  return h + '</tbody>';
-}
-function paintGrid(){ const t = document.getElementById('xls'); if(t) t.innerHTML = gTableHTML(); paintSel(); }
-function paintSel(){ const t = document.getElementById('xls'); if(!t) return; t.querySelectorAll('td.xc').forEach(td=>{ const r=+td.dataset.r,c=+td.dataset.c; td.classList.toggle('sel', !!gInSel(r,c)); }); }
-function bindGrid(){
-  const t = document.getElementById('xls'); if(!t) return;
-  let start=null;
-  t.addEventListener('mousedown', e=>{
-    const td = e.target.closest('td'); if(!td) return;
-    if(td.isContentEditable || (e.target.closest('.xc-t') && e.target.closest('.xc-t').isContentEditable)) return;
-    e.preventDefault();
-    start = { r:+td.dataset.r, c:+td.dataset.c };
-    gridSel = { r1:start.r, c1:start.c, r2:start.r, c2:start.c };
-    gridSelecting = true; paintSel();
-  });
-  t.addEventListener('mouseover', e=>{
-    if(!gridSelecting || !start) return;
-    const td = e.target.closest('td'); if(!td) return;
-    gridSel = { r1:start.r, c1:start.c, r2:+td.dataset.r, c2:+td.dataset.c };
-    paintSel();
-  });
-  document.addEventListener('mouseup', ()=>{ gridSelecting=false; });
-  t.addEventListener('dblclick', e=>{
-    const td = e.target.closest('td'); if(!td) return;
-    gEditCell(td);
-  });
-}
-function gEditCell(td){
-  const r=+td.dataset.r, c=+td.dataset.c;
-  const div = td.querySelector('.xc-t'); if(!div) return;
-  div.setAttribute('contenteditable','true'); div.classList.add('editing'); div.focus();
-  const range=document.createRange(); range.selectNodeContents(div);
-  const seln=window.getSelection(); seln.removeAllRanges(); seln.addRange(range);
-  const finish=()=>{ div.removeAttribute('contenteditable'); div.classList.remove('editing'); gridState.data[r][c].t = div.innerText.replace(/\n+$/,''); div.removeEventListener('blur',finish); div.removeEventListener('keydown',onKey); };
-  const onKey=ev=>{ if(ev.key==='Enter'&&!ev.shiftKey){ ev.preventDefault(); div.blur(); } else if(ev.key==='Escape'){ ev.preventDefault(); div.blur(); } };
-  div.addEventListener('blur',finish); div.addEventListener('keydown',onKey);
-}
-function gridAddRow(){ const g=gridState; g.data.push(Array.from({length:g.cols},()=>gCell(''))); g.rows++; paintGrid(); }
-function gridAddCol(){ const g=gridState; g.data.forEach(row=>row.push(gCell(''))); g.cols++; paintGrid(); }
-function gridDelRow(){ const s=gNormSel(); if(!s){ alert('请先选中要删除的行'); return; } const g=gridState; const keep=[]; for(let r=0;r<g.rows;r++){ if(r<s.r1||r>s.r2) keep.push(g.data[r]); } g.data=keep; g.rows=keep.length; paintGrid(); }
-function gridDelCol(){ const s=gNormSel(); if(!s){ alert('请先选中要删除的列'); return; } const g=gridState; g.data.forEach(row=>row.splice(s.c1, s.c2-s.c1+1)); g.cols=g.data[0]?g.data[0].length:0; paintGrid(); }
-function gridMerge(){
-  const s=gNormSel(); if(!s || (s.r1===s.r2 && s.c1===s.c2)){ alert('请先框选一个大于 1 个单元格的区域再合并'); return; }
-  const g=gridState; const txt=[];
-  for(let r=s.r1;r<=s.r2;r++) for(let c=s.c1;c<=s.c2;c++){ const t=g.data[r][c].t; if(t&&t.trim()) txt.push(t.trim()); }
-  for(let r=s.r1;r<=s.r2;r++) for(let c=s.c1;c<=s.c2;c++) g.data[r][c]=gCell('');
-  g.data[s.r1][s.c1] = { t: txt.join(' / '), rs:s.r2-s.r1+1, cs:s.c2-s.c1+1 };
-  gridSel = { r1:s.r1, c1:s.c1, r2:s.r1, c2:s.c1 }; paintGrid();
-}
-function gridSplit(){ const s=gNormSel(); if(!s){ alert('请先选中要拆分的合并单元格'); return; } const g=gridState; for(let r=s.r1;r<=s.r2;r++) for(let c=s.c1;c<=s.c2;c++){ const cl=g.data[r][c]; if(cl.rs>1||cl.cs>1){ cl.rs=1; cl.cs=1; } } paintGrid(); }
-async function gridSave(){
-  try{ await apiJson('/grid/'+gridSectionId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({grid:gridState})}); alert('已保存 ✅'); }
-  catch(e){ alert('保存失败：'+(e.message||e)); }
-}
-
 /* ---------- project ---------- */
 async function renderProject(id){
   let data;
@@ -2735,10 +2480,8 @@ async function render(){
     if(kind==='diary') return await renderDiary();
     if(kind==='project') return await renderProject(current);
     if(kind==='article') return await renderArticle();
-    if(kind==='annual') return await renderAnnual();
     if(kind==='annual2') return await renderAnnual2();
     if(kind==='monthplan2') return await renderMonthPlan2();
-    if(kind==='grid') return await renderGrid(current);
     if(kind==='wishes') return await renderWishes();
     if(kind==='insprec') return await renderInsp();
     if(kind==='topics') return await renderTopics();
