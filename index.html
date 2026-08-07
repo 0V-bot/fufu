@@ -187,6 +187,8 @@
   .todos-3col{display:grid;grid-template-columns:1fr 1.7fr 1fr;gap:16px;align-items:start;margin-top:2px;}
   .tcol{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 15px;box-shadow:var(--shadow);}
   .tcol.mid{box-shadow:0 6px 20px rgba(14,165,233,.10);border-color:#bfe3f5;}
+  .tcol.side{margin-top:40px;}                       /* 左/右两列整体下移 */
+  .tcol.side .tcol-h{flex-direction:column;align-items:center;justify-content:center;gap:6px;}  /* 标题居中 */
   .tcol-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line);}
   .tcol-h .th-t{font-weight:700;font-size:14.5px;}
   .tcol-h .th-n{font-size:12px;font-weight:700;color:#fff;background:var(--brand);border-radius:999px;padding:1px 9px;min-width:22px;text-align:center;}
@@ -229,6 +231,8 @@
   .ts-note-line{font-size:12px;color:#64748b;margin-top:3px;line-height:1.5;word-break:break-word;}
   .ts-del{border:none;background:transparent;cursor:pointer;font-size:14px;line-height:1;padding:4px 5px;border-radius:7px;color:#cbd5e1;transition:.12s;align-self:center;}
   .ts-del:hover{background:#fee2e2;color:#ef4444;}
+  .ts-move{border:none;background:transparent;cursor:pointer;font-size:15px;line-height:1;padding:4px 5px;border-radius:7px;color:#cbd5e1;transition:.12s;align-self:center;}
+  .ts-move:hover{background:#dcfce7;color:#10b981;}
   .empty.sm{color:#94a3b8;font-size:12.5px;text-align:center;padding:14px 0;}
   @media(max-width:780px){ .todos-3col{grid-template-columns:1fr;} }
 
@@ -1363,11 +1367,11 @@ async function renderTodos(){
   arr.forEach(t => { if (t.deadline) t.deadline = fmtDeadline(t.deadline); });
   const td = todayStr();
   const overdue = arr.filter(t => !t.done && todoBucket(t, td) < td);  // 左：未完成项（逾期）
-  const mid     = arr.filter(t => todoBucket(t, td) === td);           // 中：今日待办（含已完成）
-  const future  = arr.filter(t => !t.done && todoBucket(t, td) > td);  // 右：明日计划（未来未完成）
+  const mid     = arr.filter(t => todoBucket(t, td) >= td);            // 中：今日待办（含今日+未来，已完成同列划线）
+  const future  = arr.filter(t => !t.done && todoBucket(t, td) > td);  // 右：明日计划（未来未完成，是 mid 的子集，自动同步）
   let html = `<div class="todos-3col">`;
   // —— 板块一：左侧未完成项 ——
-  html += `<div class="tcol">
+  html += `<div class="tcol side">
     <div class="tcol-h"><div class="th-t">未完成项</div><div class="th-n warn">${overdue.length}</div></div>
     <div class="ts-list">`;
   if(!overdue.length) html += `<div class="empty sm">🎉 没有逾期事项</div>`;
@@ -1386,7 +1390,7 @@ async function renderTodos(){
   mid.forEach(t => html += tmRow(t));
   html += `</div></div>`;
   // —— 板块三：右侧明日计划（只读）——
-  html += `<div class="tcol">
+  html += `<div class="tcol side">
     <div class="tcol-h"><div class="th-t">明日计划</div><div class="th-n">${future.length}</div></div>
     <div class="ts-list">`;
   if(!future.length) html += `<div class="empty sm">没有未来的计划 🌙</div>`;
@@ -1399,7 +1403,7 @@ async function renderTodos(){
 function tsRow(t, ro){
   const dp = datePart(t.deadline) || todayStr();
   const note = t.note ? `<div class="ts-note-line">📝 ${esc(t.note)}</div>` : '';
-  const del = ro ? '' : `<button class="ts-del" title="删除" onclick="delTodo('${t.id}')">🗑</button>`;
+  const del = ro ? '' : `<button class="ts-move" title="移到今日" onclick="moveTodoToToday('${t.id}')">➡</button><button class="ts-del" title="删除" onclick="delTodo('${t.id}')">🗑</button>`;
   return `<div class="ts-row ${ro?'ro':''}">
     <div class="ts-main">
       <div class="ts-text">${esc(t.title||'')}</div>
@@ -1466,6 +1470,14 @@ async function delTodo(id){
   if(!confirm('删除这条待办？')) return;
   try{ await apiDelete('todos', id); cache.todos=(cache.todos||[]).filter(x=>x.id!==id); await renderTodos(); }
   catch(e){ alert('删除失败：'+(e.message||e)); }
+}
+// 左列「未完成项」：把截止时间改为今日，自动移入「今日待办事项」
+async function moveTodoToToday(id){
+  const t=(cache.todos||[]).find(x=>x.id===id); if(!t) return;
+  const dl=todayStr();
+  t.deadline=dl; t.date=dl;
+  try{ await apiUpdate('todos', id, t); await renderTodos(); }
+  catch(e){ alert('移动失败：'+(e.message||e)); }
 }
 
 /* ---------- 愿望清单（列表式：输入框 + 许愿按钮 + 每行愿望 + 勾选实现） ---------- */
