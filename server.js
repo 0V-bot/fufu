@@ -270,7 +270,12 @@ async function deleteRecordCli(name, rec, baseToken = BASE_TOKEN) {
 const F = USE_OPENAPI
   ? { list: listTableOpen, create: createRecordOpen, update: updateRecordOpen, del: deleteRecordOpen }
   : { list: listTableCli, create: createRecordCli, update: updateRecordCli, del: deleteRecordCli };
-const listTable = F.list, createRecord = F.create, updateRecord = F.update, deleteRecord = F.del;
+const listTable = F.list;
+// 写入「项目任务」后立即失效短缓存，避免新建/编辑/删除后 5s 内仍显示旧数据（创建不显示 BUG）
+function invalidateProjTasks() { _ptaskCache.ts = 0; _ptaskCache.data = null; }
+const createRecord = async (name, fields, base) => { const r = await F.create(name, fields, base); if (name === '项目任务') invalidateProjTasks(); return r; };
+const updateRecord = async (name, rec, fields, base) => { const r = await F.update(name, rec, fields, base); if (name === '项目任务') invalidateProjTasks(); return r; };
+const deleteRecord = async (name, rec, base) => { const r = await F.del(name, rec, base); if (name === '项目任务') invalidateProjTasks(); return r; };
 
 /* ===================== 项目映射(懒加载) ===================== */
 let PROJ_MAP = {}, PROJ_DESC = {}, projectsLoaded = false;
@@ -350,8 +355,9 @@ function readRec(kind, r) {
       tid: num(r['ID']),
       title: r['任务标题'] || r['任务'] || '',
       taskTitle: r['任务标题'] || '',
-      parent: r['上级任务标题'] || '',
-      content: r['任务内容'] || '',
+      parent: (r['上级任务标题'] || '').toString().trim(),
+      deadline: dateOnly(r['截止时间']),
+      daily: sel(r['每日']) || '是',
       status: sel(r['状态']) || '',
       note: r['备注'] || ''
     };
@@ -391,12 +397,16 @@ async function writeRec(kind, o, fix) {
       const proj = PROJ_MAP[fix];
       // 自增 ID：编辑时保留原 ID，新建时取该项目下现有最大 ID + 1（飞书无原生自增字段，由代码维护）
       const tid = (o.tid != null && o.tid !== '') ? Number(o.tid) : await nextTaskId(proj);
+      const daily = o.daily || '是';
+      // 每日任务不设截止时间；非每日任务才写入截止时间（空则 null）
+      const deadline = daily === '是' ? null : (o.deadline ? toFeishuDate(o.deadline) : null);
       return {
         'ID': tid,
         '项目': [proj],
         '任务标题': o.taskTitle || o.title || '',
-        '上级任务标题': o.parent || '',
-        '任务内容': o.content || '',
+        '上级任务标题': (o.parent || '').toString().trim(),   // 存父任务的 ID（按 ID 索引关联）
+        '每日': daily,
+        '截止时间': deadline,
         '状态': o.status || '待办',
         '备注': o.note || ''
       };
@@ -515,13 +525,24 @@ function invalidateCache(cfg, base) { _rawCache[(cfg.base || base || BASE_TOKEN)
 async function sectionCreate(id, o) {
   const cfg = SECTIONS[id];
   const base = cfg.base || BASE_TOKEN;
-  if (cfg.kind === 'ptask') await ensureProjects();
+  if (cfg.kind === 'ptask') {
+    await ensureProjects();
+    // 非「每日」任务必须设置截止时间（前端同样拦截，这里兜底）
+    if ((o.daily || '是') !== '是' && !(o.deadline || '').trim()) {
+      const e = new Error('非「每日」任务必须设置截止时间'); e.status = 400; throw e;
+    }
+  }
   return { id: await createRecord(cfg.table, await writeRec(cfg.kind, o, cfg.fix || cfg.proj), base) };
 }
 async function sectionUpdate(id, rec, o) {
   const cfg = SECTIONS[id];
   const base = cfg.base || BASE_TOKEN;
-  if (cfg.kind === 'ptask') await ensureProjects();
+  if (cfg.kind === 'ptask') {
+    await ensureProjects();
+    if ((o.daily || '是') !== '是' && !(o.deadline || '').trim()) {
+      const e = new Error('非「每日」任务必须设置截止时间'); e.status = 400; throw e;
+    }
+  }
   await updateRecord(cfg.table, rec, await writeRec(cfg.kind, o, cfg.fix || cfg.proj), base);
   return { ok: true };
 }
@@ -648,18 +669,26 @@ async function createDiary({ date, weather, mood, content }) {
 }
 
 /* ===================== 项目 ===================== */
+// 项目任务全表短缓存：避免每次渲染（以及 nextTaskId）都全表重拉两次，缓解打开卡顿
+let _ptaskCache = { ts: 0, data: null };
+async function loadProjTasks() {
+  if (_ptaskCache.data && Date.now() - _ptaskCache.ts < 5000) return _ptaskCache.data;
+  _ptaskCache.data = await listTable('项目任务');
+  _ptaskCache.ts = Date.now();
+  return _ptaskCache.data;
+}
 async function getProject(section) {
   await ensureProjects();
   const cfg = SECTIONS[section];
   const projRec = PROJ_MAP[cfg.proj];
-  const tasks = (await listTable('项目任务')).filter(r => linkId(r['项目']) === projRec)
+  const tasks = (await loadProjTasks()).filter(r => linkId(r['项目']) === projRec)
     .map(r => readRec('ptask', r))
     .sort((a, b) => (a.tid || 0) - (b.tid || 0));
   return { tasks, desc: PROJ_DESC[projRec] || '' };
 }
 // 项目任务自增 ID：取该项目下现有最大 ID + 1（飞书无原生自增字段，由代码维护）
 async function nextTaskId(projRec) {
-  const rows = (await listTable('项目任务')).filter(r => linkId(r['项目']) === projRec);
+  const rows = (await loadProjTasks()).filter(r => linkId(r['项目']) === projRec);
   let max = 0;
   rows.forEach(r => { const v = num(r['ID']); if (v > max) max = v; });
   return max + 1;
@@ -680,7 +709,7 @@ async function getDashboard() {
   const todayTodos = todos.filter(x => x.date === t);
   const habits = await getHabits();
   const major = (await listTable('重大事项')).map(r => readRec('events', r));
-  const projCount = (await listTable('项目任务')).length;
+  const projCount = (await loadProjTasks()).length;
   const insp = (await listTable(INSPIRE_TABLE, INSPIRE_BASE)).length;
   const topics = (await listTable('选题库')).length;
   const knowledge = (await listTable(INSPIRE_TABLE, INSPIRE_BASE)).length;
@@ -1233,7 +1262,7 @@ async function route(method, url, body, res, req) {
     return send(res, 404, { error: '接口不存在' });
   } catch (e) {
     console.error('API error:', e.message);
-    return send(res, 500, { error: e.message });
+    return send(res, e.status || 500, { error: e.message });
   }
 }
 

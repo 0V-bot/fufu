@@ -3,13 +3,16 @@
  * 项目任务表结构调整（幂等，可重复执行）。
  *
  * 目标结构：
- *   - 任务标题  (文本 type 1)   —— 由旧字段「任务」改名而来（保留历史数据）
+ *   - 任务标题  (文本 type 1)   —— 由旧字段「任务」改名而来（保留历史数据，作为可读名字）
  *   - 项目      (双向关联 type 18，保持不变)
- *   - ID        (数字 type 2)   —— 自增主键，由工作台代码维护 max+1
- *   - 上级任务标题 (文本 type 1) —— 思维导图父子层级依据
- *   - 任务内容  (文本 type 1)
+ *   - ID        (数字 type 2)   —— 自增主键 / 索引键，由工作台代码维护 max+1
+ *   - 上级任务标题 (文本 type 1) —— 存「父任务的 ID」，思维导图按 ID 关联（便于索引查询）
  *   - 状态      (单选 type 3，保持不变)
  *   - 备注      (文本 type 1，保持不变)
+ *   - 截止时间  (日期 type 5，新增) —— 非「每日」任务须设置
+ *   - 每日      (单选 type 3，新增，选项 是/否，默认 是)
+ *
+ * 说明：飞书 v1 API 无法重排字段，「ID」字段位置不变，但作为数字主键承担索引/排序职责。
  *
  * 用法（workbench 目录下）：
  *   node setup_project_tasks_fields.js
@@ -94,16 +97,29 @@ function req(method, apiPath, body, token) {
   // 刷新字段缓存
   const fields2 = await getFields();
   const names2 = fields2.map(f => f.field_name);
+  const byName2 = {};
+  fields2.forEach(f => byName2[f.field_name] = f);
 
-  // 2) 新增字段（幂等）
+  // 2) 删除冗余字段「任务内容」（若存在）
+  if (byName2['任务内容']) {
+    const r = await req('DELETE', PRE + '/tables/' + tid + '/fields/' + byName2['任务内容'].field_id, null, token);
+    console.log('  ' + (r.code === 0 ? '✅' : '⚠️') + ' 删除字段「任务内容」' + (r.code === 0 ? '' : ' ' + JSON.stringify(r).slice(0, 200)));
+  } else {
+    console.log('  ↺ 字段「任务内容」不存在，跳过删除');
+  }
+
+  // 3) 新增字段（幂等）
   const ADD = [
     { name: 'ID', type: 2 },
     { name: '上级任务标题', type: 1 },
-    { name: '任务内容', type: 1 },
+    { name: '截止时间', type: 5 },
+    { name: '每日', type: 3, options: [{ name: '是' }, { name: '否' }], property: { options: [{ name: '是' }, { name: '否' }] } },
   ];
   for (const f of ADD) {
     if (names2.includes(f.name)) { console.log('  ↺ ' + f.name + ' 已存在，跳过'); continue; }
-    const r = await req('POST', PRE + '/tables/' + tid + '/fields', { field_name: f.name, type: f.type }, token);
+    const body = { field_name: f.name, type: f.type };
+    if (f.property) body.property = f.property;
+    const r = await req('POST', PRE + '/tables/' + tid + '/fields', body, token);
     console.log('  ' + (r.code === 0 ? '✅' : '⚠️') + ' 新增字段 ' + f.name + ' (type ' + f.type + ')' + (r.code === 0 ? '' : ' ' + JSON.stringify(r).slice(0, 200)));
   }
 

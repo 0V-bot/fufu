@@ -383,6 +383,13 @@
   .mm-card.st-todo{border-left-color:#f59e0b;}
   .mm-card.st-doing{border-left-color:#3b82f6;}
   .mm-card.st-done{border-left-color:#22c55e;}
+  .mm-tag{font-size:11px; padding:2px 8px; border-radius:999px; flex:none; white-space:nowrap; font-weight:500;}
+  .mm-daily{background:#ede9fe; color:#6d28d9;}
+  .mm-deadline{background:#e2e8f0; color:#475569;}
+  .mm-deadline.today{background:#ffedd5; color:#c2410c;}
+  .mm-deadline.overdue{background:#fee2e2; color:#b91c1c; font-weight:600;}
+  .mm-deadline.done{background:#dcfce7; color:#166534;}
+  .mm-nodeadline{background:#fef3c7; color:#92400e;}
   .mm-ops{display:flex; gap:6px; flex:none;}
   .mm-content{margin:0 0 6px 30px; padding:8px 10px; background:#f8fafc; border-radius:8px; color:#475569; font-size:13px; white-space:pre-wrap; line-height:1.5;}
   .mm-node.collapsed > .mm-children,
@@ -1077,24 +1084,32 @@ function editGeneric(id,itemId){
 }
 async function delGeneric(id,itemId){ if(!confirm('确认删除？')) return; try{ await apiDelete(id,itemId); await render(); }catch(e){ alert('删除失败：'+(e.message||e)); } }
 
-/* ---------- 项目任务：自定义创建/编辑弹窗（标题组合框 + 上级任务下拉） ---------- */
-async function openTaskModal(id, item){
+/* ---------- 项目任务：自定义创建/编辑弹窗（标题组合框 + 上级任务按 ID 下拉 + 每日/截止时间） ---------- */
+async function openTaskModal(id, item, presetParent){
   const s = SECTIONS[id];
   const tasks = cache[id] || [];
-  const titles = [...new Set(tasks.map(t => (t.taskTitle || '').trim()).filter(Boolean))];
   const isEdit = !!item;
   const itemVal = item ? (item.taskTitle || '') : '';
-  const parentVal = item ? (item.parent || '') : '';
-  const contentVal = item ? (item.content || '') : '';
+  const parentVal = item ? (item.parent || '') : (presetParent || '');
+  const dailyVal = item ? (item.daily || '是') : '是';
+  const deadlineVal = item ? (item.deadline || '') : '';
   const statusVal = item ? (item.status || '待办') : '待办';
   const noteVal = item ? (item.note || '') : '';
   const titleOpts = ['<option value="">（新建自定义标题）</option>'].concat(
-    titles.map(t => `<option value="${esc(t)}" ${t === itemVal ? 'selected' : ''}>${esc(t)}</option>`)
+    [...new Set(tasks.map(t => (t.taskTitle || '').trim()).filter(Boolean))]
+      .map(t => `<option value="${esc(t)}" ${t === itemVal ? 'selected' : ''}>${esc(t)}</option>`)
   ).join('');
+  // 上级任务下拉：值为父任务的 ID（按 ID 索引关联），显示为「#ID 标题」
   const parentOpts = ['<option value="">（无 / 顶级任务）</option>'].concat(
-    titles.map(t => `<option value="${esc(t)}" ${t === parentVal ? 'selected' : ''}>${esc(t)}</option>`)
+    tasks.filter(t => t.tid).map(t => {
+      const v = String(t.tid);
+      const lab = '#' + t.tid + ' ' + (t.taskTitle || '(未命名)');
+      return `<option value="${esc(v)}" ${v === String(parentVal).trim() ? 'selected' : ''}>${esc(lab)}</option>`;
+    })
   ).join('');
   const statusOpts = ['待办', '进行中', '已完成'].map(o => `<option value="${o}" ${o === statusVal ? 'selected' : ''}>${o}</option>`).join('');
+  const dailyChk = dailyVal === '否' ? '' : 'checked';
+  const dlDisabled = dailyVal === '是' ? 'disabled' : '';
   modal.innerHTML = `<h3>${isEdit ? '编辑' : '添加'} · ${s.name} 任务</h3>
     <div class="field"><label>任务标题</label>
       <div class="title-combo">
@@ -1103,9 +1118,12 @@ async function openTaskModal(id, item){
       </div>
       <div class="muted" style="margin-top:4px">若下拉里没有合适的标题，直接在输入框写一个新标题，保存时自动新建。</div>
     </div>
-    <div class="field"><label>上级任务标题（父任务）</label><select data-k="parent">${parentOpts}</select>
-      <div class="muted" style="margin-top:4px">留空＝顶级任务；选择已有标题可让本任务成为其子节点，在思维导图里缩进展示。</div></div>
-    <div class="field"><label>任务内容</label><textarea data-k="content" placeholder="具体要做的事、交付物、思路…">${esc(contentVal)}</textarea></div>
+    <div class="field"><label>上级任务（父任务，按 ID 关联）</label><select data-k="parent">${parentOpts}</select>
+      <div class="muted" style="margin-top:4px">留空＝顶级任务；选择某任务可让本任务成为其子节点，在思维导图里缩进展示。</div></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+      <input type="checkbox" id="dailyChk" ${dailyChk} onchange="onDailyToggle()" /> 每日任务（每天重复，无需截止时间）</label></div>
+    <div class="field"><label>截止时间</label><input type="date" data-k="deadline" id="deadline" value="${esc(deadlineVal)}" ${dlDisabled} />
+      <div class="muted" style="margin-top:4px">勾选「每日任务」后无需设置；取消勾选则必须设置截止时间。</div></div>
     <div class="field"><label>状态</label><select data-k="status">${statusOpts}</select></div>
     <div class="field"><label>备注</label><textarea data-k="note">${esc(noteVal)}</textarea></div>
     <div class="modal-ops">
@@ -1119,11 +1137,26 @@ function onTaskTitlePick(){
   const inp = document.getElementById('taskTitle');
   if (pick && inp && pick.value) inp.value = pick.value;
 }
+function onDailyToggle(){
+  const chk = document.getElementById('dailyChk');
+  const dl = document.getElementById('deadline');
+  if (!chk || !dl) return;
+  if (chk.checked) { dl.value = ''; dl.disabled = true; }
+  else { dl.disabled = false; }
+}
+// 在指定任务下创建子任务：预填「上级任务」为该任务的 ID
+function addSubTask(id, parentTid){ openTaskModal(id, null, String(parentTid || '')); }
 async function submitTaskModal(id, recId){
   const g = k => { const el = modal.querySelector(`[data-k="${k}"]`); return el ? el.value.trim() : ''; };
   const taskTitle = g('taskTitle');
   if (!taskTitle) { alert('请填写任务标题'); return; }
-  const obj = { taskTitle, parent: g('parent'), content: g('content'), status: g('status'), note: g('note') };
+  const daily = document.getElementById('dailyChk') && document.getElementById('dailyChk').checked ? '是' : '否';
+  let deadline = '';
+  if (daily === '否') {
+    deadline = g('deadline');
+    if (!deadline) { alert('非「每日」任务必须设置截止时间'); return; }
+  }
+  const obj = { taskTitle, parent: g('parent'), daily, deadline, status: g('status'), note: g('note') };
   if (recId) { const it = (cache[id] || []).find(x => x.id === recId); if (it && it.tid) obj.tid = it.tid; }
   try {
     if (recId) await apiUpdate(id, recId, obj);
@@ -2341,21 +2374,38 @@ async function renderProject(id){
   else html += renderTaskMindmap(id, tasks, s) + `</div>`;
   view.innerHTML = html;
 }
-// 由「上级任务标题」构建思维导图：根=项目名，父级按标题匹配子任务，可折叠
+// 由「上级任务标题」(存父任务 ID) 构建思维导图：根=项目名，父级按 ID 匹配子任务，可折叠
 function renderTaskMindmap(id, tasks, s){
+  const tidSet = new Set(tasks.map(t => String(t.tid)).filter(Boolean));
   const titleSet = new Set(tasks.map(t => (t.taskTitle || '').trim()).filter(Boolean));
+  const todayStr = today();
   const visited = new Set();
   const statusClass = st => ({ '待办': 'st-todo', '进行中': 'st-doing', '已完成': 'st-done' }[st] || 'st-todo');
+  // 截止时间标签：每日→🔁；非每日且未完成→今天橙/超期红；已完成→绿
+  const deadlineTag = t => {
+    if ((t.daily || '是') === '是') return `<span class="mm-tag mm-daily">🔁 每日</span>`;
+    const d = (t.deadline || '').trim();
+    if (!d) return `<span class="mm-tag mm-nodeadline">⚠ 未设截止</span>`;
+    let cls = 'mm-deadline';
+    if ((t.status || '') === '已完成') cls += ' done';
+    else if (d === todayStr) cls += ' today';
+    else if (d < todayStr) cls += ' overdue';
+    return `<span class="mm-tag ${cls}">📅 ${esc(d)}</span>`;
+  };
   const renderNode = (t) => {
     if (visited.has(t.id)) return '';
     visited.add(t.id);
-    const p = (t.taskTitle || '').trim();
     const childTasks = [];
-    if (p) tasks.forEach(c => { if (!visited.has(c.id) && (c.parent || '').trim() === p) childTasks.push(c); });
+    // 无论本节点自身有无父级，都要在其下收集子任务（按子任务的 parent == 本节点 tid/标题 匹配）
+    tasks.forEach(c => {
+      if (!visited.has(c.id)) {
+        const cp = (c.parent || '').trim();
+        if (cp === String(t.tid) || cp === (t.taskTitle || '').trim()) childTasks.push(c);
+      }
+    });
     const hasKids = childTasks.length > 0;
     const idTag = t.tid ? ('#' + t.tid + ' ') : '';
     const badge = `<span class="mm-badge ${statusClass(t.status)}">${esc(t.status || '待办')}</span>`;
-    const content = (t.content || '').trim() ? `<div class="mm-content">${esc(t.content)}</div>` : '';
     const kidsHtml = hasKids ? `<div class="mm-children">${childTasks.map(renderNode).join('')}</div>` : '';
     return `<div class="mm-node ${hasKids ? 'has-kids' : ''}" data-id="${t.id}">
       <div class="mm-card ${statusClass(t.status)}">
@@ -2363,17 +2413,19 @@ function renderTaskMindmap(id, tasks, s){
         <span class="mm-id">${idTag}</span>
         <span class="mm-title">${esc(t.taskTitle || '(未命名)')}</span>
         ${badge}
+        ${deadlineTag(t)}
         <span class="mm-ops">
+          <button class="btn ghost mini" type="button" title="在此任务下添加子任务" onclick="addSubTask('${id}','${String(t.tid || '')}')">＋子任务</button>
           <button class="btn ghost mini" type="button" onclick="editTask('${id}','${t.id}')">编辑</button>
           <button class="btn danger mini" type="button" onclick="delGeneric('${id}','${t.id}')">删除</button>
         </span>
       </div>
-      ${content}
       ${kidsHtml}
     </div>`;
   };
-  // 顶层任务：parent 为空，或 parent 指向不存在的标题
-  const top = tasks.filter(t => { const p = (t.parent || '').trim(); return !p || !titleSet.has(p); });
+  // 顶层任务：parent 为空，或 parent 既不等于任何任务 ID 也不等于任何任务标题（兼容历史标题关联）
+  const isTop = t => { const p = (t.parent || '').trim(); return !p || (!tidSet.has(p) && !titleSet.has(p)); };
+  const top = tasks.filter(isTop);
   const rootChildren = top.map(renderNode).join('');
   const orphans = tasks.filter(t => !visited.has(t.id)).map(renderNode).join('');
   return `<div class="mindmap">
