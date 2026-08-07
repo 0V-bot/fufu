@@ -561,6 +561,24 @@ async function sectionUpdate(id, rec, o) {
 async function sectionDelete(id, rec) {
   const cfg = SECTIONS[id];
   const base = cfg.base || BASE_TOKEN;
+  if (cfg.kind === 'events') {
+    // 重大事项删除：同步清理其对应的「项目」记录与全部任务，避免留下孤儿数据
+    // （任务仅能经由此重大事项的展开入口访问，删事项即应一并清理）。
+    try {
+      const m = await sectionRecord(id, rec);
+      const name = m && m.title ? (m.title || '').trim() : '';
+      const projRec = name ? PROJ_MAP[name] : null;
+      if (projRec) {
+        const tasks = (await loadProjTasks()).filter(r => linkId(r['项目']) === projRec);
+        for (const r of tasks) await deleteRecord('项目任务', r.record_id, base);
+        await deleteRecord('项目', projRec, base);
+        delete PROJ_MAP[name];
+        delete SECTIONS['major_' + rec];
+      }
+    } catch (e) { console.warn('重大事项级联清理失败（主删除仍继续）:', e.message); }
+    await deleteRecord(cfg.table, rec, base);
+    return { ok: true };
+  }
   if (cfg.kind === 'ptask') {
     await ensureProjects();
     // 级联删除：删除该任务及其全部后代（子/孙/…），避免表中残留
@@ -747,6 +765,24 @@ async function saveProjectDesc(section, desc) {
   await updateRecord('项目', projRec, { '说明': desc });
   PROJ_DESC[projRec] = desc;
   return { ok: true };
+}
+
+// 重大事项 → 项目任务「根」映射：确保同名「项目」记录存在，并动态注册一个 ptask 类型的
+// SECTIONS 条目（id = 'major_' + 重大事项记录 id），使该重大事项可像「淘宝发圈」一样展开思维导图。
+// 所有子任务都挂在「项目任务」表里，通过「项目」关联字段指向这个同名「项目」记录。
+async function ensureMajorSection(majorRecId) {
+  await ensureProjects();
+  const m = await sectionRecord('major', majorRecId);
+  if (!m || !m.title) return { ok: true, proj: null };
+  const name = (m.title || '').trim();
+  let projRec = PROJ_MAP[name];
+  if (!projRec) {
+    projRec = await createRecord('项目', { '项目': name });
+    PROJ_MAP[name] = projRec;
+  }
+  const secId = 'major_' + majorRecId;
+  if (!SECTIONS[secId]) SECTIONS[secId] = { table: '项目任务', kind: 'ptask', proj: name, accent: '#8b5cf6' };
+  return { ok: true, proj: name, secId };
 }
 
 /* ===================== Dashboard 聚合 ===================== */
@@ -1115,6 +1151,8 @@ async function route(method, url, body, res, req) {
     }
     if (method === 'GET' && (m = url.match(/^\/api\/project\/([\w]+)$/))) return send(res, 200, await getProject(m[1]));
     if (method === 'PUT' && url === '/api/project-desc') return send(res, 200, await saveProjectDesc(body.section, body.desc));
+    // 重大事项展开前置：确保同名「项目」记录存在并注册动态 SECTIONS 条目（使该重大事项可像项目一样展开思维导图）
+    if (method === 'POST' && (m = url.match(/^\/api\/major-ensure\/([\w]+)$/))) return send(res, 200, await ensureMajorSection(m[1]));
     if (method === 'POST' && url === '/api/article-input') {
       const { title, content, source, sourceLink, reflection, multi, cat1, cat2, cat3, tag, ctype, summary } = body || {};
       if (!content || !content.trim()) return send(res, 400, { error: '原始文案不能为空' });

@@ -109,6 +109,28 @@
   .chip.cat{background:#fff1e6;color:#d97706;}
   .chip.tag{background:#e0f2fe;color:#0ea5e9;}
   .chip.emo{background:#fdeaf3;color:#db2777;}
+
+  /* 重大事项：上方一行并排四个计划格子 */
+  .major-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px;}
+  @media (max-width:900px){ .major-row{grid-template-columns:repeat(2,1fr);} }
+  .major-cell{background:#fbfcfe;border:1px solid var(--line);border-radius:12px;padding:14px 15px 12px;position:relative;min-height:120px;transition:.15s;}
+  .major-cell:hover{border-color:#d7ddf0;box-shadow:0 4px 14px rgba(20,30,60,.05);}
+  .major-cell .mc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;}
+  .major-cell .mc-title{font-weight:700;font-size:15px;line-height:1.4;word-break:break-word;}
+  .major-cell .mc-badge{font-size:11px;padding:2px 9px;border-radius:999px;flex:none;white-space:nowrap;}
+  .badge-计划中{background:#eef2ff;color:#4f46e5;} .badge-进行中{background:#dcfce7;color:#16a34a;}
+  .badge-已完成{background:#f1f5f9;color:#64748b;} .badge-已搁置{background:#fef3c7;color:#d97706;}
+  .major-cell .mc-meta{font-size:12.5px;color:var(--muted);line-height:1.7;}
+  .major-cell .mc-meta b{color:#475069;font-weight:600;}
+  .major-cell .mc-ops{position:absolute;bottom:11px;right:11px;display:flex;gap:6px;opacity:0;transition:.15s;}
+  .major-cell:hover .mc-ops{opacity:1;}
+  .major-cell .mc-expand{position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--brand);cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;transition:.15s;}
+  .major-cell .mc-expand:hover{background:var(--brand);color:#fff;border-color:var(--brand);}
+  .major-cell.add-cell{display:flex;align-items:center;justify-content:center;border-style:dashed;cursor:pointer;color:var(--muted);font-size:14px;}
+  .major-cell.add-cell:hover{color:var(--brand);border-color:var(--brand);}
+  .major-expand-wrap{margin-top:4px;}
+  .major-expand-hint{padding:14px 16px;color:var(--muted);font-size:13px;border:1px dashed var(--line);border-radius:12px;background:#fbfcfe;}
+
   .chip.type{background:#eaf1ff;color:#2563eb;}
   .chip.scene{background:#eafaf1;color:#16a34a;}
   .chip.kw{background:#f1f3f8;color:#64748b;}
@@ -559,6 +581,14 @@ const apiSaveReview = (date,text) => apiJson('/review',{method:'PUT',headers:{'C
 const apiDiary = () => apiJson('/diary');
 const apiProject = section => apiJson('/project/'+section);
 const apiSaveProjectDesc = (section,desc) => apiJson('/project-desc',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({section,desc})});
+const apiEnsureMajor = recId => apiJson('/major-ensure/'+recId,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+// 动态注册前端 SECTIONS 条目，使重大事项可像「淘宝发圈」一样展开思维导图
+function ensureMajorSectionFrontend(recId, name){
+  const secId = 'major_' + recId;
+  if (!SECTIONS[secId]) SECTIONS[secId] = { name: name || '重大事项', kind: 'ptask', accent: '#8b5cf6' };
+  return secId;
+}
+let majorExpandedRecId = null;
 
 const today = () => new Date().toISOString().slice(0,10);
 const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2262,6 +2292,80 @@ async function mp2ConfirmAdd(){
 }
 
 /* ---------- project ---------- */
+/* ---------- 重大事项：上方一行四宫格 + 下方展开思维导图 ---------- */
+async function renderMajor(){
+  let arr = [];
+  try { arr = await apiList('major'); }
+  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  cache['major'] = arr;
+  // 若当前展开的重大事项已被删除，则收起
+  if (majorExpandedRecId && !arr.find(x => x.id === majorExpandedRecId)) majorExpandedRecId = null;
+  let cells = '';
+  arr.forEach(it => {
+    const st = it.status || '计划中';
+    const badge = `<span class="mc-badge badge-${st}">${esc(st)}</span>`;
+    const note = it.note ? `<div class="mc-meta">${esc(it.note)}</div>` : '';
+    const date = it.date ? `<div class="mc-meta"><b>日期：</b>${esc(it.date)}</div>` : '';
+    cells += `<div class="major-cell">
+      <div class="mc-head">
+        <div class="mc-title">${esc(it.title || '(无标题)')}</div>
+        <button class="mc-expand" title="展开任务思维导图" onclick="expandMajor('${it.id}')">⤢</button>
+      </div>
+      ${badge}
+      ${date}
+      ${note}
+      <div class="mc-ops">
+        <button class="btn ghost mini" onclick="editGeneric('major','${it.id}')">编辑</button>
+        <button class="btn danger mini" onclick="delGeneric('major','${it.id}')">删除</button>
+      </div>
+    </div>`;
+  });
+  cells += `<div class="major-cell add-cell" onclick="addGeneric('major')">＋ 添加重大事项</div>`;
+  view.innerHTML = `<div class="card"><div class="h"><div class="t">重大事项（${arr.length}）</div></div>
+    <div class="major-row">${cells}</div>
+  </div>
+  <div class="major-expand-wrap" id="majorExpandWrap"></div>`;
+  await renderMajorExpand();
+}
+async function renderMajorExpand(){
+  const wrap = document.getElementById('majorExpandWrap');
+  if (!wrap) return;
+  if (!majorExpandedRecId) {
+    wrap.innerHTML = `<div class="major-expand-hint">点击上方任意重大事项格子右上角的「⤢」展开按钮，即可在该重大事项下以思维导图方式管理其子任务。</div>`;
+    return;
+  }
+  const recId = majorExpandedRecId;
+  const m = (cache['major'] || []).find(x => x.id === recId);
+  const name = m ? (m.title || '') : '';
+  const secId = ensureMajorSectionFrontend(recId, name);
+  try { await apiEnsureMajor(recId); }
+  catch(e){ wrap.innerHTML = `<div class="empty">⚠️ 展开失败：${esc(e.message||e)}</div>`; return; }
+  let data;
+  try { data = await apiProject(secId); }
+  catch(e){ wrap.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  const s = SECTIONS[secId];
+  const tasks = data.tasks || [];
+  cache[secId] = tasks;
+  mmCurrentId = secId;
+  if (!tasks.length) {
+    // 新重大事项首次展开：自动创建一条空白子任务并进入编辑态（mmAddTask 会触发 render 重新进入本函数）
+    await mmAddTask(secId, '');
+    return;
+  }
+  wrap.innerHTML = `<div class="card" style="border-left:4px solid ${s.accent}">
+    <div class="t" style="font-weight:700;margin-bottom:10px">📌 事项说明</div>
+    <textarea class="note" id="projDesc" style="min-height:80px" placeholder="这个重大事项的目标、背景与关键里程碑…" onblur="saveProjDesc('${secId}')">${esc(data.desc || '')}</textarea>
+  </div>
+  <div class="card"><div class="h"><div class="t">任务思维导图（${tasks.length}）</div></div>
+    <div id="mmHost">${renderTaskMindmap(secId, tasks, s)}</div>
+  </div>`;
+}
+async function expandMajor(recId){
+  if (majorExpandedRecId === recId) majorExpandedRecId = null; // 再次点击收起
+  else majorExpandedRecId = recId;
+  await render();
+}
+
 async function renderProject(id){
   let data;
   try{ data = await apiProject(id); }
@@ -2625,6 +2729,7 @@ async function render(){
     if(kind==='wishes') return await renderWishes();
     if(kind==='insprec') return await renderInsp();
     if(kind==='topics') return await renderTopics();
+    if(current==='major') return await renderMajor();
     return await renderList(current, kind);
   }catch(e){
     view.innerHTML = `<div class="empty">⚠️ 出错了：${esc(e.message||e)}</div>`;
