@@ -1137,7 +1137,13 @@ function editGeneric(id,itemId){
   if(isProjectKind(id)){ openTaskModal(id, it); return; }
   openModal('编辑 · '+SECTIONS[id].name, SCHEMA[SECTIONS[id].kind], it, doUpdate(id,itemId));
 }
-async function delGeneric(id,itemId){ if(!confirm('确认删除？')) return; try{ await apiDelete(id,itemId); await render(); }catch(e){ alert('删除失败：'+(e.message||e)); } }
+async function delGeneric(id,itemId){
+  const isPtask = SECTIONS[id] && SECTIONS[id].kind === 'ptask';
+  const msg = isPtask ? '确认删除该任务及其所有子任务（含子任务的子任务）？此操作不可恢复。' : '确认删除？';
+  if(!confirm(msg)) return;
+  try{ await apiDelete(id,itemId); await render(); }
+  catch(e){ alert('删除失败：'+(e.message||e)); }
+}
 
 /* ---------- 项目任务：自定义创建/编辑弹窗（标题组合框 + 上级任务按 ID 下拉 + 每日/截止时间） ---------- */
 async function openTaskModal(id, item, presetParent){

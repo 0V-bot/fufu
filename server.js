@@ -561,6 +561,40 @@ async function sectionUpdate(id, rec, o) {
 async function sectionDelete(id, rec) {
   const cfg = SECTIONS[id];
   const base = cfg.base || BASE_TOKEN;
+  if (cfg.kind === 'ptask') {
+    await ensureProjects();
+    // 级联删除：删除该任务及其全部后代（子/孙/…），避免表中残留
+    // 「上级任务标题」指向已删除 ID 的孤儿记录（既不能多删也不能少删）。
+    const raw = (await listTable(cfg.table, base)).filter(r => passFilter(cfg.kind, r, cfg.fix || cfg.proj));
+    const tasks = raw.map(r => readRec(cfg.kind, r));
+    const toDelete = new Set();
+    const target = tasks.find(t => t.id === rec);
+    if (!target) {
+      toDelete.add(rec); // 找不到对应任务时也直接删原记录
+    } else {
+      // 构建 parent(tid 字符串) -> 子任务 映射
+      const childrenMap = new Map();
+      tasks.forEach(t => {
+        const p = (t.parent || '').trim();
+        if (!p) return;
+        if (!childrenMap.has(p)) childrenMap.set(p, []);
+        childrenMap.get(p).push(t);
+      });
+      const stack = [String(target.tid)];
+      const seen = new Set();
+      while (stack.length) {
+        const cur = stack.pop();
+        if (seen.has(cur)) continue;
+        seen.add(cur);
+        const node = tasks.find(t => String(t.tid) === cur);
+        if (node) toDelete.add(node.id);
+        const kids = childrenMap.get(cur);
+        if (kids) kids.forEach(k => stack.push(String(k.tid)));
+      }
+    }
+    for (const rid of toDelete) await deleteRecord(cfg.table, rid, base);
+    return { ok: true, deleted: toDelete.size };
+  }
   await deleteRecord(cfg.table, rec, base);
   return { ok: true };
 }
