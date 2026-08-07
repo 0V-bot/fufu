@@ -414,33 +414,38 @@
   .btn.danger{background:#ef4444; border-color:#ef4444; color:#fff;}
   .btn.danger:hover{background:#dc2626;}
 
-  /* ===================== 任务思维导图 ===================== */
-  .mindmap{margin-top:6px;}
+  /* ===================== 任务思维导图（竖状树形 + 行内操作） ===================== */
+  .mindmap{margin-top:6px; border:1px solid var(--line); border-radius:14px; padding:16px 18px; background:#fff;}
   .mm-node{position:relative;}
-  .mm-children{margin-left:20px; padding-left:14px; border-left:2px solid #e5e7eb;}
-  .mm-card{display:flex; align-items:center; gap:8px; padding:9px 12px; margin:7px 0; background:#fff; border:1px solid #e5e7eb; border-left:4px solid #cbd5e1; border-radius:10px;}
-  .mm-card.root{background:linear-gradient(90deg,#f8fafc,#fff); font-weight:700; border-left-color:#4f46e5;}
+  .mm-children{margin-left:22px;}
+  .mm-children > .mm-node{position:relative; padding-left:24px;}
+  .mm-children > .mm-node::before{content:""; position:absolute; left:0; top:16px; width:24px; border-top:2px solid #cbd5e1;}
+  .mm-children > .mm-node::after{content:""; position:absolute; left:0; top:0; bottom:0; border-left:2px solid #cbd5e1;}
+  .mm-children > .mm-node:last-child::after{bottom:auto; height:16px;}
+  .mm-row{display:flex; align-items:center; gap:8px; padding:4px 0; flex-wrap:nowrap;}
   .mm-toggle{cursor:pointer; width:16px; text-align:center; color:#94a3b8; user-select:none; flex:none; font-size:13px;}
-  .mm-id{font-size:12px; color:#94a3b8; flex:none;}
-  .mm-title{font-weight:600; flex:1; min-width:0; word-break:break-word;}
-  .mm-badge{font-size:11px; padding:2px 8px; border-radius:999px; flex:none; white-space:nowrap;}
-  .mm-badge.st-todo{background:#fef3c7; color:#92400e;}
-  .mm-badge.st-doing{background:#dbeafe; color:#1e40af;}
-  .mm-badge.st-done{background:#dcfce7; color:#166534;}
-  .mm-card.st-todo{border-left-color:#f59e0b;}
-  .mm-card.st-doing{border-left-color:#3b82f6;}
-  .mm-card.st-done{border-left-color:#22c55e;}
-  .mm-tag{font-size:11px; padding:2px 8px; border-radius:999px; flex:none; white-space:nowrap; font-weight:500;}
-  .mm-daily{background:#ede9fe; color:#6d28d9;}
-  .mm-deadline{background:#e2e8f0; color:#475569;}
-  .mm-deadline.today{background:#ffedd5; color:#c2410c;}
-  .mm-deadline.overdue{background:#fee2e2; color:#b91c1c; font-weight:600;}
-  .mm-deadline.done{background:#dcfce7; color:#166534;}
-  .mm-nodeadline{background:#fef3c7; color:#92400e;}
-  .mm-ops{display:flex; gap:6px; flex:none;}
-  .mm-content{margin:0 0 6px 30px; padding:8px 10px; background:#f8fafc; border-radius:8px; color:#475569; font-size:13px; white-space:pre-wrap; line-height:1.5;}
-  .mm-node.collapsed > .mm-children,
-  .mm-node.collapsed > .mm-content{display:none;}
+  .mm-toggle.root{font-size:15px; color:var(--brand);}
+  .mm-id{font-size:11px; color:#b6bfce; flex:none;}
+  .mm-title{font-weight:600; color:var(--ink); flex:none; min-width:0; word-break:break-word; max-width:340px;}
+  .mm-title.root-title{font-size:16px; font-weight:800;}
+  .mm-title[contenteditable="true"]{outline:2px solid var(--brand); border-radius:6px; padding:2px 6px; background:#fff; min-width:80px; max-width:440px;}
+  .mm-status{border:1px solid #fcd34d; background:#fef3c7; color:#92400e; border-radius:999px; padding:2px 11px; font-size:12px; font-weight:700; cursor:pointer; flex:none; white-space:nowrap;}
+  .mm-status.done{border-color:#86efac; background:#dcfce7; color:#166534;}
+  .mm-ops{display:flex; gap:1px; align-items:center; flex:none;}
+  .mm-ic{border:none; background:transparent; cursor:pointer; font-size:14px; line-height:1; padding:4px 5px; border-radius:6px; color:#94a3b8; transition:.12s;}
+  .mm-ic:hover{background:#eef2f7; color:#334155;}
+  .mm-daily-chk{display:inline-flex; align-items:center; flex:none; cursor:pointer;}
+  .mm-daily-chk input{width:15px; height:15px; cursor:pointer; accent-color:#7c3aed;}
+  .mm-daily-word{font-size:12px; color:#6d28d9; background:#ede9fe; padding:2px 9px; border-radius:999px; flex:none; white-space:nowrap;}
+  .mm-dl{display:inline-flex; align-items:center; gap:3px; flex:none;}
+  .mm-date{border:1px solid var(--line); border-radius:6px; padding:2px 6px; font-size:12px; color:#334155; background:#fff;}
+  .mm-date.today{border-color:#fb923c; background:#fff7ed;}
+  .mm-date.overdue{border-color:#ef4444; background:#fef2f2; color:#b91c1c; font-weight:600;}
+  .mm-date.done{border-color:#86efac; background:#f0fdf4; color:#166534;}
+  .mm-cal{cursor:pointer; font-size:13px;}
+  .mm-note{margin:2px 0 4px 24px; padding:6px 10px; background:#f8fafc; border-left:3px solid #e2e8f0; border-radius:0 8px 8px 0; color:#475569; font-size:13px; white-space:pre-wrap; line-height:1.55;}
+  .mm-note[contenteditable="true"]{outline:2px solid var(--brand); background:#fff; border-radius:6px;}
+  .mm-node.collapsed > .mm-children{display:none;}
   .title-combo{display:flex; gap:8px; align-items:center;}
   .title-combo input{flex:1; min-width:0;}
   .title-combo select{flex:none; width:auto; min-width:170px;}
@@ -1215,10 +1220,9 @@ async function submitTaskModal(id, recId){
     await render();
   } catch (e) { alert('保存失败：' + (e.message || e)); }
 }
-function editTask(id, recId){ const it = (cache[id] || []).find(x => x.id === recId); if (it) openTaskModal(id, it); }
 function toggleMM(recId){
-  const n = document.querySelector(`.mm-node[data-id="${recId}"]`);
-  if (n) n.classList.toggle('collapsed');
+  if (mmCollapsed.has(recId)) mmCollapsed.delete(recId); else mmCollapsed.add(recId);
+  mmRepaint();
 }
 
 /* ---------- article input ---------- */
@@ -2247,39 +2251,136 @@ async function renderProject(id){
   const s = SECTIONS[id];
   const tasks = data.tasks||[];
   cache[id] = tasks;
+  mmCurrentId = id;
   let html = `<div class="card" style="border-left:4px solid ${s.accent}">
     <div class="t" style="font-weight:700;margin-bottom:10px">📌 项目说明</div>
     <textarea class="note" id="projDesc" style="min-height:90px" placeholder="这个项目的目标、背景与关键里程碑…" onblur="saveProjDesc('${id}')">${esc(data.desc||'')}</textarea>
   </div>
-  <div class="card"><div class="h"><div class="t">任务思维导图（${tasks.length}）</div>
-    <button class="btn" onclick="addGeneric('${id}')">+ 任务</button></div>`;
-  if(!tasks.length) html += `<div class="empty">还没有任务，点击「+ 任务」添加第一个吧</div></div>`;
-  else html += renderTaskMindmap(id, tasks, s) + `</div>`;
+  <div class="card"><div class="h"><div class="t">任务思维导图（${tasks.length}）</div></div>
+    <div id="mmHost">${tasks.length ? renderTaskMindmap(id, tasks, s) : '<div class="empty" style="margin:6px 0 12px">还没有任务，点击根节点「'+esc(s.name)+'」右边的「＋」添加第一个吧</div>'}</div>
+  </div>`;
   view.innerHTML = html;
 }
 // 由「上级任务标题」(存父任务 ID) 构建思维导图：根=项目名，父级按 ID 匹配子任务，可折叠
+// 思维导图状态（仅前端，避免每次操作重新拉取）
+let mmCurrentId = null;
+let mmCollapsed = new Set();
+let mmEditTitleId = null;
+let mmEditNoteId = null;
+
+// 仅重绘思维导图（不重新请求后端，使用当前缓存）
+function mmRepaint(){
+  const id = mmCurrentId; if (!id) return;
+  const host = document.getElementById('mmHost'); if (!host) return;
+  host.innerHTML = renderTaskMindmap(id, cache[id] || [], SECTIONS[id]);
+}
+function placeCaretEnd(el){
+  const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
+  const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+}
+// 待办 ⇄ 完成：点击切换
+async function mmToggleStatus(id, recId){
+  const it = (cache[id] || []).find(x => x.id === recId); if (!it) return;
+  const next = (it.status === '待办') ? '已完成' : '待办';
+  try { await apiUpdate(id, recId, { status: next }); it.status = next; mmRepaint(); }
+  catch (e) { alert('保存失败：' + (e.message || e)); }
+}
+// 「每日」勾选格子：打勾＝显示截止时间（非每日）；取消＝每日任务（隐藏截止时间）
+async function mmToggleDaily(id, recId, checked){
+  const it = (cache[id] || []).find(x => x.id === recId); if (!it) return;
+  const daily = checked ? '否' : '是';
+  const deadline = checked ? (it.deadline || today()) : null;
+  try { await apiUpdate(id, recId, { daily, deadline }); it.daily = daily; it.deadline = deadline; mmRepaint(); }
+  catch (e) { alert('保存失败：' + (e.message || e)); }
+}
+// 设置截止时间（同时把任务切到「非每日」模式）
+async function mmSetDeadline(id, recId, val){
+  const it = (cache[id] || []).find(x => x.id === recId); if (!it) return;
+  const daily = val ? '否' : '是';
+  const deadline = val || null;
+  try { await apiUpdate(id, recId, { daily, deadline }); it.daily = daily; it.deadline = deadline; mmRepaint(); }
+  catch (e) { alert('保存失败：' + (e.message || e)); }
+}
+function mmPickDate(id, recId){
+  const inp = document.querySelector(`.mm-node[data-id="${recId}"] .mm-date`);
+  if (inp) { if (inp.showPicker) inp.showPicker(); else inp.focus(); }
+}
+// 行内编辑标题：✎→💾，点击保存上传并恢复
+async function mmEditTitle(id, recId){
+  mmEditTitleId = recId; mmEditNoteId = null; mmRepaint();
+  const el = document.querySelector(`.mm-node[data-id="${recId}"] .mm-title`);
+  if (el) { el.focus(); placeCaretEnd(el); }
+}
+async function mmSaveTitle(id, recId){
+  const el = document.querySelector(`.mm-node[data-id="${recId}"] .mm-title`);
+  const v = el ? el.innerText.trim() : '';
+  mmEditTitleId = null;
+  try { await apiUpdate(id, recId, { taskTitle: v }); const it = (cache[id] || []).find(x => x.id === recId); if (it) it.taskTitle = v; mmRepaint(); }
+  catch (e) { alert('保存失败：' + (e.message || e)); }
+}
+// 备注：无备注则新增空备注并进入编辑；有备注则直接进入编辑（失焦保存）
+async function mmAddNote(id, recId){
+  mmEditNoteId = recId; mmEditTitleId = null; mmRepaint();
+  const el = document.querySelector(`.mm-node[data-id="${recId}"] .mm-note`);
+  if (el) { el.focus(); placeCaretEnd(el); }
+}
+async function mmSaveNote(id, recId){
+  const el = document.querySelector(`.mm-node[data-id="${recId}"] .mm-note`);
+  const v = el ? el.innerText.trim() : '';
+  mmEditNoteId = null;
+  try { await apiUpdate(id, recId, { note: v }); const it = (cache[id] || []).find(x => x.id === recId); if (it) it.note = v; mmRepaint(); }
+  catch (e) { alert('保存失败：' + (e.message || e)); }
+}
+
 function renderTaskMindmap(id, tasks, s){
   const tidSet = new Set(tasks.map(t => String(t.tid)).filter(Boolean));
   const titleSet = new Set(tasks.map(t => (t.taskTitle || '').trim()).filter(Boolean));
-  const todayStr = today();
+  const tStr = today();
   const visited = new Set();
-  const statusClass = st => ({ '待办': 'st-todo', '进行中': 'st-doing', '已完成': 'st-done' }[st] || 'st-todo');
-  // 截止时间标签：每日→🔁；非每日且未完成→今天橙/超期红；已完成→绿
-  const deadlineTag = t => {
-    if ((t.daily || '是') === '是') return `<span class="mm-tag mm-daily">🔁 每日</span>`;
-    const d = (t.deadline || '').trim();
-    if (!d) return `<span class="mm-tag mm-nodeadline">⚠ 未设截止</span>`;
-    let cls = 'mm-deadline';
-    if ((t.status || '') === '已完成') cls += ' done';
-    else if (d === todayStr) cls += ' today';
-    else if (d < todayStr) cls += ' overdue';
-    return `<span class="mm-tag ${cls}">📅 ${esc(d)}</span>`;
+
+  // 待办 ⇄ 完成 切换按钮
+  const statusHTML = t => {
+    const done = (t.status || '待办') === '已完成';
+    return `<button class="mm-status ${done ? 'done' : ''}" title="点击切换 待办 / 完成" onclick="mmToggleStatus('${id}','${t.id}')">${done ? '完成' : '待办'}</button>`;
+  };
+  // 「每日」勾选格子：打勾＝显示截止时间（非每日）；未打勾＝显示「每日」二字
+  const dailyHTML = t => {
+    const isDaily = (t.daily || '是') === '是';          // 未打勾 → 每日
+    const chk = isDaily ? '' : 'checked';                 // 打勾 → 显示截止时间
+    const box = `<label class="mm-daily-chk" title="勾选＝设置截止时间（非每日）；取消＝每日任务"><input type="checkbox" ${chk} onchange="mmToggleDaily('${id}','${t.id}', this.checked)"></label>`;
+    if (!isDaily) {
+      const dl = (t.deadline || '').trim();
+      let dc = '';
+      if ((t.status || '') === '已完成') dc = 'done';
+      else if (dl && dl === tStr) dc = 'today';
+      else if (dl && dl < tStr) dc = 'overdue';
+      return `${box}<span class="mm-dl"><input type="date" class="mm-date ${dc}" value="${esc(dl)}" onchange="mmSetDeadline('${id}','${t.id}', this.value)"><span class="mm-cal" title="设置日期" onclick="mmPickDate('${id}','${t.id}')">📅</span></span>`;
+    }
+    return `${box}<span class="mm-daily-word">每日</span>`;
+  };
+  // 行内操作图标：＋子任务 / 编辑⇄保存 / 备注 / 删除（紧挨任务文字右边）
+  const opsHTML = t => {
+    const editing = (t.id === mmEditTitleId);
+    const editBtn = editing
+      ? `<button class="mm-ic" title="保存标题" onclick="mmSaveTitle('${id}','${t.id}')">💾</button>`
+      : `<button class="mm-ic" title="编辑标题" onclick="mmEditTitle('${id}','${t.id}')">✎</button>`;
+    return `<span class="mm-ops">
+      <button class="mm-ic" title="添加子任务" onclick="addSubTask('${id}','${String(t.tid || '')}')">＋</button>
+      ${editBtn}
+      <button class="mm-ic" title="备注" onclick="mmAddNote('${id}','${t.id}')">📝</button>
+      <button class="mm-ic" title="删除" onclick="delGeneric('${id}','${t.id}')">🗑</button>
+    </span>`;
+  };
+  // 备注行（有备注或正在编辑备注时显示）
+  const noteHTML = t => {
+    if (!t.note && t.id !== mmEditNoteId) return '';
+    const attr = (t.id === mmEditNoteId) ? ' contenteditable="true" onblur="mmSaveNote(\'' + id + '\',\'' + t.id + '\')"' : '';
+    return `<div class="mm-note"${attr}>${esc(t.note || '')}</div>`;
   };
   const renderNode = (t) => {
     if (visited.has(t.id)) return '';
     visited.add(t.id);
     const childTasks = [];
-    // 无论本节点自身有无父级，都要在其下收集子任务（按子任务的 parent == 本节点 tid/标题 匹配）
     tasks.forEach(c => {
       if (!visited.has(c.id)) {
         const cp = (c.parent || '').trim();
@@ -2287,22 +2388,22 @@ function renderTaskMindmap(id, tasks, s){
       }
     });
     const hasKids = childTasks.length > 0;
-    const idTag = t.tid ? ('#' + t.tid + ' ') : '';
-    const badge = `<span class="mm-badge ${statusClass(t.status)}">${esc(t.status || '待办')}</span>`;
+    const coll = mmCollapsed.has(t.id) ? 'collapsed' : '';
+    const idTag = t.tid ? `<span class="mm-id">#${t.tid}</span>` : '';
+    const titleEditable = (t.id === mmEditTitleId);
+    const titleCls = 'mm-title' + (titleEditable ? ' editing' : '');
+    const titleAttr = titleEditable ? ' contenteditable="true"' : '';
     const kidsHtml = hasKids ? `<div class="mm-children">${childTasks.map(renderNode).join('')}</div>` : '';
-    return `<div class="mm-node ${hasKids ? 'has-kids' : ''}" data-id="${t.id}">
-      <div class="mm-card ${statusClass(t.status)}">
+    return `<div class="mm-node ${coll}" data-id="${t.id}">
+      <div class="mm-row">
         <span class="mm-toggle" onclick="toggleMM('${t.id}')">${hasKids ? '▾' : '·'}</span>
-        <span class="mm-id">${idTag}</span>
-        <span class="mm-title">${esc(t.taskTitle || '(未命名)')}</span>
-        ${badge}
-        ${deadlineTag(t)}
-        <span class="mm-ops">
-          <button class="btn ghost mini" type="button" title="在此任务下添加子任务" onclick="addSubTask('${id}','${String(t.tid || '')}')">＋子任务</button>
-          <button class="btn ghost mini" type="button" onclick="editTask('${id}','${t.id}')">编辑</button>
-          <button class="btn danger mini" type="button" onclick="delGeneric('${id}','${t.id}')">删除</button>
-        </span>
+        ${idTag}
+        <span class="${titleCls}"${titleAttr}>${esc(t.taskTitle || '(未命名)')}</span>
+        ${statusHTML(t)}
+        ${dailyHTML(t)}
+        ${opsHTML(t)}
       </div>
+      ${noteHTML(t)}
       ${kidsHtml}
     </div>`;
   };
@@ -2311,14 +2412,17 @@ function renderTaskMindmap(id, tasks, s){
   const top = tasks.filter(isTop);
   const rootChildren = top.map(renderNode).join('');
   const orphans = tasks.filter(t => !visited.has(t.id)).map(renderNode).join('');
+  const emptyHint = (rootChildren || orphans) ? '' : '<div class="empty" style="margin:8px 0 4px">还没有任务，点击上方「＋」添加第一个吧</div>';
   return `<div class="mindmap">
     <div class="mm-node mm-root">
-      <div class="mm-card root" style="border-color:${s.accent}">
-        <span class="mm-toggle">▣</span>
-        <span class="mm-title">${esc(s.name)}</span>
-        <span class="mm-badge">${tasks.length} 个任务</span>
+      <div class="mm-row mm-root-row">
+        <span class="mm-toggle root" title="项目根">▣</span>
+        <span class="mm-title root-title">${esc(s.name)}</span>
+        <button class="mm-ic" title="添加任务" onclick="addGeneric('${id}')">＋</button>
+        <span class="mm-id">${tasks.length} 个任务</span>
       </div>
       <div class="mm-children">${rootChildren}${orphans}</div>
+      ${emptyHint}
     </div>
   </div>`;
 }
