@@ -801,6 +801,7 @@ async function getMonthPlan2(year, month) {
       content: (r['计划内容'] || ''),
       deadline: dateOnly(r['截止时间']),
       done: Number(r['完成标签']) ? 1 : 0,
+      daily: !!r['每日'],
     }))
     .sort((a, b) => (a.seq - b.seq) || String(a.deadline || '').localeCompare(String(b.deadline || '')) || String(a.id).localeCompare(String(b.id)));
   return out;
@@ -814,6 +815,7 @@ async function createMonthPlan2(rec) {
     计划内容: rec.content || '',
     截止时间: toFeishuDate(rec.deadline),
     完成标签: rec.done ? 1 : 0,
+    每日: !!rec.daily,
   };
   const id = await createRecord(MONTHPLAN2_TABLE, fields, BASE_TOKEN);
   return id;
@@ -824,6 +826,7 @@ async function updateMonthPlan2(id, rec) {
   if (rec.content != null) fields['计划内容'] = rec.content;
   if (rec.deadline !== undefined) fields['截止时间'] = toFeishuDate(rec.deadline);
   if (rec.done != null) fields['完成标签'] = rec.done ? 1 : 0;
+  if (rec.daily != null) fields['每日'] = !!rec.daily;
   await updateRecord(MONTHPLAN2_TABLE, id, fields, BASE_TOKEN);
   return { ok: true };
 }

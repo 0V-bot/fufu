@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 月度计划2.0 —— 在「傅傅的工作台」主 Base 新建「月度计划」表（幂等，可重复执行）。
- * 字段（7 个）：
+ * 字段（8 个）：
  *   1) 年份     type 2 (数字 / 整型)
  *   2) 月份     type 2 (数字 / 整型)
  *   3) 序号     type 2 (数字 / 整型)
@@ -9,6 +9,7 @@
  *   5) 计划内容 type 1 (文本)
  *   6) 截止时间 type 5 (日期，仅截取到日 yyyy-MM-dd)
  *   7) 完成标签 type 2 (数字，仅 0/1：0=未完成 1=已完成)
+ *   8) 每日     type 7 (复选框：每日任务则勾选，无需截止时间)
  *
  * 用法（在 workbench 目录下执行）：
  *   node setup_monthplan2_fields.js
@@ -92,6 +93,7 @@ function req(method, apiPath, body, token) {
     { name: '计划内容', type: 1 },
     { name: '截止时间', type: 5, property: { date_formatter: 'yyyy-MM-dd' } },
     { name: '完成标签', type: 2 },
+    { name: '每日', type: 7 },
   ];
   for (const f of FIELDS) {
     if (names.includes(f.name)) { console.log('  ↺ ' + f.name + ' 已存在，跳过'); continue; }
