@@ -196,19 +196,26 @@
   .habit .nm{font-weight:650;font-size:14.5px;}
   .streak{font-size:12px;color:var(--muted);}
   .streak b{color:#10b981;}
-  .wk-nav{display:flex;align-items:center;justify-content:center;gap:18px;margin:4px 0 16px;}
+  .wk-nav{display:flex;align-items:center;justify-content:center;gap:18px;margin:4px 0 10px;}
   .wk-label{font-size:13px;font-weight:650;color:#475069;}
   .wk-nav .btn[disabled]{opacity:.4;cursor:not-allowed;}
-  .habit .hr{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
-  .habit .nm{font-weight:650;font-size:14.5px;display:flex;align-items:center;gap:10px;min-width:120px;}
-  .habit .prog{flex:0 0 auto;font-size:14px;font-weight:700;color:#10b981;background:#ecfdf5;border:1px solid #bbf7d0;border-radius:20px;padding:4px 13px;white-space:nowrap;}
+  .habit-head{display:flex;align-items:center;gap:16px;margin:0 0 8px;padding:0 2px;}
+  .habit-head .left{flex:0 0 180px;}
+  .habit-head .wkw{flex:1;min-width:240px;}
+  .habit-head .wkcols{display:flex;gap:7px;}
+  .habit-head .wkcols i{flex:1;text-align:center;font-style:normal;font-size:11px;color:var(--muted);font-weight:600;}
+  .habit-head .del{flex:0 0 28px;}
+  .habit .hr{display:flex;align-items:center;gap:16px;flex-wrap:nowrap;}
+  .habit .left{flex:0 0 180px;display:flex;align-items:center;gap:10px;min-width:0;}
+  .habit .nm{font-weight:650;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .habit .prog{flex:0 0 auto;font-size:13.5px;font-weight:700;color:#10b981;background:#ecfdf5;border:1px solid #bbf7d0;border-radius:20px;padding:3px 11px;white-space:nowrap;}
   .habit .wkw{flex:1;min-width:240px;}
-  .habit .wkcols{display:flex;gap:7px;margin-bottom:4px;}
-  .habit .wkcols i{flex:1;text-align:center;font-style:normal;font-size:10.5px;color:var(--muted);}
   .habit .wkcells{display:flex;gap:7px;}
   .habit .wkcells .cell{height:30px;border-radius:9px;background:#eef1f7;cursor:pointer;display:grid;place-items:center;font-size:13px;transition:.12s;flex:1;}
   .habit .wkcells .cell.on{background:#10b981;color:#fff;}
   .habit .wkcells .cell.today{box-shadow:0 0 0 2px #f59e0b inset;}
+  .habit .del{flex:0 0 28px;text-align:center;border:none;background:transparent;cursor:pointer;font-size:15px;line-height:1;padding:6px;border-radius:8px;color:#cbd2e0;transition:.12s;}
+  .habit .del:hover{background:#fee2e2;color:#ef4444;}
 
   /* review */
   textarea.note{width:100%;min-height:200px;border:1px solid var(--line);border-radius:12px;padding:14px;font-family:inherit;font-size:14px;line-height:1.75;outline:none;resize:vertical;background:#fff;color:var(--ink);}
@@ -526,7 +533,7 @@ const NAV = [
   ]},
   {id:'daily', label:'每日管理', icon:'📅', children:[
     {id:'todos', label:'今日待办'},
-    {id:'habits', label:'微习惯', red:true},
+    {id:'habits', label:'微习惯'},
     {id:'review', label:'日复盘'},
     {id:'diary', label:'写日记'},
   ]},
@@ -538,7 +545,7 @@ const NAV = [
   ]},
   {id:'content', label:'灵感库', icon:'✍️', children:[
     {id:'insprec', label:'灵感记录'},
-    {id:'topics', label:'选题库', red:true},
+    {id:'topics', label:'选题库'},
     {id:'publish', label:'发布记录', red:true},
   ]},
   {id:'knowledge', label:'知识库', icon:'📚', children:[
@@ -1583,7 +1590,7 @@ async function renderHabits(){
   const a=days[0], b=days[6];
   const wkNo=Math.ceil(a.getDate()/7);
   const weekLabel = a.getFullYear()+'年'+(a.getMonth()+1)+'月 第'+wkNo+'周（'+(a.getMonth()+1)+'/'+a.getDate()+'~'+(b.getMonth()+1)+'/'+b.getDate()+'）';
-  const wd=['一','二','三','四','五','六','日'];
+  const wd=['周一','周二','周三','周四','周五','周六','周日'];
   const nextDisabled = habitWeekOffset>=0 ? 'disabled' : '';
   let html = `<div class="card"><div class="h"><div class="t">微习惯打卡</div>
     <div class="inline-add" style="margin:0;width:auto"><input id="habitInput" placeholder="新增习惯名称…" style="padding:7px 11px"/>
@@ -1592,20 +1599,21 @@ async function renderHabits(){
     <span class="wk-label">${weekLabel}</span>
     <button class="btn mini" ${nextDisabled} onclick="habitShiftWeek(1)">下周 ›</button></div>`;
   if(!arr.length){ html += `<div class="empty">还没有习惯，添加一个开始坚持吧 🌱</div></div>`; view.innerHTML=html; return; }
+  const headCols = wd.map(x=>`<i>${x}</i>`).join('');
+  html += `<div class="habit-head"><div class="left"></div><div class="wkw"><div class="wkcols">${headCols}</div></div><div class="del"></div></div>`;
   arr.forEach(h=>{
     const prog = habitMonthStats(h.history, a);
-    let cols='', cells='';
-    days.forEach((d,i)=>{
+    let cells='';
+    days.forEach(d=>{
       const dy=bjDateStr(d);
       const on = h.history && h.history[dy];
       const isToday = dy===bjToday();
-      cols += `<i>${wd[i]}</i>`;
       cells += `<div class="cell ${on?'on':''} ${isToday?'today':''}" onclick="toggleHabit('${h.id}','${dy}')">${on?'✓':''}</div>`;
     });
     html += `<div class="habit"><div class="hr">
-      <div class="nm">${esc(h.name)} <button class="btn danger mini" onclick="delHabit('${h.id}')">删除</button></div>
-      <div class="prog">${prog}</div>
-      <div class="wkw"><div class="wkcols">${cols}</div><div class="wkcells">${cells}</div></div>
+      <div class="left"><span class="nm">${esc(h.name)}</span><span class="prog">${prog}</span></div>
+      <div class="wkw"><div class="wkcells">${cells}</div></div>
+      <button class="del" title="删除" onclick="delHabit('${h.id}')">🗑</button>
     </div></div>`;
   });
   html += '</div>';
