@@ -2502,6 +2502,107 @@ async function toggleDashboardTodo(id){ const a=(dashCache&&dashCache.todayTodos
 
 /* ---------- main render ---------- */
 const view = document.getElementById('view');
+/* ---------- 选题库：行内可编辑表格（添加按钮置底 / 不弹窗 / 每行保存+删除 / 已使用勾选） ---------- */
+let topicsState = null;     // { rows:[{_uid,id,title,platform,status,note,used,_new}], loaded }
+let topicsUid = 0;
+let topicsMsg = '';
+const TOPIC_STATUS = ['灵感', '选题', '脚本中', '已发布'];
+function statusOpts(cur) {
+  return TOPIC_STATUS.map(o => `<option ${o === cur ? 'selected' : ''}>${esc(o)}</option>`).join('');
+}
+function topicsField(uid, key, val) {
+  if (!topicsState) return;
+  const row = topicsState.rows.find(r => r._uid === uid);
+  if (row) row[key] = val;
+}
+async function renderTopics() {
+  const s = SECTIONS.topics;
+  if (!topicsState || !topicsState.loaded) {
+    try {
+      const arr = await apiList('topics');
+      topicsState = {
+        rows: (arr || []).map(x => ({ _uid: ++topicsUid, id: x.id, title: x.title || '', platform: x.platform || '', status: x.status || '灵感', note: x.note || '', used: !!x.used, _new: false })),
+        loaded: true
+      };
+    } catch (e) {
+      view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message || e)}</div>`;
+      return;
+    }
+    cache.topics = topicsState.rows.map(x => ({ id: x.id }));
+  }
+  paintTopics();
+}
+function paintTopics() {
+  const s = SECTIONS.topics;
+  const rows = topicsState ? topicsState.rows : [];
+  let html = `<div class="card"><div class="h"><div class="t">${s.name}（${rows.length}）</div></div>`;
+  if (topicsMsg) html += `<div class="muted" style="color:#16a34a;margin:2px 10px 6px;font-size:13px">${esc(topicsMsg)}</div>`;
+  if (!rows.length) {
+    html += `<div class="empty">还没有选题，点击下方「+ 添加」开始记录 ✨</div>`;
+  } else {
+    html += `<div style="display:flex;gap:8px;padding:6px 10px;font-size:12px;color:#888;font-weight:600">
+      <span style="flex:2">选题</span><span style="flex:1">平台</span><span style="flex:1">状态</span>
+      <span style="flex:2">备注</span><span style="flex:1.6;text-align:right">已使用 / 操作</span></div>`;
+    rows.forEach(r => {
+      const inp = "padding:6px 8px;border:1px solid #ccd5e0;border-radius:6px;font-size:13px;min-width:0;background:#fff;color:#1f2937";
+      html += `<div class="item" style="display:flex;gap:8px;align-items:center;padding:8px 10px;margin:6px 0">
+        <input value="${esc(r.title)}" placeholder="选题" oninput="topicsField(${r._uid},'title',this.value)" style="flex:2;${inp}">
+        <input value="${esc(r.platform)}" placeholder="平台" oninput="topicsField(${r._uid},'platform',this.value)" style="flex:1;${inp}">
+        <select onchange="topicsField(${r._uid},'status',this.value)" style="flex:1;${inp}">${statusOpts(r.status)}</select>
+        <input value="${esc(r.note)}" placeholder="备注" oninput="topicsField(${r._uid},'note',this.value)" style="flex:2;${inp}">
+        <div style="flex:1.6;display:flex;gap:6px;align-items:center;justify-content:flex-end">
+          <label style="display:flex;align-items:center;gap:3px;white-space:nowrap;font-size:12px;color:#475569">
+            <input type="checkbox" ${r.used ? 'checked' : ''} onchange="topicsField(${r._uid},'used',this.checked)">已使用</label>
+          <button class="btn mini" onclick="topicsSaveRow(${r._uid})">保存</button>
+          <button class="btn danger mini" onclick="topicsDelRow(${r._uid})">删除</button>
+        </div></div>`;
+    });
+  }
+  html += `<div style="padding:10px"><button class="btn" onclick="topicsAddRow()">+ 添加</button></div></div>`;
+  view.innerHTML = html;
+}
+async function topicsSaveRow(uid) {
+  if (!topicsState) return;
+  const row = topicsState.rows.find(r => r._uid === uid);
+  if (!row) return;
+  const obj = { title: row.title || '', platform: row.platform || '', status: row.status || '灵感', note: row.note || '', used: !!row.used };
+  try {
+    if (row.id) {
+      await apiUpdate('topics', row.id, obj);
+    } else {
+      const c = await apiCreate('topics', obj);
+      row.id = c.id; row._new = false;
+    }
+    cache.topics = topicsState.rows.filter(r => r.id).map(r => ({ id: r.id }));
+    topicsMsg = row._new === false ? '✅ 已保存到飞书' : '✅ 已新增并保存到飞书';
+    paintTopics();
+    setTimeout(() => { if (topicsMsg) { topicsMsg = ''; paintTopics(); } }, 1600);
+  } catch (e) {
+    alert('保存失败：' + (e.message || e));
+  }
+}
+async function topicsDelRow(uid) {
+  if (!topicsState) return;
+  const row = topicsState.rows.find(r => r._uid === uid);
+  if (!row) return;
+  if (row.id) {
+    if (!confirm('确认删除这条选题？')) return;
+    try { await apiDelete('topics', row.id); }
+    catch (e) { alert('删除失败：' + (e.message || e)); return; }
+  }
+  topicsState.rows = topicsState.rows.filter(r => r._uid !== uid);
+  cache.topics = topicsState.rows.filter(r => r.id).map(r => ({ id: r.id }));
+  paintTopics();
+}
+function topicsAddRow() {
+  if (!topicsState) topicsState = { rows: [], loaded: true };
+  topicsState.rows.push({ _uid: ++topicsUid, id: null, title: '', platform: '', status: '灵感', note: '', used: false, _new: true });
+  paintTopics();
+  // 聚焦到新行的第一个输入框
+  const inputs = view.querySelectorAll('.item input');
+  if (inputs.length) inputs[inputs.length - 4] && inputs[inputs.length - 4].focus();
+}
+
 async function render(){
   setHeader(current);
   view.innerHTML = '<div class="empty">⏳ 加载中…</div>';
@@ -2522,6 +2623,7 @@ async function render(){
     if(kind==='grid') return await renderGrid(current);
     if(kind==='wishes') return await renderWishes();
     if(kind==='insprec') return await renderInsp();
+    if(kind==='topics') return await renderTopics();
     return await renderList(current, kind);
   }catch(e){
     view.innerHTML = `<div class="empty">⚠️ 出错了：${esc(e.message||e)}</div>`;
