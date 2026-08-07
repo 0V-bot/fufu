@@ -245,7 +245,11 @@
   .habit-head{display:flex;align-items:center;gap:6px;margin:0 0 6px;padding:0 2px;}
   .habit-head .nh{flex:0 0 150px;font-size:11px;color:var(--muted);font-weight:600;}
   .habit-head .daynums{flex:1;display:flex;gap:3px;}
-  .habit-head .daynums i{flex:1;text-align:center;font-style:normal;font-size:10px;color:var(--muted);font-weight:600;min-width:0;}
+  .habit-head .daynums i{flex:1;text-align:center;font-style:normal;font-size:10px;color:var(--muted);font-weight:600;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.05;padding:1px 0;border-radius:6px 6px 0 0;}
+  .habit-head .daynums i .dn{font-size:10px;}
+  .habit-head .daynums i .dw{font-size:9px;color:#9aa3b8;}
+  .habit-head .daynums i.we{background:#fdecec;}
+  .habit-head .daynums i.we .dw{color:#ef4444;font-weight:700;}
   .habit-head .ph{flex:0 0 52px;text-align:center;font-size:11px;color:var(--muted);font-weight:600;}
   .habit-head .dh{flex:0 0 28px;}
   .habit-row{display:flex;align-items:center;gap:6px;padding:9px 2px;border-top:1px solid var(--line);}
@@ -254,6 +258,7 @@
   .habit-nm{flex:0 0 150px;font-weight:650;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .habit-days{flex:1;min-width:0;display:flex;gap:3px;}
   .habit-days .cell{height:26px;border-radius:7px;background:#eef1f7;cursor:pointer;display:grid;place-items:center;font-size:12px;transition:.12s;flex:1;min-width:0;}
+  .habit-days .cell.we{background:#fdecec;}
   .habit-days .cell.on{background:#10b981;color:#fff;}
   .habit-days .cell.today{box-shadow:0 0 0 2px #f59e0b inset;}
   .habit-days .cell.disabled{cursor:not-allowed;opacity:.5;}
@@ -1647,6 +1652,7 @@ async function renderHabits(){
   catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
   cache.habits = arr;
   const info = habitMonthInfo(habitMonthOffset);
+  const todayStr = bjToday();
   const nextDisabled = habitMonthOffset>=0 ? 'disabled' : '';
   let html = `<div class="card"><div class="h"><div class="t">微习惯打卡</div>
     <div class="inline-add" style="margin:0;width:auto"><input id="habitInput" placeholder="新增习惯名称…" style="padding:7px 11px"/>
@@ -1655,7 +1661,12 @@ async function renderHabits(){
     <span class="mo-label">${info.label}</span>
     <button class="btn mini" ${nextDisabled} onclick="habitShiftMonth(1)">下一月 ›</button></div>`;
   if(!arr.length){ html += `<div class="empty">还没有习惯，添加一个开始坚持吧 🌱</div></div>`; view.innerHTML=html; return; }
-  const headNums = info.days.map(d=>`<i>${d.getDate()}</i>`).join('');
+  const wd=['日','一','二','三','四','五','六'];
+  const headNums = info.days.map(d=>{
+    const w=d.getDay();
+    const isWe=(w===0||w===6);
+    return `<i class="${isWe?'we':''}"><span class="dn">${d.getDate()}</span><span class="dw">${wd[w]}</span></i>`;
+  }).join('');
   html += `<div class="habit-head"><div class="nh">名称</div><div class="daynums">${headNums}</div><div class="ph">进度</div><div class="dh"></div></div>`;
   arr.forEach(h=>{
     const prog = habitMonthStats(h.history, info.y, info.m);
@@ -1663,9 +1674,11 @@ async function renderHabits(){
     info.days.forEach(d=>{
       const dy=bjDateStr(d);
       const on = h.history && h.history[dy];
-      const isToday = dy===bjToday();
-      const clickable = isToday;
-      const cls = 'cell ' + (on?'on ':'') + (isToday?'today ':'') + (clickable?'':'disabled');
+      const isToday = dy===todayStr;
+      const w = d.getDay();
+      const isWe = (w===0||w===6);
+      const clickable = dy <= todayStr;
+      const cls = 'cell ' + (on?'on ':'') + (isWe?'we ':'') + (isToday?'today ':'') + (clickable?'':'disabled');
       const onclick = clickable ? `onclick="toggleHabit('${h.id}','${dy}')"` : '';
       cells += `<div class="${cls.trim()}" ${onclick}>${on?'✓':''}</div>`;
     });
