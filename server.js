@@ -309,6 +309,7 @@ const SECTIONS = {
   bookcorner:  { table: '精神角落', kind: 'books' },
   wishes:      { table: WISH_TABLE, kind: 'wishes' },
   insprec:     { table: INSP_TABLE, kind: 'insprec' },
+  calendar:    { table: '日程', kind: 'calendar' },
 };
 // 人生灵感库 / 知识库分类页 富字段映射（两者同源「人生灵感库」表，结构完全一致）
 function readInspireFields(r) {
@@ -360,6 +361,7 @@ function readRec(kind, r) {
       note: r['备注'] || ''
     };
     case 'books':     return { id: r.record_id, title: r['书名'] || '', author: r['作者'] || '', category: sel(r['分类']) || '', status: sel(r['状态']) || '', note: r['读后感'] || '', source: r['来源'] || '', link: r['链接'] || '', date: dateOnly(r['日期']) };
+    case 'calendar':  return { id: r.record_id, date: dateOnly(r['日期']), title: r['标题'] || '', time: r['时间'] || '', note: r['备注'] || '', remind: !!r['提醒'] };
   }
   return { id: r.record_id };
 }
@@ -390,6 +392,7 @@ async function writeRec(kind, o, fix) {
     }
     case 'topics':    return { '选题': o.title, '平台': o.platform || '', '状态': o.status || '灵感', '备注': o.note || '', '已使用': !!o.used };
     case 'publish':   return { '标题': o.title, '日期': toFeishuDate(o.date), '平台': o.platform || '', '链接': o.link || '', '数据反馈': o.result || '' };
+    case 'calendar':  return { '日期': toFeishuDate(o.date), '标题': o.title || '', '时间': o.time || '', '备注': o.note || '', '提醒': !!o.remind };
     case 'knowledge': return { '文案标题': o.title, '标签': o.tags || '', '来源': o.source || '', 'AI总结': o.content || '' };
     case 'ptask': {
       const proj = PROJ_MAP[fix];
