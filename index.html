@@ -571,7 +571,7 @@ const NAV = [
     {id:'annual2', label:'年度计划'},
     {id:'monthplan2', label:'月度计划'},
     {id:'major', label:'重大事项', red:true},
-    {id:'wishes', label:'愿望清单'},
+    {id:'wishes', label:'100个愿望清单'},
     {id:'bookcorner', label:'精神角落'},
   ]},
   {id:'daily', label:'每日管理', icon:'📅', children:[
@@ -628,7 +628,7 @@ const SECTIONS = {
   emotion:{name:'情绪管理',kind:'kbcat',accent:'#0ea5e9',hint:'识别情绪、调节状态，做自己的情绪主人。'},
   growth:{name:'个人成长感悟',kind:'kbcat',accent:'#0d9488',hint:'关于自我成长、认知升级与人生进阶的沉淀。'},
   bookcorner:{name:'精神角落',kind:'books',accent:'#0d9488',hint:'记录读过的书，沉淀阅读与思考。'},
-  wishes:{name:'愿望清单',kind:'wishes',accent:'#2563eb',hint:'把想去的地方、想做的事写下来；实现了就打勾，并记录圆梦时刻。'},
+  wishes:{name:'100个愿望清单',kind:'wishes',accent:'#2563eb',hint:'把想去的地方、想做的事写下来；实现了就打勾，并记录圆梦时刻。'},
   insprec:{name:'灵感记录',kind:'insprec',accent:'#f97316',hint:'随手记下灵光一现，选择灵感类型（9 种可选，也可自由新增），积累你的灵感库。'},
 };
 
@@ -1498,7 +1498,7 @@ async function renderWishes(){
   arr.forEach(t => { if (t.realized) t.realized = fmtDeadline(t.realized); });
   const done = arr.filter(t=>t.done).length;
   let html = `<div class="card">
-    <div class="h"><div class="t">愿望清单 <span class="muted" style="font-weight:500">· 已实现 ${done}/${arr.length}</span></div></div>
+    <div class="h"><div class="t">100个愿望清单 <span class="muted" style="font-weight:500">· 已实现 ${done}/${arr.length}</span></div></div>
     <div class="wish-add">
       <input id="wishInput" placeholder="写下你的愿望，点「许愿」记录到清单…" onkeydown="if(event.key==='Enter')addWish()" />
       <button class="btn primary" onclick="addWish()">许愿</button>

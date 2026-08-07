@@ -537,9 +537,23 @@ async function sectionUpdate(id, rec, o) {
   const base = cfg.base || BASE_TOKEN;
   if (cfg.kind === 'ptask') {
     await ensureProjects();
-    if ((o.daily || '是') !== '是' && !(o.deadline || '').trim()) {
+    // 读回现有记录，把未提供的字段用现有值补齐，避免「部分更新」（如改标题/状态/每日）
+    // 把 ID(自增编号) / 上级任务标题(父编号) / 截止时间等覆盖成空或重新生成，导致父子关系丢失。
+    const existing = await sectionRecord(id, rec);
+    const merged = Object.assign({
+      tid: existing ? existing.tid : undefined,
+      taskTitle: existing ? existing.taskTitle : '',
+      parent: existing ? existing.parent : '',
+      daily: existing ? existing.daily : '是',
+      deadline: existing ? existing.deadline : '',
+      status: existing ? existing.status : '待办',
+      note: existing ? existing.note : ''
+    }, o);
+    if ((merged.daily || '是') !== '是' && !(merged.deadline || '').trim()) {
       const e = new Error('非「每日」任务必须设置截止时间'); e.status = 400; throw e;
     }
+    await updateRecord(cfg.table, rec, await writeRec(cfg.kind, merged, cfg.fix || cfg.proj), base);
+    return { ok: true };
   }
   await updateRecord(cfg.table, rec, await writeRec(cfg.kind, o, cfg.fix || cfg.proj), base);
   return { ok: true };
