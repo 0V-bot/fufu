@@ -158,12 +158,12 @@
   .cal-today{border-color:var(--brand);background:#f5f8ff;}
   .cal-today .cal-d{color:var(--brand);font-weight:800;}
   .cal-sel{outline:2px solid var(--brand);}
-  .cal-cnum{display:flex;align-items:baseline;gap:5px;}
+  .cal-cnum{position:absolute;top:6px;left:8px;display:flex;align-items:baseline;gap:5px;z-index:2;}
   .cal-d{font-size:13px;font-weight:700;color:#475569;}
   .cal-lunar{font-size:10px;color:var(--muted);}
-  .cal-add{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--brand);cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;transition:.12s;opacity:.5;}
+  .cal-add{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--brand);cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;transition:.12s;opacity:0;}
   .cal-add:hover{opacity:1;background:var(--brand);color:#fff;border-color:var(--brand);}
-  .cal-items{margin-top:6px;display:flex;flex-direction:column;gap:4px;}
+  .cal-items{margin-top:26px;display:flex;flex-direction:column;gap:4px;}
   .cal-it{display:flex;align-items:center;gap:4px;font-size:12px;background:#eef0ff;border-radius:7px;padding:3px 6px;cursor:pointer;transition:.12s;}
   .cal-it:hover{background:#e0e4ff;}
   .cal-it-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;text-align:left;}
@@ -2521,6 +2521,13 @@ function lunarText(yy,mm,dd){
   const m=(L.isLeap?'闰':'')+lunarMonthNames[L.lunarMonth-1]+'月';
   return m+cnLunarDay(L.lunarDay);
 }
+// 格子内农历：初一只显示月份（不写“初一”）；其余日期只显示日，不写月份
+function lunarCellText(yy,mm,dd){
+  const L=solarToLunar(yy,mm,dd);
+  const mName=(L.isLeap?'闰':'')+lunarMonthNames[L.lunarMonth-1];
+  if(L.lunarDay===1) return mName;
+  return cnLunarDay(L.lunarDay);
+}
 
 /* ---------- 提醒配色（按当前真实时间相对提醒时间） ---------- */
 // 提醒时间前1小时~前10分钟：橙黄；前后10分钟：红；后10分钟之后：紫；更早：默认
@@ -2602,7 +2609,7 @@ async function renderCalendar(){
       </div>`;
     }).join('');
     cells += `<div class="${cls}">
-      <div class="cal-cnum"><span class="cal-d">${d}</span><span class="cal-lunar">${lunarText(y,m,d)}</span></div>
+      <div class="cal-cnum"><span class="cal-d">${d}</span><span class="cal-lunar">${lunarCellText(y,m,d)}</span></div>
       <button class="cal-add" title="添加当天日程" onclick="calAddDay('${ymd}')">＋</button>
       <div class="cal-items">${listHtml}</div>
     </div>`;
