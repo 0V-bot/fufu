@@ -425,7 +425,6 @@
   .mm-row{display:flex; align-items:center; gap:8px; padding:4px 0; flex-wrap:nowrap;}
   .mm-toggle{cursor:pointer; width:16px; text-align:center; color:#94a3b8; user-select:none; flex:none; font-size:13px;}
   .mm-toggle.root{font-size:15px; color:var(--brand);}
-  .mm-id{font-size:11px; color:#b6bfce; flex:none;}
   .mm-title{font-weight:600; color:var(--ink); flex:none; min-width:0; word-break:break-word; max-width:340px;}
   .mm-title.root-title{font-size:16px; font-weight:800;}
   .mm-title[contenteditable="true"]{outline:2px solid var(--brand); border-radius:6px; padding:2px 6px; background:#fff; min-width:80px; max-width:440px;}
@@ -1203,7 +1202,7 @@ function onDailyToggle(){
 // 行内添加任务（不弹窗）：直接新建并进入标题编辑状态
 async function mmAddTask(id, parentTid){
   try {
-    const res = await apiCreate(id, { taskTitle:'', parent: String(parentTid || ''), daily:'否', deadline: today(), status:'待办', note:'' });
+    const res = await apiCreate(id, { taskTitle:'', parent: String(parentTid || ''), daily:'是', deadline: today(), status:'待办', note:'' });
     await render();
     const newId = res && res.id;
     if (!newId) { mmRepaint(); return; }
@@ -2402,7 +2401,6 @@ function renderTaskMindmap(id, tasks, s){
     });
     const hasKids = childTasks.length > 0;
     const coll = mmCollapsed.has(t.id) ? 'collapsed' : '';
-    const idTag = t.tid ? `<span class="mm-id">#${t.tid}</span>` : '';
     const titleEditable = (t.id === mmEditTitleId);
     const titleCls = 'mm-title' + (titleEditable ? ' editing' : '');
     const titleAttr = titleEditable ? ' contenteditable="true"' : '';
@@ -2411,7 +2409,6 @@ function renderTaskMindmap(id, tasks, s){
     return `<div class="mm-node ${coll}" data-id="${t.id}">
       <div class="mm-row">
         <span class="mm-toggle" onclick="toggleMM('${t.id}')">${hasKids ? '▾' : '·'}</span>
-        ${idTag}
         <span class="${titleCls}"${titleAttr}>${titleText}</span>
         ${statusHTML(t)}
         ${dailyHTML(t)}
@@ -2433,7 +2430,6 @@ function renderTaskMindmap(id, tasks, s){
         <span class="mm-toggle root" title="项目根">▣</span>
         <span class="mm-title root-title">${esc(s.name)}</span>
         <button class="mm-ic" title="添加任务" onclick="mmAddTask('${id}', '')">＋</button>
-        <span class="mm-id">${tasks.length} 个任务</span>
       </div>
       <div class="mm-children">${rootChildren}${orphans}</div>
       ${emptyHint}
