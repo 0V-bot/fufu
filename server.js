@@ -287,6 +287,10 @@ async function loadProjects() {
 async function ensureProjects() { if (!projectsLoaded) { await loadProjects(); projectsLoaded = true; } }
 
 /* ===================== 模块 → 飞书表 映射 ===================== */
+/* ===================== 年/月度计划表名常量（必须在 SECTIONS 之前声明，否则 TDZ 启动崩溃） ===================== */
+const ANNUAL2_TABLE = process.env.ANNUAL2_TABLE || '年度计划';
+const MONTHPLAN2_TABLE = process.env.MONTHPLAN2_TABLE || '月度计划';
+
 const SECTIONS = {
   major:       { table: '重大事项', kind: 'events' },
   todos:       { table: '每日待办', kind: 'todos' },
@@ -801,10 +805,7 @@ async function createTableOpen(name, fields) {
   }
   return tid;
 }
-/* ===================== 年度计划 2.0（模块式：飞书「年度计划」表） ===================== */
-const ANNUAL2_TABLE = process.env.ANNUAL2_TABLE || '年度计划';
-/* ===================== 月度计划 2.0（飞书「月度计划」表） ===================== */
-const MONTHPLAN2_TABLE = process.env.MONTHPLAN2_TABLE || '月度计划';
+/* ===================== 年/月度计划 2.0 表名常量已上移至 SECTIONS 之前（避免 TDZ 启动崩溃） ===================== */
 // 说明：年/月计划现已统一走通用 /api/section/:id 本地优先层（readRec/writeRec/sectionCreate 等），
 // 其字段映射见上方 readRec/writeRec 的 'annual2' / 'monthplan2' 分支；专用 helper 已移除。
 // 向某表的单选字段追加一个新选项。
