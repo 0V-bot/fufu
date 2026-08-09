@@ -2029,7 +2029,7 @@ async function delWish(id){
 }
 
 /* ---------- 灵感记录 ---------- */
-let inspArr=[], inspTypes=[], inspResizeObserver=null;
+let inspArr=[], inspTypes=[], inspResizeObserver=null, inspSizeSaveBound=false;
 // 卡片尺寸为纯本地私有字段：仅写本地 IndexedDB，不打 _dirty、不进 payload、不触发待同步
 async function saveInspSize(id, size){
   console.log('[size-diag] saveInspSize 调用 id=', id, 'size=', size);
@@ -2068,6 +2068,20 @@ async function renderInsp(){
   html += `</div></div>`;
   view.innerHTML = html;
   // 卡片尺寸：应用已存尺寸 + 监听用户拖拽（ResizeObserver），写入后持久保存
+  // 双保险：全局 mouseup/touchend 在拖拽手柄松手时保存当前尺寸，避免依赖 ResizeObserver 触发时机导致漏存
+  if(!inspSizeSaveBound){
+    inspSizeSaveBound = true;
+    const onUp = () => {
+      document.querySelectorAll('.tcard').forEach(c=>{
+        const id = c.id && c.id.indexOf('icard-')===0 ? c.id.slice(6) : null;
+        if(!id) return;
+        const now = Math.round(c.offsetWidth)+'x'+Math.round(c.offsetHeight);
+        if(now !== c._szBase){ c._szBase = now; console.log('[size-diag] mouseup 保存尺寸', id, now); saveInspSize(id, now); }
+      });
+    };
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchend', onUp);
+  }
   if(inspResizeObserver) inspResizeObserver.disconnect();
   inspResizeObserver = new ResizeObserver(entries=>{
     for(const en of entries){
