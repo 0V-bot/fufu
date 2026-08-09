@@ -709,15 +709,28 @@ function openDB(){
 async function idbAll(){ const db=await openDB(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readonly'); const r=tx.objectStore(STORE).getAll(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error); }); }
 async function idbPut(doc){ const db=await openDB(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put(doc); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
 async function idbDelete(key){ const db=await openDB(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).delete(key); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
+async function idbGet(key){ const db=await openDB(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readonly'); const r=tx.objectStore(STORE).get(key); r.onsuccess=()=>res(r.result||null); r.onerror=()=>rej(r.error); }); }
+// 项目说明(desc) 离线缓存：先读本地，再后台刷新飞书并回写本地
+async function loadProjDesc(secId){
+  const cached = await idbGet(lkey('__desc__', secId));
+  let desc = cached && cached.data ? (cached.data.desc||'') : '';
+  try { const d = await apiProject(secId); desc = (d && d.desc) || ''; await idbPut({ key:lkey('__desc__', secId), sectionId:'__desc__', id:secId, data:{desc}, _op:'sync', _dirty:false, _ts:0 }); }
+  catch(e){ /* 离线：用缓存 */ }
+  return desc;
+}
 
 const uuid = () => 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
 // 人生灵感库(wisdom) 与所有知识库分类页(kbcat/knowledge) 同源「人生灵感库」表 → 统一存到 'inspiration' 本地桶
 function localSection(id){ const k = SECTIONS[id] && SECTIONS[id].kind; return (k==='wisdom'||k==='knowledge'||k==='kbcat') ? 'inspiration' : id; }
 function lkey(sec, id){ return sec + '::' + id; }
-// 项目(ptask 思维导图) 仍走网络，不进本地缓存
-function localExcluded(id){ const k = SECTIONS[id] && SECTIONS[id].kind; return k==='project' || k==='ptask'; }
-const BACKED_KINDS = ['events','todos','wisdom','knowledge','kbcat','topics','publish','books','wishes','insprec','calendar','annual2','monthplan2','review','diary','habits','habitCheck'];
+// 项目(ptask 思维导图) 已纳入本地优先缓存 + 双向同步（与年/月计划等一致）；
+// 父子关联靠 tid：离线时本地分配 L 前缀临时 tid 建树，同步后回写真实 tid 并修正子任务指向。
+function localExcluded(id){ return false; }
+const BACKED_KINDS = ['events','todos','wisdom','knowledge','kbcat','topics','publish','books','wishes','insprec','calendar','annual2','monthplan2','review','diary','habits','habitCheck','project','ptask'];
 function sectionBacked(id){ const s = SECTIONS[id]; return s && BACKED_KINDS.includes(s.kind); }
+// ptask 类（project / ptask）通用判断与 tid 工具
+function isPtaskKind(k){ return k==='project' || k==='ptask'; }
+function isRealTid(v){ return v!=null && v!=='' && /^\d+$/.test(String(v)); }
 const txt = v => (v && typeof v==='object') ? (v.text||'') : (v||'');
 // 人生灵感库：飞书中文键 → 前端友好字段
 function wisdomFromFeishu(f){ if(!f||typeof f!=='object') return {}; const g=k=>f[k]||''; return {
@@ -773,11 +786,14 @@ async function localCreate(sectionId, obj){
   const sec = localSection(sectionId);
   const id = uuid();
   const data = Object.assign({}, obj); data.id = id;
+  const k = SECTIONS[sectionId] && SECTIONS[sectionId].kind;
+  if(isPtaskKind(k) && !isRealTid(data.tid)) data.tid = 'L'+id; // 本地临时 tid：离线建树用，推送时剥离
   if(SECTIONS[sectionId] && (SECTIONS[sectionId].kind==='knowledge' || SECTIONS[sectionId].kind==='kbcat')){
     if(data.tags!=null && data.tag==null) data.tag = data.tags;
     if(!data.tag) data.tag = SECTIONS[sectionId].name;
   }
   const payload = sectionPayload(sectionId, data); delete payload.id;
+  if(isPtaskKind(k) && !isRealTid(data.tid)) delete payload.tid; // 让后端分配真实序号
   const doc = { key:lkey(sec,id), sectionId:sec, pushSection:sectionId, id, realId:'', data, _op:'create', _dirty:true, _ts:Date.now(), payload };
   await idbPut(doc); updateSyncBadge();
   return { id };
@@ -801,6 +817,7 @@ async function localUpdate(sectionId, rec, obj){
   doc._op = (doc._op==='create') ? 'create' : 'update';
   doc._dirty = true; doc._ts = doc._ts || Date.now();
   const payload = sectionPayload(sectionId, merged); delete payload.id;
+  if(isPtaskKind(SECTIONS[sectionId] && SECTIONS[sectionId].kind) && !isRealTid(merged.tid)) delete payload.tid; // 本地 tid 不回传，让后端分配
   doc.payload = payload;
   await idbPut(doc); updateSyncBadge();
   return { ok:true };
@@ -827,10 +844,31 @@ async function mergePull(sec, arr){
   const remoteIds = new Set(arr.map(r=>r.id).filter(Boolean));
   const locals = (await idbAll()).filter(d=> d.sectionId===sec);
   const localByReal = {}; locals.forEach(d=>{ if(d.realId) localByReal[d.realId]=d; });
+  const tidMap = {}; // 本地临时 tid -> 真实 tid（同步回写后用于修正子任务指向）
   for(const r of arr){ if(!r||!r.id) continue;
     const ex = localByReal[r.id];
-    if(ex){ if(!ex._dirty){ ex.data=r; ex._op='sync'; ex._dirty=false; ex._ts=0; await idbPut(ex); } }
+    if(ex){ if(!ex._dirty){
+      const oldTid = ex.data && ex.data.tid;
+      if(!isRealTid(oldTid)) tidMap[String(oldTid)] = r.tid; // 记录本地→真实 tid
+      ex.data=r; ex._op='sync'; ex._dirty=false; ex._ts=0; await idbPut(ex);
+    } }
     else { await idbPut({ key:lkey(sec,r.id), sectionId:sec, pushSection:sec, id:r.id, realId:r.id, data:r, _op:'sync', _dirty:false, _ts:0 }); }
+  }
+  // 把子任务的 parent 从「本地临时 tid」改写为「真实 tid」，并重新生成 payload 以便下一轮推送（否则仍会用旧本地 tid 推送）
+  if(Object.keys(tidMap).length){
+    for(const d of locals){
+      if(d.sectionId!==sec) continue;
+      const p = d.data && d.data.parent;
+      if(p!=null && p!=='' && tidMap[String(p)]!=null){
+        d.data = Object.assign({}, d.data, { parent: String(tidMap[String(p)]) });
+        if(d.realId){ d._op='update'; } else { d._op='create'; }
+        d._dirty = true;
+        const pay = sectionPayload(sec, d.data); delete pay.id;
+        if(isPtaskKind(SECTIONS[sec]&&SECTIONS[sec].kind) && !isRealTid(d.data.tid)) delete pay.tid;
+        d.payload = pay;
+        await idbPut(d);
+      }
+    }
   }
   for(const d of locals){ if(d.realId && !remoteIds.has(d.realId) && !d._dirty) await idbDelete(d.key); } // 外部已删除
 }
@@ -838,11 +876,17 @@ async function syncNow(){
   if(window._syncing) return;
   window._syncing = true; setSyncState('syncing');
   const errors = [];
-  try{
+  const pushDirty = async () => {
     const all = await idbAll();
     const dirty = all.filter(d=> d._dirty);
     for(const doc of dirty){
       try{
+        const k = SECTIONS[doc.pushSection] && SECTIONS[doc.pushSection].kind;
+        // ptask 子任务：父任务仍为本地临时 tid → 暂不可推送（后端按 tid 关联，父 tid 未知），留待父同步后下一轮再推
+        if(isPtaskKind(k)){
+          const p = doc.data && doc.data.parent;
+          if(p!=null && p!=='' && !isRealTid(p)) continue;
+        }
         if(doc._op==='delete'){ if(doc.realId) await _netDelete(doc.pushSection, doc.realId); await idbDelete(doc.key); }
         else if(doc._op==='create'){
           const r = await _netCreate(doc.pushSection, doc.payload);
@@ -852,15 +896,24 @@ async function syncNow(){
         } else { if(doc.realId) await _netUpdate(doc.pushSection, doc.realId, doc.payload); doc._dirty=false; doc._op='sync'; doc._ts=0; await idbPut(doc); }
       }catch(e){ errors.push((doc.pushSection||'')+'/'+doc._op+'：'+(e.message||e)); }
     }
-    // 拉取所有本地桶对应的飞书表（inspiration 桶涵盖灵感库+全部知识库分类）
-    const canonicalSet = new Set();
-    Object.keys(SECTIONS).forEach(id=>{ if(!localExcluded(id) && sectionBacked(id)) canonicalSet.add(localSection(id)); });
-    for(const sec of canonicalSet){
-      try{
-        const remote = await apiJson('/section/'+sec+'?full=1');
-        await mergePull(sec, Array.isArray(remote)?remote:[]);
-        _seeded[sec] = true;
-      }catch(e){ errors.push('拉取 '+sec+'：'+(e.message||e)); }
+  };
+  try{
+    // 多轮：推送 → 拉取(回写 tid 并修正子任务 parent) → 再推送被修正的子任务，直至无待推送
+    let pass=0;
+    while(pass<12){
+      await pushDirty();
+      const canonicalSet = new Set();
+      Object.keys(SECTIONS).forEach(id=>{ if(!localExcluded(id) && sectionBacked(id)) canonicalSet.add(localSection(id)); });
+      for(const sec of canonicalSet){
+        try{
+          const remote = await apiJson('/section/'+sec+'?full=1');
+          await mergePull(sec, Array.isArray(remote)?remote:[]);
+          _seeded[sec] = true;
+        }catch(e){ errors.push('拉取 '+sec+'：'+(e.message||e)); }
+      }
+      const stillDirty = (await idbAll()).filter(d=> d._dirty).length;
+      if(!stillDirty) break;
+      pass++;
     }
   }catch(e){ errors.push('同步异常：'+(e.message||e)); }
   finally{ window._syncing = false; }
@@ -2712,11 +2765,12 @@ async function renderMajorExpand(){
   const secId = ensureMajorSectionFrontend(recId, name);
   try { await apiEnsureMajor(recId); }
   catch(e){ wrap.innerHTML = `<div class="empty">⚠️ 展开失败：${esc(e.message||e)}</div>`; return; }
-  let data;
-  try { data = await apiProject(secId); }
+  let tasks, desc = '';
+  try { tasks = await localList(secId); }
   catch(e){ wrap.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  tasks.sort((a,b)=> (a.tid||0)-(b.tid||0));
+  try { desc = await loadProjDesc(secId); } catch(e){}
   const s = SECTIONS[secId];
-  const tasks = data.tasks || [];
   cache[secId] = tasks;
   mmCurrentId = secId;
   if (!tasks.length) {
@@ -2726,7 +2780,7 @@ async function renderMajorExpand(){
   }
   wrap.innerHTML = `<div class="card" style="border-left:4px solid ${s.accent}">
     <div class="t" style="font-weight:700;margin-bottom:10px">📌 事项说明</div>
-    <textarea class="note" id="projDesc" style="min-height:80px" placeholder="这个重大事项的目标、背景与关键里程碑…" onblur="saveProjDesc('${secId}')">${esc(data.desc || '')}</textarea>
+    <textarea class="note" id="projDesc" style="min-height:80px" placeholder="这个重大事项的目标、背景与关键里程碑…" onblur="saveProjDesc('${secId}')">${esc(desc || '')}</textarea>
   </div>
   <div class="card"><div class="h"><div class="t">任务思维导图（${tasks.length}）</div></div>
     <div id="mmHost">${renderTaskMindmap(secId, tasks, s)}</div>
@@ -2933,11 +2987,13 @@ async function calDelSchedule(id){
 }
 
 async function renderProject(id){
-  let data;
-  try{ data = await apiProject(id); }
+  let tasks, desc='';
+  try{ tasks = await localList(id); }
   catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  tasks.sort((a,b)=> (a.tid||0)-(b.tid||0));
+  try{ desc = await loadProjDesc(id); }catch(e){}
   const s = SECTIONS[id];
-  const tasks = data.tasks||[];
+  const data = { desc };
   cache[id] = tasks;
   mmCurrentId = id;
   let html = `<div class="card" style="border-left:4px solid ${s.accent}">
@@ -3112,7 +3168,12 @@ function renderTaskMindmap(id, tasks, s){
     </div>
   </div>`;
 }
-async function saveProjDesc(id){ const v=document.getElementById('projDesc').value; try{ await apiSaveProjectDesc(id,v); }catch(e){ alert('保存失败：'+(e.message||e)); } }
+async function saveProjDesc(id){
+  const v = (document.getElementById('projDesc')||{}).value || '';
+  // 先写本地缓存（离线可读），再尝试写入飞书
+  try{ await idbPut({ key:lkey('__desc__', id), sectionId:'__desc__', id, data:{desc:v}, _op:'sync', _dirty:false, _ts:0 }); }catch(e){}
+  try{ await apiSaveProjectDesc(id, v); }catch(e){ /* 网络失败：已存本地，联网后可补；此处不弹窗以免干扰 */ }
+}
 
 /* ---------- dashboard ---------- */
 let dashCache = null;
