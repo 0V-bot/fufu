@@ -75,6 +75,16 @@
   .page-title .tag{font-size:12px;font-weight:600;color:#fff;background:var(--brand);padding:3px 10px;border-radius:999px;}
   .page-hint{font-size:13px;color:var(--muted);margin-top:4px;}
   .date-pill{font-size:13px;color:var(--muted);background:var(--panel);border:1px solid var(--line);padding:7px 14px;border-radius:999px;box-shadow:var(--shadow);}
+  .topbar-right{display:flex;align-items:center;gap:12px;}
+  .sync-btn{position:relative;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#fff;background:var(--brand);border:none;padding:8px 16px;border-radius:999px;cursor:pointer;box-shadow:var(--shadow);transition:background .15s,transform .1s;}
+  .sync-btn:hover{filter:brightness(1.06);}
+  .sync-btn:active{transform:scale(.97);}
+  .sync-btn.syncing{background:#f59e0b;pointer-events:none;}
+  .sync-btn.syncing .sync-ic{animation:spin 1s linear infinite;}
+  .sync-btn.done{background:#16a34a;}
+  .sync-btn.err{background:#dc2626;}
+  .sync-badge{position:absolute;top:-7px;right:-7px;min-width:18px;height:18px;line-height:18px;text-align:center;font-size:11px;color:#fff;background:#ef4444;border-radius:999px;padding:0 5px;box-shadow:0 0 0 2px var(--panel);}
+  @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 
   /* Cards / grid */
   .grid{display:grid;gap:16px;}
@@ -598,7 +608,12 @@
         <div class="page-title" id="pageTitle"></div>
         <div class="page-hint" id="pageHint"></div>
       </div>
-      <div class="date-pill" id="datePill"></div>
+      <div class="topbar-right">
+        <button class="sync-btn" id="syncBtn" onclick="syncNow()" title="把本地修改同步到飞书，并拉取飞书上的外部变更（双向同步，本地修改优先）">
+          <span class="sync-ic" id="syncIcon">🔄</span><span id="syncLabel">同步</span><span class="sync-badge" id="syncBadge" style="display:none">0</span>
+        </button>
+        <div class="date-pill" id="datePill"></div>
+      </div>
     </div>
     <div id="view"></div>
   </main>
@@ -620,10 +635,17 @@ async function apiJson(url, opts){
   if(!r.ok) throw new Error((j && (j.error||j.msg)) || ('请求失败 ('+r.status+')'));
   return j;
 }
-const apiList   = id => apiJson('/section/'+id);
-const apiCreate = (id,obj) => apiJson('/section/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});
-const apiUpdate = (id,rec,obj) => apiJson('/section/'+id+'/'+rec,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});
-const apiDelete = (id,rec) => apiJson('/section/'+id+'/'+rec,{method:'DELETE'});
+// 本地优先：读/写先走 IndexedDB（瞬时），写标记 dirty；「同步」按钮再与飞书双向同步。
+// 项目 / 重大事项思维导图(ptask) 仍走网络（其读路径是 /project，不在本地缓存范围内）。
+const apiList   = id => localList(id);
+const apiCreate = (id,obj) => localCreate(id, obj);
+const apiUpdate = (id,rec,obj) => localUpdate(id, rec, obj);
+const apiDelete = (id,rec) => localDelete(id, rec);
+// 网络版（本地数据库不可用时降级 / 同步推送用）
+const _netList = id => apiJson('/section/'+id);
+const _netCreate = (id,obj) => apiJson('/section/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});
+const _netUpdate = (id,rec,obj) => apiJson('/section/'+id+'/'+rec,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});
+const _netDelete = (id,rec) => apiJson('/section/'+id+'/'+rec,{method:'DELETE'});
 const apiHabits = () => apiJson('/habits');
 const apiCreateHabit = name => apiJson('/habits',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
 const apiDeleteHabit = rec => apiJson('/habits/'+rec,{method:'DELETE'});
@@ -634,6 +656,207 @@ const apiDiary = () => apiJson('/diary');
 const apiProject = section => apiJson('/project/'+section);
 const apiSaveProjectDesc = (section,desc) => apiJson('/project-desc',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({section,desc})});
 const apiEnsureMajor = recId => apiJson('/major-ensure/'+recId,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+
+/* ===================== 本地优先数据层 (IndexedDB) ===================== */
+const DB_NAME = 'fufu_workbench', DB_VER = 1, STORE = 'records';
+let _db = null, _dbPromise = null, _dbOk = true;
+function openDB(){
+  if(_dbPromise) return _dbPromise;
+  if(!window.indexedDB) { _dbOk = false; return Promise.reject(new Error('浏览器不支持 IndexedDB')); }
+  _dbPromise = new Promise((res, rej)=>{
+    try{
+      const req = indexedDB.open(DB_NAME, DB_VER);
+      req.onupgradeneeded = e=>{ const db = e.target.result; if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'key' }); };
+      req.onsuccess = e=>{ _db = e.target.result; _dbOk = true; res(_db); };
+      req.onerror = e=>{ _dbOk = false; rej(e.target.error); };
+    }catch(e){ _dbOk = false; rej(e); }
+  });
+  return _dbPromise;
+}
+async function idbAll(){ const db=await openDB(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readonly'); const r=tx.objectStore(STORE).getAll(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error); }); }
+async function idbPut(doc){ const db=await openDB(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put(doc); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
+async function idbDelete(key){ const db=await openDB(); return new Promise((res,rej)=>{ const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).delete(key); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
+
+const uuid = () => 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+// 人生灵感库(wisdom) 与所有知识库分类页(kbcat/knowledge) 同源「人生灵感库」表 → 统一存到 'inspiration' 本地桶
+function localSection(id){ const k = SECTIONS[id] && SECTIONS[id].kind; return (k==='wisdom'||k==='knowledge'||k==='kbcat') ? 'inspiration' : id; }
+function lkey(sec, id){ return sec + '::' + id; }
+// 项目(ptask 思维导图) 仍走网络，不进本地缓存
+function localExcluded(id){ const k = SECTIONS[id] && SECTIONS[id].kind; return k==='project' || k==='ptask'; }
+const BACKED_KINDS = ['events','todos','wisdom','knowledge','kbcat','topics','publish','books','wishes','insprec','calendar'];
+function sectionBacked(id){ const s = SECTIONS[id]; return s && BACKED_KINDS.includes(s.kind); }
+const txt = v => (v && typeof v==='object') ? (v.text||'') : (v||'');
+// 人生灵感库：飞书中文键 → 前端友好字段
+function wisdomFromFeishu(f){ if(!f||typeof f!=='object') return {}; const g=k=>f[k]||''; return {
+  title:g('文案标题'), cat1:txt(g('一级分类')), cat2:txt(g('二级分类')), cat3:txt(g('三级分类')),
+  tag:txt(g('标签')), keywords:g('关键词'), ctype:txt(g('内容类型')), status:txt(g('是否整理')),
+  date:g('收藏日期')||'', source:g('来源'), sourceLink:g('来源链接'), summary:g('AI总结'),
+  quote:g('金句提炼'), original:g('原始文案'), abstract:g('AI搜索摘要'), reflection:g('个人感悟')
+}; }
+// 前端友好字段 → 飞书中文键（推送用）
+function wisdomToFeishu(d){ const sel=v=>v?{text:v}:null; const g=k=>(d&&d[k]!=null?d[k]:''); return {
+  '文案标题':g('title'), '一级分类':sel(g('cat1')), '二级分类':sel(g('cat2')), '三级分类':sel(g('cat3')),
+  '标签':sel(g('tag')), '内容类型':sel(g('ctype')), '关键词':g('keywords'), '是否整理':sel(g('status')),
+  '收藏日期':g('date')?g('date'):null, '来源':g('source'), '来源链接':g('sourceLink'),
+  'AI总结':g('summary'), '金句提炼':g('quote'), '原始文案':g('original'), 'AI搜索摘要':g('abstract'), '个人感悟':g('reflection')
+}; }
+// 本地写入飞书时用的负载（kind 决定是否需要中文键包装）
+function sectionPayload(id, data){
+  const k = SECTIONS[id] && SECTIONS[id].kind;
+  if(k==='wisdom') return wisdomToFeishu(data);
+  if(k==='knowledge' || k==='kbcat') return { title:data.title||'', content:(data.summary!=null?data.summary:data.content)||'', source:data.source||'', tags:(data.tag!=null?data.tag:data.tags)||'' };
+  return Object.assign({}, data);
+}
+
+const _seeded = {};
+async function ensureLocal(sectionId){
+  const sec = localSection(sectionId);
+  if(_seeded[sec]) return;
+  _seeded[sec] = true;
+  if(localExcluded(sectionId) || !sectionBacked(sectionId)) return;
+  try{
+    const remote = await apiJson('/section/'+sectionId+'?full=1');
+    const arr = Array.isArray(remote) ? remote : [];
+    for(const it of arr){ if(!it || !it.id) continue;
+      await idbPut({ key:lkey(sec,it.id), sectionId:sec, pushSection:sectionId, id:it.id, realId:it.id, data:it, _op:'sync', _dirty:false, _ts:0 });
+    }
+  }catch(e){ console.warn('本地缓存种子失败('+sectionId+'):', e.message); _seeded[sec]=false; }
+}
+async function localList(sectionId){
+  if(localExcluded(sectionId) || !sectionBacked(sectionId)) return _netList(sectionId);
+  await ensureLocal(sectionId);
+  const sec = localSection(sectionId);
+  const all = (await idbAll()).filter(d=> d.sectionId===sec && d._op!=='delete');
+  all.sort((a,b)=>{ const ta=a._ts||0, tb=b._ts||0; if(ta!==tb) return tb-ta; return String(b.id).localeCompare(String(a.id)); });
+  let data = all.map(d=>d.data);
+  if(sec==='inspiration' && sectionId!=='inspiration'){
+    const tag = SECTIONS[sectionId] && SECTIONS[sectionId].name;
+    data = data.filter(x=> (x.tag||'')===tag);
+  }
+  return data;
+}
+async function localCreate(sectionId, obj){
+  if(localExcluded(sectionId) || !sectionBacked(sectionId)) return _netCreate(sectionId, obj);
+  const sec = localSection(sectionId);
+  const id = uuid();
+  const data = Object.assign({}, obj); data.id = id;
+  if(SECTIONS[sectionId] && (SECTIONS[sectionId].kind==='knowledge' || SECTIONS[sectionId].kind==='kbcat')){
+    if(data.tags!=null && data.tag==null) data.tag = data.tags;
+    if(!data.tag) data.tag = SECTIONS[sectionId].name;
+  }
+  const payload = sectionPayload(sectionId, data); delete payload.id;
+  const doc = { key:lkey(sec,id), sectionId:sec, pushSection:sectionId, id, realId:'', data, _op:'create', _dirty:true, _ts:Date.now(), payload };
+  await idbPut(doc); updateSyncBadge();
+  return { id };
+}
+async function localUpdate(sectionId, rec, obj){
+  if(localExcluded(sectionId) || !sectionBacked(sectionId)) return _netUpdate(sectionId, rec, obj);
+  const sec = localSection(sectionId);
+  const key = lkey(sec, rec);
+  const docs = (await idbAll()).filter(d=> d.key===key);
+  const doc = docs[0];
+  if(!doc){ // 记录不存在（如外部导入的详情），按新建处理
+    const base = Object.assign({id:rec}, obj);
+    if(SECTIONS[sectionId] && SECTIONS[sectionId].kind==='wisdom') Object.assign(base, wisdomFromFeishu(obj));
+    return localCreate(sectionId, base);
+  }
+  let merged;
+  if(SECTIONS[sectionId] && SECTIONS[sectionId].kind==='wisdom') merged = Object.assign({}, doc.data, wisdomFromFeishu(obj));
+  else merged = Object.assign({}, doc.data, obj);
+  merged.id = doc.id;
+  doc.data = merged;
+  doc._op = (doc._op==='create') ? 'create' : 'update';
+  doc._dirty = true; doc._ts = doc._ts || Date.now();
+  const payload = sectionPayload(sectionId, merged); delete payload.id;
+  doc.payload = payload;
+  await idbPut(doc); updateSyncBadge();
+  return { ok:true };
+}
+async function localDelete(sectionId, rec){
+  if(localExcluded(sectionId) || !sectionBacked(sectionId)) return _netDelete(sectionId, rec);
+  const sec = localSection(sectionId);
+  const key = lkey(sec, rec);
+  const docs = (await idbAll()).filter(d=> d.key===key);
+  const doc = docs[0];
+  if(!doc) return { ok:true };
+  if(doc._op==='create'){ await idbDelete(key); updateSyncBadge(); return { ok:true }; } // 尚未同步，直接丢弃
+  doc._op='delete'; doc._dirty=true; await idbPut(doc); updateSyncBadge();
+  return { ok:true };
+}
+
+/* ---- 灵感库类：本地搜索/筛选/分页（复刻服务端逻辑） ---- */
+function slimLocal(it){ const keep=['id','ID','title','cat1','cat2','cat3','tag','quote','summary','keywords','ctype','date','status','source']; const o={}; keep.forEach(k=> o[k]=it[k]); return o; }
+function inspMatchLocal(it, q){ if(!q) return true; const ql=q.toLowerCase(); const hay=[it.title,it.keywords,it.quote,it.summary,it.tag,it.cat1,it.cat2,it.cat3].filter(Boolean).join(' ').toLowerCase(); return hay.includes(ql); }
+function inspFacetLocal(list, key){ const s=new Set(); list.forEach(it=>{ const v=it[key]; if(v) s.add(v); }); return [...s]; }
+
+/* ---- 同步：先把本地 dirty 推到飞书，再拉取外部变更（本地优先，冲突以本地为准） ---- */
+async function mergePull(sec, arr){
+  const remoteIds = new Set(arr.map(r=>r.id).filter(Boolean));
+  const locals = (await idbAll()).filter(d=> d.sectionId===sec);
+  const localByReal = {}; locals.forEach(d=>{ if(d.realId) localByReal[d.realId]=d; });
+  for(const r of arr){ if(!r||!r.id) continue;
+    const ex = localByReal[r.id];
+    if(ex){ if(!ex._dirty){ ex.data=r; ex._op='sync'; ex._dirty=false; ex._ts=0; await idbPut(ex); } }
+    else { await idbPut({ key:lkey(sec,r.id), sectionId:sec, pushSection:sec, id:r.id, realId:r.id, data:r, _op:'sync', _dirty:false, _ts:0 }); }
+  }
+  for(const d of locals){ if(d.realId && !remoteIds.has(d.realId) && !d._dirty) await idbDelete(d.key); } // 外部已删除
+}
+async function syncNow(){
+  if(window._syncing) return;
+  window._syncing = true; setSyncState('syncing');
+  const errors = [];
+  try{
+    const all = await idbAll();
+    const dirty = all.filter(d=> d._dirty);
+    for(const doc of dirty){
+      try{
+        if(doc._op==='delete'){ if(doc.realId) await _netDelete(doc.pushSection, doc.realId); await idbDelete(doc.key); }
+        else if(doc._op==='create'){
+          const r = await _netCreate(doc.pushSection, doc.payload);
+          const realId = (r && r.id) || '';
+          const oldKey = doc.key; doc.realId = realId; doc.id = realId || doc.id; doc.data = Object.assign({}, doc.data, { id: doc.id }); doc._dirty=false; doc._op='sync'; doc._ts=0; doc.key = lkey(doc.sectionId, doc.id);
+          await idbDelete(oldKey); await idbPut(doc);
+        } else { if(doc.realId) await _netUpdate(doc.pushSection, doc.realId, doc.payload); doc._dirty=false; doc._op='sync'; doc._ts=0; await idbPut(doc); }
+      }catch(e){ errors.push((doc.pushSection||'')+'/'+doc._op+'：'+(e.message||e)); }
+    }
+    // 拉取所有本地桶对应的飞书表（inspiration 桶涵盖灵感库+全部知识库分类）
+    const canonicalSet = new Set();
+    Object.keys(SECTIONS).forEach(id=>{ if(!localExcluded(id) && sectionBacked(id)) canonicalSet.add(localSection(id)); });
+    for(const sec of canonicalSet){
+      try{
+        const remote = await apiJson('/section/'+sec+'?full=1');
+        await mergePull(sec, Array.isArray(remote)?remote:[]);
+        _seeded[sec] = true;
+      }catch(e){ errors.push('拉取 '+sec+'：'+(e.message||e)); }
+    }
+  }catch(e){ errors.push('同步异常：'+(e.message||e)); }
+  finally{ window._syncing = false; }
+  updateSyncBadge(); setSyncState(errors.length ? 'error' : 'done');
+  try{ await render(); }catch(e){}
+  if(errors.length) alert('同步完成，但有 '+errors.length+' 项失败：\n'+errors.slice(0,6).join('\n'));
+  return errors;
+}
+async function seedAll(){
+  const ids = Object.keys(SECTIONS).filter(id=> !localExcluded(id) && sectionBacked(id));
+  for(const id of ids){ try{ await ensureLocal(id); }catch(e){} }
+  updateSyncBadge();
+}
+function dirtyCount(){ return new Promise(res=>{ if(!_dbOk) return res(0); idbAll().then(docs=> res(docs.filter(x=>x._dirty).length)).catch(()=>res(0)); }); }
+async function updateSyncBadge(){
+  const n = await dirtyCount();
+  ['syncBadge','syncBadge2'].forEach(id=>{ const b=document.getElementById(id); if(b){ b.textContent=n; b.style.display = n>0?'inline-block':'none'; } });
+  const lbl = document.getElementById('syncLabel'); if(lbl) lbl.textContent = n>0 ? ('待同步 '+n) : '同步';
+  const lbl2 = document.getElementById('syncLabel2'); if(lbl2) lbl2.textContent = n>0 ? ('同步（'+n+' 项待推送）') : '立即同步';
+  const info = document.getElementById('syncInfo'); if(info) info.textContent = n>0 ? ('有 '+n+' 项本地修改尚未推送到飞书，点击同步与飞书双向合并。') : '所有数据已缓存到浏览器本地，修改即时保存；点击同步与飞书双向合并。';
+}
+function setSyncState(state){
+  ['syncBtn'].forEach(()=>{});
+  const btns = [document.getElementById('syncBtn'), document.getElementById('syncLabel2') && document.getElementById('syncLabel2').closest('.sync-btn')];
+  btns.forEach(btn=>{ if(!btn) return; btn.classList.remove('syncing','done','err'); if(state==='syncing') btn.classList.add('syncing'); else if(state==='done') btn.classList.add('done'); else if(state==='error') btn.classList.add('err'); });
+  const ic = document.getElementById('syncIcon'); const ic2 = document.getElementById('syncIcon2');
+  if(state==='syncing'){ if(ic) ic.textContent='🔄'; if(ic2) ic2.textContent='🔄'; }
+}
+
 // 动态注册前端 SECTIONS 条目，使重大事项可像「淘宝发圈」一样展开思维导图
 function ensureMajorSectionFrontend(recId, name){
   const secId = 'major_' + recId;
@@ -1051,14 +1274,26 @@ function pgGet(sectionId){
 }
 async function fetchInspPage(sectionId, page){
   const st = pgGet(sectionId);
-  const p = new URLSearchParams({ page, pageSize: PG_SIZE });
-  if(st.q) p.set('q', st.q);
-  if(st.cat1) p.set('cat1', st.cat1);
-  if(st.cat2) p.set('cat2', st.cat2);
-  if(st.tag)  p.set('tag', st.tag);
-  if(st.ctype) p.set('ctype', st.ctype);
-  if(st.status) p.set('status', st.status);
-  return await apiJson('/section/'+sectionId+'?'+p.toString());
+  await ensureLocal(sectionId);
+  const sec = localSection(sectionId);
+  let list = (await idbAll()).filter(d=> d.sectionId===sec && d._op!=='delete').map(d=>d.data);
+  if(sec==='inspiration' && sectionId!=='inspiration'){
+    const tag = SECTIONS[sectionId] && SECTIONS[sectionId].name; list = list.filter(x=> (x.tag||'')===tag);
+  }
+  const q = (st.q||'').trim();
+  if(q) list = list.filter(it=> inspMatchLocal(it, q));
+  if(st.cat1) list = list.filter(it=> it.cat1===st.cat1);
+  if(st.cat2) list = list.filter(it=> it.cat2===st.cat2);
+  if(st.tag)  list = list.filter(it=> it.tag===st.tag);
+  if(st.ctype) list = list.filter(it=> it.ctype===st.ctype);
+  if(st.status) list = list.filter(it=> it.status===st.status);
+  list.sort((a,b)=> String(b.id).localeCompare(String(a.id)) );
+  const total = list.length;
+  const pageSize = PG_SIZE;
+  const start = (page-1)*pageSize;
+  const items = list.slice(start, start+pageSize).map(slimLocal);
+  const facets = { cat1: inspFacetLocal(list,'cat1'), cat2: inspFacetLocal(list,'cat2'), tag: inspFacetLocal(list,'tag'), ctype: inspFacetLocal(list,'ctype') };
+  return { items, total, page, pageSize, hasMore: start+pageSize<total, facets };
 }
 async function renderInspirationSection(sectionId){
   const st = pgGet(sectionId);
@@ -1172,10 +1407,13 @@ function optList(list, cur){
 }
 async function editWisdom(recId, sectionId){
   sectionId = sectionId || 'inspiration';
-  let it;
-  try{ it = await apiJson('/section/'+sectionId+'/'+recId); }
-  catch(e){ alert('加载详情失败：'+(e.message||e)); return; }
-  if(!it || !it.id || it.error) { alert('未找到该记录，可能已被删除'); return; }
+  const sec = localSection(sectionId);
+  let it = null;
+  try{
+    const docs = (await idbAll()).filter(d=> d.key===lkey(sec, recId));
+    it = docs[0] ? docs[0].data : null;
+  }catch(e){}
+  if(!it || !it.id) { alert('未找到该记录，可能已被删除'); return; }
   const cat = await getCategory();
   const tree = cat.tree||{};
   const cur1 = it.cat1||'', cur2 = it.cat2||'', cur3 = it.cat3||'';
@@ -2866,7 +3104,16 @@ async function renderDashboard(){
     </div>`;
   }
 
-  let html = pendingBanner + `<div class="grid cols-3" style="margin-bottom:18px">
+  const syncCard = `<div class="card" style="margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+    <div>
+      <div class="t" style="font-weight:700">🔄 本地数据同步</div>
+      <div class="muted" style="font-size:12.5px;margin-top:4px" id="syncInfo">所有数据已缓存到浏览器本地，修改即时保存；点击同步与飞书双向合并。</div>
+    </div>
+    <button class="sync-btn" onclick="syncNow()" title="把本地修改同步到飞书，并拉取飞书上的外部变更（双向同步，本地修改优先）">
+      <span class="sync-ic" id="syncIcon2">🔄</span><span id="syncLabel2">立即同步</span><span class="sync-badge" id="syncBadge2" style="display:none">0</span>
+    </button>
+  </div>`;
+  let html = syncCard + pendingBanner + `<div class="grid cols-3" style="margin-bottom:18px">
     ${stat('📅 今日待办', todoPending, '项待完成 / 共 '+todayTodos.length+' 项', 'todos')}
     ${stat('🌱 微习惯', habitDoneToday+'/'+habits.length, '今日已打卡', 'habits')}
     ${stat('🎯 重大事项', major.length, '进行中 '+upcoming.length+' 项', 'major')}
@@ -3030,14 +3277,14 @@ async function doLogin(){
   const err=document.getElementById('gateErr'); err.textContent='';
   try{
     const r=await fetch(API+'/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})});
-    if(r.ok){ hideGate(); render(); }
+    if(r.ok){ hideGate(); render(); seedAll(); }
     else { err.textContent='密码错误'; }
   }catch(e){ err.textContent='网络错误，请重试'; }
 }
 async function checkAuth(){
   try{
     const r=await fetch(API+'/me');
-    if(r.ok){ hideGate(); render(); return; }
+    if(r.ok){ hideGate(); render(); seedAll(); return; }
   }catch(e){}
   showGate();
 }

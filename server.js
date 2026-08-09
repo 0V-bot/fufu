@@ -489,6 +489,10 @@ async function sectionList(id, opts) {
   const cfg = SECTIONS[id];
   const base = cfg.base || BASE_TOKEN;
   if (cfg.kind === 'ptask') await ensureProjects();
+  // 全量完整字段：供前端本地缓存种子与双向同步拉取（不做 slim/分页/facets）
+  if (opts.full) {
+    return (await listTable(cfg.table, base)).filter(r => passFilter(cfg.kind, r, cfg.fix || cfg.proj)).map(r => readRec(cfg.kind, r));
+  }
   // 仅灵感库类板块(wisdom/knowledge)走服务端分页；其余板块数据量小，保持一次性返回数组
   if (cfg.kind !== 'wisdom' && cfg.kind !== 'knowledge') {
     return (await listTable(cfg.table, base)).filter(r => passFilter(cfg.kind, r, cfg.fix || cfg.proj)).map(r => readRec(cfg.kind, r));
@@ -1207,7 +1211,8 @@ async function route(method, url, body, res, req) {
         const opts = {
           q: u.searchParams.get('q') || '', cat1: u.searchParams.get('cat1') || '', cat2: u.searchParams.get('cat2') || '',
           tag: u.searchParams.get('tag') || '', ctype: u.searchParams.get('ctype') || '', status: u.searchParams.get('status') || '',
-          page: u.searchParams.get('page'), pageSize: u.searchParams.get('pageSize')
+          page: u.searchParams.get('page'), pageSize: u.searchParams.get('pageSize'),
+          full: u.searchParams.get('full') === '1'
         };
         return send(res, 200, await sectionList(id, opts));
       }
