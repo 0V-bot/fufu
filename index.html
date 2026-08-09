@@ -2032,13 +2032,16 @@ async function delWish(id){
 let inspArr=[], inspTypes=[], inspResizeObserver=null;
 // 卡片尺寸为纯本地私有字段：仅写本地 IndexedDB，不打 _dirty、不进 payload、不触发待同步
 async function saveInspSize(id, size){
+  console.log('[size-diag] saveInspSize 调用 id=', id, 'size=', size);
   const sec = localSection('insprec');
   const key = lkey(sec, id);
   const docs = (await idbAll()).filter(d=> d.key===key);
   const doc = docs[0];
+  console.log('[size-diag] saveInspSize doc存在?', !!doc, 'key=', key);
   if(!doc) return;
   doc.data = Object.assign({}, doc.data, { size });
   await idbPut(doc);
+  console.log('[size-diag] saveInspSize 已写入');
 }
 async function renderInsp(){
   let arr, types;
@@ -2080,9 +2083,10 @@ async function renderInsp(){
   });
   document.querySelectorAll('.tcard').forEach(c=>{
     const t = (inspArr||[]).find(x=>x.id===c.id.slice(6))||{};
+    console.log('[size-diag] 卡片渲染 id=', c.id, '匹配t.id=', t.id, 't.size=', t.size);
     if(t.size && /^\d+x\d+$/.test(t.size)){
       const p = t.size.split('x'); const w=+p[0], h=+p[1];
-      if(w>=160 && h>=70){ c.style.width=w+'px'; c.style.height=h+'px'; }
+      if(w>=160 && h>=70){ c.style.width=w+'px'; c.style.height=h+'px'; console.log('[size-diag] 已应用尺寸', w+'x'+h, '到', c.id); }
     }
     c._szBase = Math.round(c.offsetWidth)+'x'+Math.round(c.offsetHeight);
     inspResizeObserver.observe(c);
