@@ -127,9 +127,8 @@ DNS 已就绪（A 记录 fufu.lwai.work → 8.130.181.74）。
 5. 申请免费证书（certbot 会自动改写该文件加上 443 + HTTP→HTTPS 跳转）：
    `certbot --nginx -d fufu.lwai.work`。
 6. 之后访问 `https://fufu.lwai.work`，全程加密，登录 Cookie 自动带 `Secure`。
-   > `.env` 保持 `APP_PORT=3000`（容器 3000 不动，由 nginx 反代）；
-   > 若只想暴露域名、不再直连 :3000，可把 docker-compose 的 ports 改成
-   > `"127.0.0.1:3000:3000"`（仅本机可访问 3000，外网只走 nginx 的 80/443）。
+> 当前 docker-compose 默认仅暴露 `3000:3000`（IP:3000 直连保留）；80/443 由 nginx 监听。
+> 若只想暴露域名、不再直连 :3000，把那行改为 `"127.0.0.1:3000:3000"` 即可（仅本机可访问 3000，外网只走 nginx 的 80/443）。
 
 > 代码里 `API='/api'` 是相对路径、`server.js` 不限制 Host 头，因此换域名零改造即可生效。
 
