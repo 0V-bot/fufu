@@ -2308,6 +2308,17 @@ let a2Gen = 0;
 let a2LoadedYear = null;
 const A2_TITLE_PALETTE = ['#fee2e2','#fef3c7','#dcfce7','#dbeafe','#f3e8ff','#ffe4e6','#cffafe','#fce7f3','#ecfccb','#ffedd5','#e0e7ff','#ccfbf1'];
 function a2RandColor(){ return A2_TITLE_PALETTE[Math.floor(Math.random()*A2_TITLE_PALETTE.length)]; }
+// 把任意格子颜色向白色混合，得到浅色背景；已很浅则原样返回（保证取色面板所见即所得）
+function a2HexToRgb(h){ h=(h||'').replace('#',''); if(h.length===3) h=h.split('').map(c=>c+c).join(''); if(h.length!==6) return null; return {r:parseInt(h.slice(0,2),16),g:parseInt(h.slice(2,4),16),b:parseInt(h.slice(4,6),16)}; }
+function a2Lighten(hex){
+  const c = a2HexToRgb(hex); if(!c) return hex;
+  const lum = (0.299*c.r + 0.587*c.g + 0.114*c.b)/255; // 0..1 相对亮度
+  if(lum >= 0.82) return hex;                          // 已经很浅，原样（面板浅色不二次处理）
+  const t = (0.82 - lum) / (1 - lum);                  // 需向白混合的比例
+  const m = x => Math.round(x + (255 - x) * t);
+  const h2 = v => v.toString(16).padStart(2,'0');
+  return '#' + h2(m(c.r)) + h2(m(c.g)) + h2(m(c.b));
+}
 function a2BuildModel(recs, year){
   recs = (recs||[]).map(r=>({ id:r.id, year:Number(r.year)||year, type:r.type||'', cellColor:r.cellColor||'#ffffff', textColor:r.textColor||'#0f172a', text:r.text||'', sort:Number(r.sort)||0, done:!!r.done }));
   recs.sort((a,b)=>a.sort-b.sort);
@@ -2356,7 +2367,7 @@ function a2FindContent(id){ for(const grp of a2Model.groups){ const c=grp.conten
 async function a2Patch(id, fields){ try{ await localUpdate('annual2', id, fields); }catch(e){ console.warn('年度计划2.0 保存失败', e); } }
 
 function a2CellHTML(rec, kind){
-  return `<div class="a2-cell a2-${kind}" style="background:${rec.cellColor};color:${rec.textColor}">
+  return `<div class="a2-cell a2-${kind}" style="background:${a2Lighten(rec.cellColor)};color:${rec.textColor}">
     <div class="a2-actions">
       <span class="a2-btn" title="文字颜色" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();a2EditTextColor(event,'${kind}','${rec.id}')">✎</span>
       <span class="a2-btn a2-fill" title="格子颜色" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();a2EditCellColor(event,'${kind}','${rec.id}')">🎨</span>
@@ -2366,7 +2377,7 @@ function a2CellHTML(rec, kind){
   </div>`;
 }
 function a2TitleHTML(rec, g){
-  return `<div class="a2-cell a2-title" data-g="${g}" style="background:${rec.cellColor};color:${rec.textColor}">
+  return `<div class="a2-cell a2-title" data-g="${g}" style="background:${a2Lighten(rec.cellColor)};color:${rec.textColor}">
     <div class="a2-actions">
       <span class="a2-btn" title="文字颜色" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();a2EditTextColor(event,'title','${rec.id}')">✎</span>
       <span class="a2-btn a2-fill" title="格子颜色" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();a2EditCellColor(event,'title','${rec.id}')">🎨</span>
@@ -2409,10 +2420,10 @@ function a2ToggleDone(id, checked){ const c=a2FindContent(id); if(!c) return; c.
 
 // 预设颜色（黑白红黄蓝紫绿橙粉青灰）
 const A2_PALETTE = [
-  { name:'黑', v:'#111827' }, { name:'白', v:'#ffffff' }, { name:'红', v:'#ef4444' },
-  { name:'黄', v:'#facc15' }, { name:'蓝', v:'#3b82f6' }, { name:'紫', v:'#a855f7' },
-  { name:'绿', v:'#22c55e' }, { name:'橙', v:'#f97316' }, { name:'粉', v:'#ec4899' },
-  { name:'青', v:'#06b6d4' }, { name:'灰', v:'#9ca3af' }, { name:'深蓝', v:'#1e3a8a' },
+  { name:'白', v:'#ffffff' }, { name:'灰', v:'#eef1f5' }, { name:'红', v:'#fecaca' },
+  { name:'橙', v:'#ffedd5' }, { name:'黄', v:'#fef9c3' }, { name:'绿', v:'#dcfce7' },
+  { name:'青', v:'#cffafe' }, { name:'蓝', v:'#dbeafe' }, { name:'深蓝', v:'#e0e7ff' },
+  { name:'紫', v:'#f3e8ff' }, { name:'粉', v:'#fce7f3' }, { name:'米', v:'#f5f0e6' },
 ];
 function a2Swatches(cur){
   return A2_PALETTE.map(p=>`<button type="button" class="a2-sw${String(p.v).toLowerCase()===String(cur).toLowerCase()?' sel':''}" style="background:${p.v}" title="${p.name}" onclick="a2SwPick(event,'${p.v}')"></button>`).join('');
