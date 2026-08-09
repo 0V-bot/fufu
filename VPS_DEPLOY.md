@@ -96,14 +96,25 @@ npm i -g pm2 && pm2 start server.js --name fufu && pm2 save
 
 ## 十一、fufu.lwai.work 域名访问（已备案 + 解析到 8.130.181.74）
 
-DNS 已就绪（A 记录 fufu.lwai.work → 8.130.181.74）。让域名能直接打开有两种方式：
+DNS 已就绪（A 记录 fufu.lwai.work → 8.130.181.74）。
 
-### 方式 A（最快，免 nginx，仅 HTTP）
-1. 阿里云安全组入方向放行 **TCP 80**（域名默认走 80）。
-2. 在 VPS 的 `~/fufu/.env` 里加一行：`APP_PORT=80`，保存。
+### 当前默认方式（最省事，无需 nginx/证书）★已采用
+`docker-compose.yml` 现已把容器 3000 **同时映射到宿主 3000 和 80 两个端口**：
+- `http://8.130.181.74:3000/` 照常用（IP 直连，保持不变）
+- `http://fufu.lwai.work/`（默认 80，地址栏**不用带端口**）直接可用
+
+只需一步：阿里云安全组入方向放行 **TCP 80**（3000 你之前已放行），然后
+`cd ~/fufu && git pull && sudo docker compose up -d --build` 即可。
+> 此方式为 HTTP 明文（无 HTTPS 加密）。若要加密访问，再走下方方式 B。
+
+如需 HTTPS 加密，有两种进阶方式：
+
+### 方式 A（只想用域名、不再保留 IP:3000 时）
+1. 编辑 `docker-compose.yml`，删掉 `ports` 里的 `"3000:3000"` 这一行（保留 `"80:3000"`）。
+2. 阿里云安全组入方向放行 **TCP 80**（若之前只放了 3000，需补上 80）。
 3. 重建：`cd ~/fufu && git pull && sudo docker compose up -d --build`。
 4. 浏览器开 `http://fufu.lwai.work`（地址栏不用带端口）。
-   > 注意：此方式 node 直接监听 80，且 Cookie 不带 Secure（仅 HTTP，非加密）。
+   > 此方式仍为 HTTP 明文（非加密），但 IP:3000 将不再可访问。
 
 ### 方式 B（推荐，nginx 反代 + 免费 HTTPS）
 1. 阿里云安全组入方向放行 **TCP 80 和 443**。

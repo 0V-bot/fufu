@@ -4,7 +4,10 @@ services:
     container_name: fufu-workbench
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-3000}:3000"
+      # 保留原 IP:3000 访问（如需只用域名，可删此行并把下方 80 改为 ${APP_PORT:-3000}）
+      - "3000:3000"
+      # 标准 80 端口 → 同一服务，使 fufu.lwai.work 免端口访问（无需 nginx/证书）
+      - "80:3000"
     env_file:
       - .env
     environment:
