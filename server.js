@@ -328,6 +328,7 @@ const SECTIONS = {
   habits:      { table: '微习惯', kind: 'habits' },
   habitChecks: { table: '习惯打卡', kind: 'habitCheck' },
   menstrual:   { table: '姨妈记录', kind: 'menstrual' },
+  articleInput:{ table: INPUT_TABLE, base: INSPIRE_BASE, kind: 'article' }, // 录入表：接入本地优先缓存（首页 inputPending 改为读本地缓存）
 };
 // 人生灵感库 / 知识库分类页 富字段映射（两者同源「人生灵感库」表，结构完全一致）
 function readInspireFields(r) {
@@ -388,6 +389,8 @@ function readRec(kind, r) {
     case 'diary':     return { id: r.record_id, date: dateOnly(r['日期']), weather: r['天气'] || '', mood: r['心情'] || '', content: r['内容'] || '' };
     case 'habits':    return { id: r.record_id, name: r['名称'] || '' };
     case 'habitCheck': return { id: r.record_id, habit: linkId(r['习惯']), date: dateOnly(r['打卡日期']), checked: !!r['打卡'] };
+    // —— 录入表（文章录入）：读取「人生灵感库」Base 的「录入表」——
+    case 'article':   return { id: r.record_id, title: r['文案标题'] || '', content: r['原始文案'] || '', source: r['来源'] || '', sourceLink: r['来源链接'] || '', reflection: r['个人感悟'] || '', cat1: sel(r['一级分类']) || '', cat2: sel(r['二级分类']) || '', cat3: sel(r['三级分类']) || '', tag: sel(r['标签']) || '', ctype: sel(r['内容类型']) || '', summary: r['AI总结'] || '', date: Number(r['录入日期']) || 0, multi: !!r['是否多篇'] };
   }
   return { id: r.record_id };
 }
@@ -452,6 +455,7 @@ async function writeRec(kind, o, fix) {
     case 'diary':     return { '日期': toFeishuDate(o.date), '天气': o.weather || '', '心情': o.mood || '', '内容': o.content || '' };
     case 'habits':    return { '名称': o.name };
     case 'habitCheck': return { '习惯': [o.habit], '打卡日期': toFeishuDate(o.date), '打卡': !!o.checked };
+    case 'article':   return { '文案标题': o.title || '', '原始文案': o.content || '', '来源': o.source || '', '来源链接': o.sourceLink || '', '个人感悟': o.reflection || '', '一级分类': o.cat1 || '', '二级分类': o.cat2 || '', '三级分类': o.cat3 || '', '标签': o.tag || '', '内容类型': o.ctype || '', 'AI总结': o.summary || '', '录入日期': o.date || null, '是否多篇': o.multi ? '1' : '0' };
   }
   return {};
 }

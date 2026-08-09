@@ -745,7 +745,7 @@ function lkey(sec, id){ return sec + '::' + id; }
 // 项目(ptask 思维导图) 已纳入本地优先缓存 + 双向同步（与年/月计划等一致）；
 // 父子关联靠 tid：离线时本地分配 L 前缀临时 tid 建树，同步后回写真实 tid 并修正子任务指向。
 function localExcluded(id){ return false; }
-const BACKED_KINDS = ['events','todos','wisdom','knowledge','kbcat','topics','publish','books','wishes','insprec','calendar','annual2','monthplan2','review','diary','habits','habitCheck','menstrual','project','ptask'];
+const BACKED_KINDS = ['events','todos','wisdom','knowledge','kbcat','topics','publish','books','wishes','insprec','calendar','annual2','monthplan2','review','diary','habits','habitCheck','menstrual','project','ptask','article'];
 function sectionBacked(id){ const s = SECTIONS[id]; return s && BACKED_KINDS.includes(s.kind); }
 // ptask 类（project / ptask）通用判断与 tid 工具
 function isPtaskKind(k){ return k==='project' || k==='ptask'; }
@@ -3290,13 +3290,34 @@ async function saveProjDesc(id){
 /* ---------- dashboard ---------- */
 let dashCache = null;
 async function renderDashboard(){
-  let d;
-  try{ d = await fetch(API+'/dashboard').then(r=>r.json()); }
-  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
-  dashCache = d;
-  const {todayTodos, todoPending, habits, major, projCount, insp, topics, knowledge, inputPending} = d;
+  // 全部从浏览器本地缓存（IndexedDB）读取，不再直接查询飞书表格；
+  // 每条数据独立容错：某板块本地缓存缺失/未同步也不影响首页其余板块渲染。
+  const safe = async (fn, def) => { try { return await fn(); } catch(e){ return def; } };
+  let todayTodos=[], todoPending=0, habits=[], major=[], projCount=0, insp=0, topics=0, knowledge=0, inputPending=-1;
+  try {
+    const t = (() => { const d = new Date(Date.now() + 8 * 3600 * 1000), p = n => (n < 10 ? '0' + n : '' + n); return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()); })();
+    const todos = await safe(()=>localList('todos'), []);
+    todayTodos = todos.filter(x => x.date === t);
+    todoPending = todayTodos.filter(x => !x.done).length;
+    // 微习惯 + 打卡历史（复刻服务端 getHabits）
+    const habitRows = await safe(()=>localList('habits'), []);
+    const checks = await safe(()=>localList('habitCheck'), []);
+    const byH = {};
+    checks.forEach(c => { const hid = c.habit; if (!hid) return; if (!byH[hid]) byH[hid] = {}; if (c.checked) byH[hid][c.date] = true; });
+    habits = habitRows.map(h => ({ id: h.id, name: h.name, history: byH[h.id] || {} }));
+    major = await safe(()=>localList('major'), []);
+    // 项目任务：跨 4 个项目（与「项目中心」一致）
+    let pc = 0;
+    for (const s of ['taobao','caps','counseling','outfit']) { const arr = await safe(()=>localList(s), []); pc += arr.length; }
+    projCount = pc;
+    insp = (await safe(()=>localList('insprec'), [])).length;
+    topics = (await safe(()=>localList('topics'), [])).length;
+    knowledge = insp; // 「知识沉淀」与灵感同源同一张「人生灵感库」表
+    inputPending = (await safe(()=>localList('articleInput'), [])).length;
+  } catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  dashCache = { todayTodos };
   const upcoming = major.filter(m=>!m.status||m.status!=='已完成').slice(0,4);
-  const habitDoneToday = habits.filter(h=>h.history&&h.history[today()]).length;
+  const habitDoneToday = habits.filter(h=>h.history&&h.history[t]).length;
 
   const stat = (lab,num,desc,target)=>`<div class="stat" onclick="go('${target}')"><div class="lab">${lab}</div><div class="num">${num}</div><div class="desc">${desc}</div></div>`;
 
