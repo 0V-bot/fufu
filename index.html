@@ -50,6 +50,7 @@
     cursor:pointer; user-select:none; font-size:14px; color:#cbd5e1; transition:.15s;
   }
   .nav-head:hover{background:#1e293b;}
+  .nav-head.active{background:#1e293b;color:#e2e8f0;}
   .nav-head .ic{font-size:16px;width:20px;text-align:center;}
   .nav-head .arrow{margin-left:auto; transition:.2s; font-size:11px; color:#64748b;}
   .nav-group.collapsed .arrow{transform:rotate(-90deg);}
@@ -65,6 +66,24 @@
   .nav-item.red{color:#ef4444;}
   .nav-item.red .dot{background:#ef4444;opacity:1;}
   .nav-item.red:hover{color:#fca5a5;}
+
+  /* 姨妈记录 */
+  .ment-cycle{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;}
+  .ment-cycle input{width:54px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;font-family:inherit;}
+  .ment-banner{margin:10px 2px 14px;padding:12px 14px;border-radius:12px;background:#fdf2f8;border:1px solid #fbcfe8;color:#9d174d;font-size:14px;line-height:1.6;}
+  .ment-banner b{color:#be185d;}
+  .ment-nav{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
+  .ment-nav b{font-size:15px;}
+  .mg-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
+  .mg-h{text-align:center;font-size:12px;color:var(--muted);padding:4px 0;font-weight:600;}
+  .mg-cell{position:relative;min-height:64px;border:1px solid var(--line);border-radius:10px;padding:6px 7px;background:#fff;cursor:pointer;transition:.12s;overflow:hidden;}
+  .mg-cell:hover{border-color:#f9a8d4;box-shadow:0 2px 8px rgba(236,72,153,.12);}
+  .mg-cell.empty{background:transparent;border:none;cursor:default;}
+  .mg-cell.today{border-color:#ec4899;border-width:2px;}
+  .mg-cell.on{background:#fdf2f8;}
+  .mg-d{font-size:13px;font-weight:600;color:var(--ink);}
+  .mg-b{font-size:15px;line-height:1;margin-top:2px;}
+  .mg-note{font-size:11px;color:#9d174d;margin-top:2px;line-height:1.35;word-break:break-word;}
 
   /* Main */
   .main{flex:1; min-width:0; padding:26px 30px 60px;}
@@ -726,7 +745,7 @@ function lkey(sec, id){ return sec + '::' + id; }
 // 项目(ptask 思维导图) 已纳入本地优先缓存 + 双向同步（与年/月计划等一致）；
 // 父子关联靠 tid：离线时本地分配 L 前缀临时 tid 建树，同步后回写真实 tid 并修正子任务指向。
 function localExcluded(id){ return false; }
-const BACKED_KINDS = ['events','todos','wisdom','knowledge','kbcat','topics','publish','books','wishes','insprec','calendar','annual2','monthplan2','review','diary','habits','habitCheck','project','ptask'];
+const BACKED_KINDS = ['events','todos','wisdom','knowledge','kbcat','topics','publish','books','wishes','insprec','calendar','annual2','monthplan2','review','diary','habits','habitCheck','menstrual','project','ptask'];
 function sectionBacked(id){ const s = SECTIONS[id]; return s && BACKED_KINDS.includes(s.kind); }
 // ptask 类（project / ptask）通用判断与 tid 工具
 function isPtaskKind(k){ return k==='project' || k==='ptask'; }
@@ -982,6 +1001,7 @@ const NAV = [
   {id:'daily', label:'每日管理', icon:'📅', children:[
     {id:'todos', label:'今日待办'},
     {id:'habits', label:'微习惯'},
+    {id:'menstrual', label:'姨妈记录'},
     {id:'review', label:'日复盘'},
     {id:'diary', label:'写日记'},
     {id:'calendar', label:'日历'},
@@ -995,11 +1015,10 @@ const NAV = [
   {id:'content', label:'灵感库', icon:'✍️', children:[
     {id:'insprec', label:'灵感记录'},
     {id:'topics', label:'选题库'},
-    {id:'publish', label:'发布记录', red:true},
+    {id:'publish', label:'发布草稿'},
   ]},
-  {id:'knowledge', label:'知识库', icon:'📚', children:[
+  {id:'knowledge', label:'知识管理库', icon:'📚', children:[
     {id:'articleInput', label:'文章录入'},
-    {id:'inspiration', label:'人生灵感库'},
     {id:'work', label:'职场'},
     {id:'women', label:'女性成长'},
     {id:'human', label:'人性'},
@@ -1017,6 +1036,7 @@ const SECTIONS = {
   todos:{name:'今日待办',kind:'todos',accent:'#0ea5e9',hint:'聚焦当下，完成今天最重要的几件事。'},
   habits:{name:'微习惯',kind:'habits',accent:'#10b981',hint:'每天一点点，用复利改变自己。'},
   review:{name:'日复盘',kind:'review',accent:'#6366f1',hint:'每天 5 分钟，回顾得失、沉淀成长。'},
+  menstrual:{name:'姨妈记录',kind:'menstrual',accent:'#ec4899',hint:'记录每月生理期情况，按月查看；临近生理期自动提醒（周期天数可在页面调整）。'},
   taobao:{name:'淘宝发圈',kind:'project',accent:'#ef4444',hint:'项目目标、任务与进度追踪。'},
   caps:{name:'鸭舌帽',kind:'project',accent:'#14b8a6',hint:'项目目标、任务与进度追踪。'},
   counseling:{name:'心理咨询',kind:'project',accent:'#a855f7',hint:'项目目标、任务与进度追踪。'},
@@ -1027,7 +1047,7 @@ const SECTIONS = {
   calendar:{name:'日历',kind:'calendar',accent:'#0ea5e9',hint:'按月查看日程与提醒：左侧小日历切换月份，右侧当月格子每格右上角「＋」可添加当天日程（标题 / 时间 / 备注 / 是否提醒）。'},
   inspiration:{name:'人生灵感库',kind:'wisdom',accent:'#f97316',hint:'来自「人生灵感库」的完整文案资产（在飞书中维护；可删除，也可点「详情」手动编辑补充）。',readonly:true,allowDelete:true,allowEdit:true},
   topics:{name:'选题库',kind:'topics',accent:'#3b82f6',hint:'把灵感打磨成可发布的选题。'},
-  publish:{name:'发布记录',kind:'publish',accent:'#22c55e',hint:'记录每次发布与数据反馈。'},
+  publish:{name:'发布草稿',kind:'publish',accent:'#22c55e',hint:'记录待发布与已发布的草稿：计划发布时间、标题、文案、备注。'},
   work:{name:'职场',kind:'kbcat',accent:'#d97706',hint:'职场进阶、沟通协作与职业发展的沉淀。'},
   women:{name:'女性成长',kind:'kbcat',accent:'#db2777',hint:'独立、自信与自我实现。'},
   human:{name:'人性',kind:'kbcat',accent:'#7c3aed',hint:'洞察人性，理解关系与动机。'},
@@ -1083,11 +1103,15 @@ const SCHEMA = {
     {key:'note',label:'备注',type:'textarea'},
   ],
   publish:[
-    {key:'date',label:'日期',type:'date'},
-    {key:'platform',label:'平台',type:'text',required:true},
+    {key:'planTime',label:'计划发布时间',type:'datetime'},
     {key:'title',label:'标题',type:'text',required:true},
-    {key:'link',label:'链接',type:'text'},
-    {key:'result',label:'数据 / 反馈',type:'textarea'},
+    {key:'content',label:'文案',type:'textarea'},
+    {key:'note',label:'备注',type:'textarea'},
+  ],
+  menstrual:[
+    {key:'date',label:'日期',type:'date',required:true},
+    {key:'flow',label:'流量',type:'select',options:['多','中','少','无']},
+    {key:'note',label:'备注',type:'textarea'},
   ],
   calendar:[
     {key:'date',label:'日期',type:'date',required:true},
@@ -1121,9 +1145,11 @@ function buildNav(){
   let html='';
   NAV.forEach(g=>{
     if(g.children){
+      // 知识管理库：点标题 = 进入「人生灵感库」内容；箭头才负责展开/收起子标题
+      const headClick = (g.id==='knowledge') ? `go('inspiration')` : `toggleGroup('${g.id}')`;
       html += `<div class="nav-group" data-g="${g.id}">
-        <div class="nav-head" onclick="toggleGroup('${g.id}')">
-          <span class="ic">${g.icon}</span><span>${g.label}</span><span class="arrow">▾</span>
+        <div class="nav-head" data-id="${g.id}" onclick="${headClick}">
+          <span class="ic">${g.icon}</span><span>${g.label}</span><span class="arrow" onclick="event.stopPropagation();toggleGroup('${g.id}')">▾</span>
         </div><div class="nav-items">`;
       g.children.forEach(c=>{
         html += `<div class="nav-item${c.red?' red':''}" data-id="${c.id}" onclick="go('${c.id}')"><span class="dot"></span>${c.label}</div>`;
@@ -1147,10 +1173,13 @@ function go(id){
   if(current==='calendar' && calIntervalId){ clearInterval(calIntervalId); calIntervalId=null; }
   current = id;
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.id===id));
+  // 进入「人生灵感库」时，高亮「知识管理库」整组标题
+  document.querySelectorAll('.nav-head').forEach(n=>n.classList.toggle('active', (n.dataset.id==='knowledge' && id==='inspiration') || n.dataset.id===id));
   render();
 }
 function crumbPath(id){
   if(id==='dashboard') return ['首页'];
+  if(id==='inspiration') return ['知识管理库','人生灵感库'];
   for(const g of NAV){
     if(g.id===id) return [g.label];
     if(g.children){
@@ -1190,6 +1219,7 @@ function openModal(title, schema, values, onSave){
       return;
     }
     if(f.type==='textarea'){ fields.push(`<div class="field"><label>${f.label}</label><textarea data-k="${f.key}">${esc(v)}</textarea></div>`); return; }
+    if(f.type==='datetime'){ fields.push(`<div class="field"><label>${f.label}</label><input data-k="${f.key}" type="datetime-local" value="${esc(v)}"${ph}/></div>`); return; }
     if(f.type==='time'){
       const parts=String(v||'').split(':'); const hh=parts[0]||'', mm=parts[1]||'';
       let hOpts='', mOpts='';
@@ -3423,6 +3453,89 @@ function topicsAddRow() {
   if (inputs.length) inputs[inputs.length - 4] && inputs[inputs.length - 4].focus();
 }
 
+/* ---------- 姨妈记录 ---------- */
+let mentYm = null;            // 当前查看的月份 "YYYY-MM"
+let mentCycle = Number(localStorage.getItem('mentCycle') || '28');
+const MENT_FLOW = { '多':'🔴', '中':'🟣', '少':'🔵', '无':'⚪' };
+function mentAddDays(s, n){ const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); const p = x => (x < 10 ? '0' + x : '' + x); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+function mentDiff(a, b){ return Math.round((new Date(a + 'T00:00:00') - new Date(b + 'T00:00:00')) / 86400000); }
+async function renderMenstrual(){
+  if(!mentYm) mentYm = today().slice(0,7);
+  let list = [];
+  try{ list = await apiList('menstrual'); }
+  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  const byDate = {}; list.forEach(r=>{ if(r.date) byDate[r.date] = r; });
+  const periodDays = Object.keys(byDate).filter(d=> byDate[d].flow && byDate[d].flow!=='无').sort();
+  const ym = mentYm;
+  const [yy, mm] = ym.split('-').map(Number);
+  const t = today();
+  let banner = '';
+  if(!periodDays.length){ banner = '🩷 还没有记录过生理期，点击下方任意日期开始记录吧。'; }
+  else {
+    const last = periodDays[periodDays.length - 1];
+    let start = last;   // 最近一次生理期的起始日（从末尾往前回溯连续段）
+    for(let i = periodDays.length - 1; i > 0; i--){ if(mentDiff(periodDays[i], periodDays[i-1]) === 1) start = periodDays[i-1]; else break; }
+    const nextStart = mentAddDays(start, mentCycle);
+    const dTo = mentDiff(nextStart, t);
+    if(byDate[t] && byDate[t].flow && byDate[t].flow!=='无'){ banner = '🩸 生理期进行中（今日已记录）。'; }
+    else if(dTo > 0 && dTo <= 3){ banner = `⚠️ 预计 <b>${Number(nextStart.slice(5,7))}月${Number(nextStart.slice(8,10))}日</b> 生理期来临，还有 <b>${dTo}</b> 天，请提前准备。`; }
+    else if(dTo === 0){ banner = '⚠️ 预计今天是生理期第一天，记得记录当天情况。'; }
+    else if(dTo < 0){ banner = `🩷 上次生理期约 ${Number(start.slice(5,7))}月${Number(start.slice(8,10))}日，下一次预计 ${Number(nextStart.slice(5,7))}月${Number(nextStart.slice(8,10))}日（已过点 ${Math.abs(dTo)} 天，可在上方调整周期天数）。`; }
+    else { banner = `🩷 下次生理期预计 <b>${Number(nextStart.slice(5,7))}月${Number(nextStart.slice(8,10))}日</b>（约 ${dTo} 天后）。`; }
+  }
+  const first = new Date(yy, mm - 1, 1);
+  const lead = first.getDay();                       // 0=周日
+  const days = new Date(yy, mm, 0).getDate();
+  const cells = [];
+  for(let i = 0; i < lead; i++) cells.push('');
+  const p2 = x => (x < 10 ? '0' + x : '' + x);
+  for(let d = 1; d <= days; d++) cells.push(yy + '-' + p2(mm) + '-' + p2(d));
+  const wseq = ['日','一','二','三','四','五','六'];
+  const head = wseq.map(w => `<div class="mg-h">${w}</div>`).join('');
+  const body = cells.map(c=>{
+    if(!c) return `<div class="mg-cell empty"></div>`;
+    const rec = byDate[c]; const isToday = c === t;
+    const on = rec && rec.flow && rec.flow!=='无';
+    const cls = 'mg-cell' + (on ? ' on' : '') + (isToday ? ' today' : '');
+    const badge = rec ? (MENT_FLOW[rec.flow] || '') : '';
+    const note = rec && rec.note ? `<div class="mg-note">${esc(rec.note)}</div>` : '';
+    return `<div class="${cls}" onclick="mentOpen('${c}')"><div class="mg-d">${Number(c.slice(8,10))}</div>${badge ? `<div class="mg-b">${badge}</div>` : ''}${note}</div>`;
+  }).join('');
+  const monthEnd = yy + '-' + p2(mm) + '-' + p2(days);
+  const prev = mentAddDays(yy + '-' + p2(mm) + '-01', -1).slice(0,7);
+  const next = mentAddDays(monthEnd, 1).slice(0,7);
+  view.innerHTML = `<div class="card">
+    <div class="h"><div class="t">姨妈记录</div>
+      <div class="ment-cycle">周期 <input id="mentCycle" type="number" min="15" max="45" value="${mentCycle}"> 天
+        <button class="btn mini" onclick="mentSaveCycle()">保存</button></div>
+    </div>
+    <div class="ment-banner">${banner}</div>
+    <div class="ment-nav">
+      <button class="btn ghost mini" onclick="mentGo('${prev}')">‹ 上月</button>
+      <b>${yy} 年 ${mm} 月</b>
+      <button class="btn ghost mini" onclick="mentGo('${next}')">下月 ›</button>
+    </div>
+    <div class="mg-grid">${head}${body}</div>
+    <div class="muted" style="margin-top:10px;font-size:12px">点击任意日期可记录 / 编辑当天生理期情况（流量与备注）。</div>
+  </div>`;
+}
+function mentGo(ym){ mentYm = ym; renderMenstrual(); }
+function mentSaveCycle(){ const v = Number(document.getElementById('mentCycle').value); if(v >= 15 && v <= 45){ mentCycle = v; localStorage.setItem('mentCycle', String(v)); renderMenstrual(); } else alert('周期天数请在 15–45 之间'); }
+async function mentOpen(ymd){
+  let list = []; try{ list = await apiList('menstrual'); }catch(e){ alert('加载失败：'+(e.message||e)); return; }
+  const rec = list.find(x => x.date === ymd) || null;
+  openModal((rec ? '编辑' : '记录') + ' · ' + ymd, SCHEMA.menstrual, rec ? Object.assign({}, rec) : { date: ymd }, async v => {
+    try{
+      const all = await apiList('menstrual');
+      const dup = all.find(x => x.date === v.date && x.id !== (rec ? rec.id : null));
+      if(rec){ await apiUpdate('menstrual', rec.id, v); }
+      else if(dup){ await apiUpdate('menstrual', dup.id, v); }
+      else { await apiCreate('menstrual', v); }
+      closeModal(); await renderMenstrual();
+    }catch(e){ alert('保存失败：'+(e.message||e)); }
+  });
+}
+
 async function render(){
   setHeader(current);
   view.innerHTML = '<div class="empty">⏳ 加载中…</div>';
@@ -3444,6 +3557,7 @@ async function render(){
     if(kind==='topics') return await renderTopics();
     if(current==='major') return await renderMajor();
     if(current==='calendar') return await renderCalendar();
+    if(current==='menstrual') return await renderMenstrual();
     return await renderList(current, kind);
   }catch(e){
     view.innerHTML = `<div class="empty">⚠️ 出错了：${esc(e.message||e)}</div>`;

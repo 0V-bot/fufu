@@ -65,6 +65,12 @@ const toFeishuDateTime = s => {
   if (p.length < 3) return null;
   return Date.UTC(p[0], p[1] - 1, p[2], q[0] || 0, q[1] || 0, 0) - 8 * 3600 * 1000;
 };
+// 飞书 datetime 字段读回的是 UTC 毫秒；转回北京时间 "YYYY-MM-DDTHH:MM" 供前端 datetime-local 显示
+const fromFeishuDateTime = ms => {
+  if (ms == null || ms === '') return '';
+  const d = new Date(Number(ms) + 8 * 3600 * 1000), p = n => (n < 10 ? '0' + n : '' + n);
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}T${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+};
 const num = v => { const n = Number(v); return isNaN(n) ? 0 : n; };
 // 统一按北京时间(东八区)计算"今天"，避免服务器 UTC 时区导致待办/复盘日期差一天
 const today = () => { const d = new Date(Date.now() + 8 * 3600 * 1000), p = n => (n < 10 ? '0' + n : '' + n); return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()); };
@@ -321,6 +327,7 @@ const SECTIONS = {
   diary:       { table: '日记', kind: 'diary' },
   habits:      { table: '微习惯', kind: 'habits' },
   habitChecks: { table: '习惯打卡', kind: 'habitCheck' },
+  menstrual:   { table: '姨妈记录', kind: 'menstrual' },
 };
 // 人生灵感库 / 知识库分类页 富字段映射（两者同源「人生灵感库」表，结构完全一致）
 function readInspireFields(r) {
@@ -357,7 +364,7 @@ function readRec(kind, r) {
     case 'cards':     return { id: r.record_id, title: r['标题'], content: r['内容'] || '', tags: r['标签'] || '' };
     case 'wisdom':    return readInspireFields(r);
     case 'topics':    return { id: r.record_id, title: r['选题'], platform: r['平台'] || '', status: sel(r['状态']) || '', note: r['备注'] || '', used: !!r['已使用'] };
-    case 'publish':   return { id: r.record_id, date: dateOnly(r['日期']), platform: r['平台'] || '', title: r['标题'], link: r['链接'] || '', result: r['数据反馈'] || '' };
+    case 'publish':   return { id: r.record_id, planTime: fromFeishuDateTime(r['计划发布时间']), title: r['标题'] || '', content: r['文案'] || '', note: r['备注'] || '' };
     // 知识库分类页与人生灵感库同源同结构，返回完整字段，供富详情弹窗展示/编辑
     case 'knowledge': return readInspireFields(r);
     case 'ptask':     return {
@@ -373,6 +380,7 @@ function readRec(kind, r) {
     };
     case 'books':     return { id: r.record_id, title: r['书名'] || '', author: r['作者'] || '', category: sel(r['分类']) || '', status: sel(r['状态']) || '', core: r['书本核心内容'] || '', note: r['读后感'] || '', source: r['来源'] || '', link: r['链接'] || '', date: dateOnly(r['日期']) };
     case 'calendar':  return { id: r.record_id, date: dateOnly(r['日期']), title: r['标题'] || '', time: r['时间'] || '', note: r['备注'] || '', remind: !!r['提醒'] };
+    case 'menstrual': return { id: r.record_id, date: dateOnly(r['日期']), flow: sel(r['流量']) || '', note: r['备注'] || '' };
     // —— 本地优先模块：前端友好字段（与服务端 readRec 同源，供本地缓存种子/同步拉取）——
     case 'annual2':   return { id: r.record_id, year: Number(r['年份']), type: sel(r['类型']) || '', cellColor: (r['格子颜色'] || '') || '#ffffff', text: (r['文案'] || ''), textColor: (r['文字颜色'] || '') || '#0f172a', sort: Number(r['排序']) || 0, done: !!r['完成标记'] };
     case 'monthplan2': return { id: r.record_id, year: Number(r['年份']), month: Number(r['月份']), seq: num(r['序号']), item: (r['计划事项'] || ''), content: (r['计划内容'] || ''), deadline: dateOnly(r['截止时间']), done: Number(r['完成标签']) ? 1 : 0, daily: !!r['每日'] };
@@ -409,8 +417,9 @@ async function writeRec(kind, o, fix) {
       return out;
     }
     case 'topics':    return { '选题': o.title, '平台': o.platform || '', '状态': o.status || '灵感', '备注': o.note || '', '已使用': !!o.used };
-    case 'publish':   return { '标题': o.title, '日期': toFeishuDate(o.date), '平台': o.platform || '', '链接': o.link || '', '数据反馈': o.result || '' };
+    case 'publish':   return { '计划发布时间': toFeishuDateTime(o.planTime), '标题': o.title || '', '文案': o.content || '', '备注': o.note || '' };
     case 'calendar':  return { '日期': toFeishuDate(o.date), '标题': o.title || '', '时间': o.time || '', '备注': o.note || '', '提醒': !!o.remind };
+    case 'menstrual': return { '日期': toFeishuDate(o.date), '流量': o.flow ? o.flow : null, '备注': o.note || '' };
     case 'knowledge': return { '文案标题': o.title, '标签': o.tags || '', '来源': o.source || '', 'AI总结': o.content || '' };
     case 'ptask': {
       const proj = PROJ_MAP[fix];
