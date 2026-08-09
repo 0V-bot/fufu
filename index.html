@@ -3293,9 +3293,9 @@ async function renderDashboard(){
   // 全部从浏览器本地缓存（IndexedDB）读取，不再直接查询飞书表格；
   // 每条数据独立容错：某板块本地缓存缺失/未同步也不影响首页其余板块渲染。
   const safe = async (fn, def) => { try { return await fn(); } catch(e){ return def; } };
+  const t = (() => { const d = new Date(Date.now() + 8 * 3600 * 1000), p = n => (n < 10 ? '0' + n : '' + n); return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()); })();
   let todayTodos=[], todoPending=0, habits=[], major=[], projCount=0, insp=0, topics=0, knowledge=0, inputPending=-1;
   try {
-    const t = (() => { const d = new Date(Date.now() + 8 * 3600 * 1000), p = n => (n < 10 ? '0' + n : '' + n); return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()); })();
     const todos = await safe(()=>localList('todos'), []);
     todayTodos = todos.filter(x => x.date === t);
     todoPending = todayTodos.filter(x => !x.done).length;
