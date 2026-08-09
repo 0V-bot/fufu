@@ -751,6 +751,7 @@ function sectionPayload(id, data){
   const k = SECTIONS[id] && SECTIONS[id].kind;
   if(k==='wisdom') return wisdomToFeishu(data);
   if(k==='knowledge' || k==='kbcat') return { title:data.title||'', content:(data.summary!=null?data.summary:data.content)||'', source:data.source||'', tags:(data.tag!=null?data.tag:data.tags)||'' };
+  if(k==='insprec') return { content: data.content||'', type: data.type||'', date: data.date||'' }; // 尺寸(size)为纯本地私有字段，不入 payload、不进飞书
   return Object.assign({}, data);
 }
 

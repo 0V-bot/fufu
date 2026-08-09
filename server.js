@@ -353,7 +353,7 @@ function readRec(kind, r) {
     case 'events':    return { id: r.record_id, title: r['事项'], date: dateOnly(r['日期']), status: sel(r['状态']) || '', note: r['备注'] || '' };
     case 'todos':     return { id: r.record_id, title: r['内容'], date: dateOnly(r['日期']), done: !!r['完成'], deadline: r['截止时间'] || '', note: r['备注'] || '' };
     case 'wishes':    return { id: r.record_id, title: r['内容'] || '', done: !!r['完成'], realized: r['实现时间'] || '' };
-    case 'insprec':   return { id: r.record_id, content: r['内容'] || '', type: sel(r['类型']) || '', date: dateOnly(r['日期']), size: r['尺寸'] || '' };
+    case 'insprec':   return { id: r.record_id, content: r['内容'] || '', type: sel(r['类型']) || '', date: dateOnly(r['日期']) };
     case 'cards':     return { id: r.record_id, title: r['标题'], content: r['内容'] || '', tags: r['标签'] || '' };
     case 'wisdom':    return readInspireFields(r);
     case 'topics':    return { id: r.record_id, title: r['选题'], platform: r['平台'] || '', status: sel(r['状态']) || '', note: r['备注'] || '', used: !!r['已使用'] };
@@ -394,7 +394,7 @@ async function writeRec(kind, o, fix) {
       const realized = done ? (o.realized ? toFeishuDateTime(o.realized) : toFeishuDateTime(new Date().toISOString().slice(0, 16).replace('T', ' '))) : null;
       return { '内容': o.title || '', '完成': done, '实现时间': realized };
     }
-    case 'insprec':   return { '内容': o.content || '', '类型': o.type || '', '日期': o.date ? toFeishuDate(o.date) : toFeishuDate(new Date().toISOString().slice(0, 10)), '尺寸': o.size || '' };
+    case 'insprec':   return { '内容': o.content || '', '类型': o.type || '', '日期': o.date ? toFeishuDate(o.date) : toFeishuDate(new Date().toISOString().slice(0, 10)) };
     case 'cards':     return { '标题': o.title, '内容': o.content, '标签': o.tags || '' };
     case 'wisdom': {
       // 灵感库位于 INSPIRE_BASE（v1 路径）：单选/多选字段前端可能以 {text} 或 [{text}] 形式提交，
