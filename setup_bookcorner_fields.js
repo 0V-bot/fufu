@@ -77,6 +77,12 @@ function req(method, apiPath, body, token) {
       console.log('  · 新增「链接」-> code=' + r.code + ' ' + (r.msg || ''));
     }
 
+    if (names.includes('书本核心内容')) console.log('  · 「书本核心内容」已存在，跳过');
+    else {
+      const r = await req('POST', PRE + '/tables/' + book.table_id + '/fields', { field_name: '书本核心内容', type: 1 }, token);
+      console.log('  · 新增「书本核心内容」-> code=' + r.code + ' ' + (r.msg || ''));
+    }
+
     const rating = fields.find(f => f.field_name === '评分');
     if (!rating) console.log('  · 「评分」不存在，跳过删除');
     else {

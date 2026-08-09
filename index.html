@@ -1071,6 +1071,7 @@ const SCHEMA = {
     {key:'category',label:'分类',type:'select',addable:true,dynamic:'book-categories',options:['小说','非虚构','工具书','传记','心理学','其他']},
     {key:'status',label:'阅读状态',type:'select',options:['想读','在读','已读']},
     {key:'link',label:'链接地址',type:'text',placeholder:'书籍/资源链接（可选）'},
+    {key:'core',label:'书本核心内容',type:'textarea'},
     {key:'note',label:'读后感 / 笔记',type:'textarea'},
     {key:'source',label:'来源',type:'text'},
     {key:'date',label:'完成日期',type:'date'},
@@ -1313,7 +1314,7 @@ function genericBody(kind,it){
     if(f.key==='title') return;
     let v = it[f.key]; if(v==null||v==='') return;
     if(f.key==='tags'){ meta += (v.split(',').map(t=>`<span class="chip">${esc(t.trim())}</span>`).join('')); return; }
-    if(f.key==='content'||f.key==='detail'||f.key==='note'||f.key==='result'){ meta += `<div class="meta"><b>${f.label}：</b>${esc(v)}</div>`; return; }
+    if(f.key==='content'||f.key==='detail'||f.key==='note'||f.key==='result'||f.key==='core'){ meta += `<div class="meta"><b>${f.label}：</b>${esc(v)}</div>`; return; }
     if(f.key==='link'){ const safe = esc(String(v).trim()); meta += `<div class="meta"><b>${f.label}：</b><a href="${safe}" target="_blank" rel="noopener">${safe}</a></div>`; return; }
     meta += `<div class="meta"><b>${f.label}：</b>${esc(v)}</div>`;
   });
