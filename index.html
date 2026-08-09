@@ -2675,9 +2675,10 @@ function mp2SwitchMonth(d){
   mp2Load();
 }
 function mp2BuildGroups(rows){
+  // 同序号内按「创建时间」先后排序（新创建的排在最下面）；无创建时间的旧数据保持原序（按 id 兜底）
   const sorted = rows.slice().sort((a, b) =>
     (a.seq - b.seq) ||
-    String(a.deadline || '').localeCompare(String(b.deadline || '')) ||
+    ((a.created || 0) - (b.created || 0)) ||
     String(a.id).localeCompare(String(b.id)));
   const groups = [], map = new Map();
   for (const r of sorted) {
@@ -2818,7 +2819,7 @@ async function mp2ConfirmAdd(){
   if (!st.existingSeqs.includes(seq) && seq <= st.maxSeq) { alert('序号只能选择已有序号，或更大的（递增）新序号'); return; }
   closeModal();
   try {
-    await localCreate('monthplan2', { year: mp2Year, month: mp2Month, seq, item, content: '', deadline: null, done: 0, daily: 0 });
+    await localCreate('monthplan2', { year: mp2Year, month: mp2Month, seq, item, content: '', deadline: null, done: 0, daily: 0, created: Date.now() });
     await mp2Load();
   } catch (e) { alert('添加失败：' + (e.message || e)); }
 }

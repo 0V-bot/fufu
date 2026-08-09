@@ -383,7 +383,7 @@ function readRec(kind, r) {
     case 'menstrual': return { id: r.record_id, date: dateOnly(r['日期']), flow: sel(r['流量']) || '', note: r['备注'] || '' };
     // —— 本地优先模块：前端友好字段（与服务端 readRec 同源，供本地缓存种子/同步拉取）——
     case 'annual2':   return { id: r.record_id, year: Number(r['年份']), type: sel(r['类型']) || '', cellColor: (r['格子颜色'] || '') || '#ffffff', text: (r['文案'] || ''), textColor: (r['文字颜色'] || '') || '#0f172a', sort: Number(r['排序']) || 0, done: !!r['完成标记'] };
-    case 'monthplan2': return { id: r.record_id, year: Number(r['年份']), month: Number(r['月份']), seq: num(r['序号']), item: (r['计划事项'] || ''), content: (r['计划内容'] || ''), deadline: dateOnly(r['截止时间']), done: Number(r['完成标签']) ? 1 : 0, daily: !!r['每日'] };
+    case 'monthplan2': return { id: r.record_id, year: Number(r['年份']), month: Number(r['月份']), seq: num(r['序号']), item: (r['计划事项'] || ''), content: (r['计划内容'] || ''), deadline: dateOnly(r['截止时间']), done: Number(r['完成标签']) ? 1 : 0, daily: !!r['每日'], created: Number(r['创建时间']) || 0 };
     case 'review':    return { id: r.record_id, date: dateOnly(r['日期']), title: r['主题'] || '', text: r['内容'] || '' };
     case 'diary':     return { id: r.record_id, date: dateOnly(r['日期']), weather: r['天气'] || '', mood: r['心情'] || '', content: r['内容'] || '' };
     case 'habits':    return { id: r.record_id, name: r['名称'] || '' };
@@ -447,7 +447,7 @@ async function writeRec(kind, o, fix) {
     }
     // —— 本地优先模块：前端友好字段 → 飞书中文键（与服务端 writeRec 同源）——
     case 'annual2':   return { '年份': Number(o.year), '类型': o.type, '格子颜色': o.cellColor || '#ffffff', '文案': o.text || '', '文字颜色': o.textColor || '#0f172a', '排序': Number(o.sort), '完成标记': !!o.done };
-    case 'monthplan2': return { '年份': Number(o.year), '月份': Number(o.month), '序号': Number(o.seq), '计划事项': o.item || '', '计划内容': o.content || '', '截止时间': (o.deadline ? toFeishuDate(o.deadline) : null), '完成标签': o.done ? 1 : 0, '每日': !!o.daily };
+    case 'monthplan2': return { '年份': Number(o.year), '月份': Number(o.month), '序号': Number(o.seq), '计划事项': o.item || '', '计划内容': o.content || '', '截止时间': (o.deadline ? toFeishuDate(o.deadline) : null), '完成标签': o.done ? 1 : 0, '每日': !!o.daily, '创建时间': o.created ? Number(o.created) : null };
     case 'review':    return { '主题': o.title || o.date, '日期': toFeishuDate(o.date), '内容': o.text || '' };
     case 'diary':     return { '日期': toFeishuDate(o.date), '天气': o.weather || '', '心情': o.mood || '', '内容': o.content || '' };
     case 'habits':    return { '名称': o.name };
