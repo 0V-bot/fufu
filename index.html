@@ -850,7 +850,9 @@ async function mergePull(sec, arr){
     if(ex){ if(!ex._dirty){
       const oldTid = ex.data && ex.data.tid;
       if(!isRealTid(oldTid)) tidMap[String(oldTid)] = r.tid; // 记录本地→真实 tid
-      ex.data=r; ex._op='sync'; ex._dirty=false; ex._ts=0; await idbPut(ex);
+      const keptSize = ex.data && ex.data.size; // 保留本地私有字段（卡片尺寸），服务端无该列时不覆盖
+      ex.data=r; if(keptSize && !ex.data.size) ex.data.size = keptSize;
+      ex._op='sync'; ex._dirty=false; ex._ts=0; await idbPut(ex);
     } }
     else { await idbPut({ key:lkey(sec,r.id), sectionId:sec, pushSection:sec, id:r.id, realId:r.id, data:r, _op:'sync', _dirty:false, _ts:0 }); }
   }
@@ -2014,7 +2016,7 @@ async function delWish(id){
 }
 
 /* ---------- 灵感记录 ---------- */
-let inspArr=[], inspTypes=[];
+let inspArr=[], inspTypes=[], inspResizeObserver=null;
 async function renderInsp(){
   let arr, types;
   try{ arr = await apiList('insprec'); types = (await apiJson('/insp-types')).types || []; }
@@ -2039,6 +2041,29 @@ async function renderInsp(){
   });
   html += `</div></div>`;
   view.innerHTML = html;
+  // 卡片尺寸：应用已存尺寸 + 监听用户拖拽（ResizeObserver），写入后持久保存
+  if(inspResizeObserver) inspResizeObserver.disconnect();
+  inspResizeObserver = new ResizeObserver(entries=>{
+    for(const en of entries){
+      const el = en.target;
+      const id = el.id && el.id.indexOf('icard-')===0 ? el.id.slice(6) : null;
+      if(!id) continue;
+      const now = Math.round(el.offsetWidth)+'x'+Math.round(el.offsetHeight);
+      if(now === el._szBase) continue;
+      el._szBase = now;
+      clearTimeout(el._szT);
+      el._szT = setTimeout(()=>{ saveInspField(id,'size', now); }, 300);
+    }
+  });
+  document.querySelectorAll('.tcard').forEach(c=>{
+    const t = (inspArr||[]).find(x=>x.id===c.id.slice(6))||{};
+    if(t.size && /^\d+x\d+$/.test(t.size)){
+      const p = t.size.split('x'); const w=+p[0], h=+p[1];
+      if(w>=160 && h>=70){ c.style.width=w+'px'; c.style.height=h+'px'; }
+    }
+    c._szBase = Math.round(c.offsetWidth)+'x'+Math.round(c.offsetHeight);
+    inspResizeObserver.observe(c);
+  });
 }
 function inspOptions(sel){
   let opts = `<option value="">— 选择类型 —</option>`;
@@ -2050,6 +2075,7 @@ async function saveInspField(id, field, value){
   const t=(inspArr||[]).find(x=>x.id===id); if(!t) return;
   if(field==='content') t.content=value;
   else if(field==='date') t.date=value;
+  else if(field==='size') t.size=value;
   else if(field==='type'){
     if(value==='__new__'){
       const nv=prompt('输入新的灵感类型名称：');
