@@ -310,6 +310,13 @@ const SECTIONS = {
   wishes:      { table: WISH_TABLE, kind: 'wishes' },
   insprec:     { table: INSP_TABLE, kind: 'insprec' },
   calendar:    { table: '日程', kind: 'calendar' },
+  // —— 以下模块纳入本地优先缓存 + 双向同步（此前走专用路由直连飞书，未走本地层）——
+  annual2:     { table: ANNUAL2_TABLE, kind: 'annual2' },
+  monthplan2:  { table: MONTHPLAN2_TABLE, kind: 'monthplan2' },
+  review:      { table: '日复盘', kind: 'review' },
+  diary:       { table: '日记', kind: 'diary' },
+  habits:      { table: '微习惯', kind: 'habits' },
+  habitCheck:  { table: '习惯打卡', kind: 'habitCheck' },
 };
 // 人生灵感库 / 知识库分类页 富字段映射（两者同源「人生灵感库」表，结构完全一致）
 function readInspireFields(r) {
@@ -362,6 +369,13 @@ function readRec(kind, r) {
     };
     case 'books':     return { id: r.record_id, title: r['书名'] || '', author: r['作者'] || '', category: sel(r['分类']) || '', status: sel(r['状态']) || '', note: r['读后感'] || '', source: r['来源'] || '', link: r['链接'] || '', date: dateOnly(r['日期']) };
     case 'calendar':  return { id: r.record_id, date: dateOnly(r['日期']), title: r['标题'] || '', time: r['时间'] || '', note: r['备注'] || '', remind: !!r['提醒'] };
+    // —— 本地优先模块：前端友好字段（与服务端 readRec 同源，供本地缓存种子/同步拉取）——
+    case 'annual2':   return { id: r.record_id, year: Number(r['年份']), type: sel(r['类型']) || '', cellColor: (r['格子颜色'] || '') || '#ffffff', text: (r['文案'] || ''), textColor: (r['文字颜色'] || '') || '#0f172a', sort: Number(r['排序']) || 0, done: !!r['完成标记'] };
+    case 'monthplan2': return { id: r.record_id, year: Number(r['年份']), month: Number(r['月份']), seq: num(r['序号']), item: (r['计划事项'] || ''), content: (r['计划内容'] || ''), deadline: dateOnly(r['截止时间']), done: Number(r['完成标签']) ? 1 : 0, daily: !!r['每日'] };
+    case 'review':    return { id: r.record_id, date: dateOnly(r['日期']), title: r['主题'] || '', text: r['内容'] || '' };
+    case 'diary':     return { id: r.record_id, date: dateOnly(r['日期']), weather: r['天气'] || '', mood: r['心情'] || '', content: r['内容'] || '' };
+    case 'habits':    return { id: r.record_id, name: r['名称'] || '' };
+    case 'habitCheck': return { id: r.record_id, habit: linkId(r['习惯']), date: dateOnly(r['打卡日期']), checked: !!r['打卡'] };
   }
   return { id: r.record_id };
 }
@@ -418,6 +432,13 @@ async function writeRec(kind, o, fix) {
       if (o.category && String(o.category).trim()) f['分类'] = String(o.category).trim();
       return f;
     }
+    // —— 本地优先模块：前端友好字段 → 飞书中文键（与服务端 writeRec 同源）——
+    case 'annual2':   return { '年份': Number(o.year), '类型': o.type, '格子颜色': o.cellColor || '#ffffff', '文案': o.text || '', '文字颜色': o.textColor || '#0f172a', '排序': Number(o.sort), '完成标记': !!o.done };
+    case 'monthplan2': return { '年份': Number(o.year), '月份': Number(o.month), '序号': Number(o.seq), '计划事项': o.item || '', '计划内容': o.content || '', '截止时间': (o.deadline ? toFeishuDate(o.deadline) : null), '完成标签': o.done ? 1 : 0, '每日': !!o.daily };
+    case 'review':    return { '主题': o.title || o.date, '日期': toFeishuDate(o.date), '内容': o.text || '' };
+    case 'diary':     return { '日期': toFeishuDate(o.date), '天气': o.weather || '', '心情': o.mood || '', '内容': o.content || '' };
+    case 'habits':    return { '名称': o.name };
+    case 'habitCheck': return { '习惯': [o.habit], '打卡日期': toFeishuDate(o.date), '打卡': !!o.checked };
   }
   return {};
 }
@@ -527,6 +548,13 @@ async function sectionRecord(id, rec) {
   return readRec(cfg.kind, Object.assign({ record_id: r.record_id }, r.fields || {}));
 }
 function invalidateCache(cfg, base) { _rawCache[(cfg.base || base || BASE_TOKEN) + '::' + cfg.table] = null; }
+// 年度计划写入前确保「类型」单选含「分组」选项；本会话只跑一次（幂等），避免逐条同步时反复 PUT。
+let _annual2GroupEnsured = false;
+async function ensureAnnual2GroupOptionOnce() {
+  if (_annual2GroupEnsured) return;
+  try { await ensureAnnual2GroupOption(); _annual2GroupEnsured = true; }
+  catch (e) { console.warn('ensureAnnual2GroupOption 失败（重试于下次写入）:', e.message); _annual2GroupEnsured = false; }
+}
 async function sectionCreate(id, o) {
   const cfg = SECTIONS[id];
   const base = cfg.base || BASE_TOKEN;
@@ -537,6 +565,7 @@ async function sectionCreate(id, o) {
       const e = new Error('非「每日」任务必须设置截止时间'); e.status = 400; throw e;
     }
   }
+  if (cfg.kind === 'annual2') await ensureAnnual2GroupOptionOnce();
   return { id: await createRecord(cfg.table, await writeRec(cfg.kind, o, cfg.fix || cfg.proj), base) };
 }
 async function sectionUpdate(id, rec, o) {
@@ -683,62 +712,6 @@ async function getHabits() {
   });
   return habits.map(h => ({ id: h.id, name: h.name, history: byH[h.id] || {} }));
 }
-async function createHabit(name) { return { id: await createRecord('微习惯', { '名称': name }) }; }
-async function deleteHabit(rec) {
-  await deleteRecord('微习惯', rec);
-  const checks = await listTable('习惯打卡');
-  for (const c of checks) { if (linkId(c['习惯']) === rec) await deleteRecord('习惯打卡', c.record_id); }
-  return { ok: true };
-}
-async function toggleHabit(hid, date) {
-  if (date > dateOnly(new Date())) throw { status: 400, message: '不能打卡或修改未来日期的打卡记录' };
-  const checks = await listTable('习惯打卡');
-  const found = checks.find(c => linkId(c['习惯']) === hid && dateOnly(c['打卡日期']) === date);
-  if (found) await deleteRecord('习惯打卡', found.record_id);
-  else await createRecord('习惯打卡', { '习惯': [hid], '打卡日期': toFeishuDate(date), '打卡': true });
-  return { ok: true };
-}
-
-/* ===================== 日复盘 ===================== */
-async function getReview() {
-  return (await listTable('日复盘')).map(r => ({ date: dateOnly(r['日期']), title: r['主题'] || '', text: r['内容'] || '' }));
-}
-async function saveReview(date, text) {
-  const found = (await listTable('日复盘')).find(r => dateOnly(r['日期']) === date);
-  if (found) await updateRecord('日复盘', found.record_id, { '内容': text });
-  else await createRecord('日复盘', { '主题': date, '日期': toFeishuDate(date), '内容': text });
-  return { ok: true };
-}
-async function deleteReview(date) {
-  const found = (await listTable('日复盘')).find(r => dateOnly(r['日期']) === date);
-  if (found) await deleteRecord('日复盘', found.record_id);
-  return { ok: true };
-}
-
-/* ===================== 日记（每日一篇，提交后不可改） ===================== */
-async function getDiaryAll() {
-  return (await listTable('日记')).map(r => ({
-    date: dateOnly(r['日期']),
-    weather: r['天气'] || '',
-    mood: r['心情'] || '',
-    content: r['内容'] || ''
-  }));
-}
-async function getDiary(date) {
-  const found = (await listTable('日记')).find(r => dateOnly(r['日期']) === date);
-  return found ? { date, weather: found['天气'] || '', mood: found['心情'] || '', content: found['内容'] || '' } : null;
-}
-async function createDiary({ date, weather, mood, content }) {
-  const found = (await listTable('日记')).find(r => dateOnly(r['日期']) === date);
-  if (found) throw new Error('该日期日记已存在，每天只能写一篇');
-  const id = await createRecord('日记', {
-    '日期': toFeishuDate(date),
-    '天气': weather || '',
-    '心情': mood || '',
-    '内容': content || ''
-  });
-  return id;
-}
 
 /* ===================== 项目 ===================== */
 // 项目任务全表短缓存：避免每次渲染（以及 nextTaskId）都全表重拉两次，缓解打开卡顿
@@ -832,99 +805,8 @@ async function createTableOpen(name, fields) {
 const ANNUAL2_TABLE = process.env.ANNUAL2_TABLE || '年度计划';
 /* ===================== 月度计划 2.0（飞书「月度计划」表） ===================== */
 const MONTHPLAN2_TABLE = process.env.MONTHPLAN2_TABLE || '月度计划';
-async function getAnnual2(year) {
-  const rows = await listTable(ANNUAL2_TABLE, BASE_TOKEN);
-  const out = rows
-    .filter(r => Number(r['年份']) === Number(year))
-    .map(r => ({
-      id: r.record_id,
-      year: Number(r['年份']),
-      type: sel(r['类型']) || '',
-      cellColor: (r['格子颜色'] || '') || '#ffffff',
-      text: (r['文案'] || ''),
-      textColor: (r['文字颜色'] || '') || '#0f172a',
-      sort: Number(r['排序']) || 0,
-      done: !!r['完成标记'],
-    }));
-  out.sort((a, b) => a.sort - b.sort);
-  return out;
-}
-async function createAnnual2(rec) {
-  const fields = {
-    年份: Number(rec.year),
-    类型: rec.type,
-    格子颜色: rec.cellColor || '#ffffff',
-    文案: rec.text || '',
-    文字颜色: rec.textColor || '#0f172a',
-    排序: Number(rec.sort),
-    完成标记: !!rec.done,
-  };
-  const id = await createRecord(ANNUAL2_TABLE, fields, BASE_TOKEN);
-  return id;
-}
-async function updateAnnual2(id, rec) {
-  const fields = {};
-  if (rec.year != null) fields['年份'] = Number(rec.year);
-  if (rec.type != null) fields['类型'] = rec.type;
-  if (rec.cellColor != null) fields['格子颜色'] = rec.cellColor;
-  if (rec.text != null) fields['文案'] = rec.text;
-  if (rec.textColor != null) fields['文字颜色'] = rec.textColor;
-  if (rec.sort != null) fields['排序'] = Number(rec.sort);
-  if (rec.done != null) fields['完成标记'] = !!rec.done;
-  await updateRecord(ANNUAL2_TABLE, id, fields, BASE_TOKEN);
-  return { ok: true };
-}
-async function deleteAnnual2(id) {
-  await deleteRecord(ANNUAL2_TABLE, id, BASE_TOKEN);
-  return { ok: true };
-}
-// 月度计划2.0：按 年份+月份 读取；年份/月份/序号为整型，完成标签 0/1。
-async function getMonthPlan2(year, month) {
-  const rows = await listTable(MONTHPLAN2_TABLE, BASE_TOKEN);
-  const out = rows
-    .filter(r => Number(r['年份']) === Number(year) && Number(r['月份']) === Number(month))
-    .map(r => ({
-      id: r.record_id,
-      year: Number(r['年份']),
-      month: Number(r['月份']),
-      seq: num(r['序号']),
-      item: (r['计划事项'] || ''),
-      content: (r['计划内容'] || ''),
-      deadline: dateOnly(r['截止时间']),
-      done: Number(r['完成标签']) ? 1 : 0,
-      daily: !!r['每日'],
-    }))
-    .sort((a, b) => (a.seq - b.seq) || String(a.deadline || '').localeCompare(String(b.deadline || '')) || String(a.id).localeCompare(String(b.id)));
-  return out;
-}
-async function createMonthPlan2(rec) {
-  const fields = {
-    年份: Number(rec.year),
-    月份: Number(rec.month),
-    序号: Number(rec.seq),
-    计划事项: rec.item || '',
-    计划内容: rec.content || '',
-    截止时间: toFeishuDate(rec.deadline),
-    完成标签: rec.done ? 1 : 0,
-    每日: !!rec.daily,
-  };
-  const id = await createRecord(MONTHPLAN2_TABLE, fields, BASE_TOKEN);
-  return id;
-}
-async function updateMonthPlan2(id, rec) {
-  const fields = {};
-  if (rec.item != null) fields['计划事项'] = rec.item;
-  if (rec.content != null) fields['计划内容'] = rec.content;
-  if (rec.deadline !== undefined) fields['截止时间'] = toFeishuDate(rec.deadline);
-  if (rec.done != null) fields['完成标签'] = rec.done ? 1 : 0;
-  if (rec.daily != null) fields['每日'] = !!rec.daily;
-  await updateRecord(MONTHPLAN2_TABLE, id, fields, BASE_TOKEN);
-  return { ok: true };
-}
-async function deleteMonthPlan2(id) {
-  await deleteRecord(MONTHPLAN2_TABLE, id, BASE_TOKEN);
-  return { ok: true };
-}
+// 说明：年/月计划现已统一走通用 /api/section/:id 本地优先层（readRec/writeRec/sectionCreate 等），
+// 其字段映射见上方 readRec/writeRec 的 'annual2' / 'monthplan2' 分支；专用 helper 已移除。
 // 向某表的单选字段追加一个新选项。
 // ⚠️ 飞书不支持 POST .../fields/{id}/options 追加（返回 404），必须 PUT 全量 options：
 //    已有项带原 id，新项只给 name，由飞书分配 id。
@@ -1138,24 +1020,8 @@ async function route(method, url, body, res, req) {
       try { return send(res, 200, { ok: true, options: await addSingleSelectOption(BASE_TOKEN, '精神角落', '分类', name) }); }
       catch (e) { return send(res, 500, { error: e.message || '添加分类失败' }); }
     }
-    if (method === 'GET' && url === '/api/habits') return send(res, 200, await getHabits());
-    if (method === 'POST' && url === '/api/habits') return send(res, 200, await createHabit(body.name));
-    if (method === 'DELETE' && (m = url.match(/^\/api\/habits\/(.+)$/))) return send(res, 200, await deleteHabit(m[1]));
-    if (method === 'POST' && url === '/api/habit-toggle') return send(res, 200, await toggleHabit(body.habitId, body.date));
-    if (method === 'GET' && url === '/api/review') return send(res, 200, await getReview());
-    if (method === 'PUT' && url === '/api/review') return send(res, 200, await saveReview(body.date, body.text));
-    if (method === 'DELETE' && (m = url.match(/^\/api\/review\/([\w-]+)$/))) return send(res, 200, await deleteReview(m[1]));
-    // 日记：GET 全部（前端按月份标绿格）；POST 新建（每天限一篇，重复返回 409）
-    if (method === 'GET' && url === '/api/diary') return send(res, 200, await getDiaryAll());
-    if (method === 'POST' && url === '/api/diary') {
-      const d = body.date, w = (body.weather || '').trim(), mo = (body.mood || '').trim(), c = (body.content || '').trim();
-      if (!d) return send(res, 400, { error: '缺少日期' });
-      if (!c) return send(res, 400, { error: '日记内容不能为空' });
-      try {
-        const id = await createDiary({ date: d, weather: w, mood: mo, content: c });
-        return send(res, 200, { ok: true, record_id: id });
-      } catch (e) { return send(res, 409, { error: e.message }); }
-    }
+    // —— 以下模块（微习惯/日复盘/日记/年度计划/月度计划）现已统一走 /api/section/:id 本地优先层，
+    //     不再保留专用路由（create/delete 的逐条逻辑由通用 sectionCreate/sectionUpdate/sectionDelete 处理）。
     if (method === 'GET' && (m = url.match(/^\/api\/project\/([\w]+)$/))) return send(res, 200, await getProject(m[1]));
     if (method === 'PUT' && url === '/api/project-desc') return send(res, 200, await saveProjectDesc(body.section, body.desc));
     // 重大事项展开前置：确保同名「项目」记录存在并注册动态 SECTIONS 条目（使该重大事项可像项目一样展开思维导图）
@@ -1171,33 +1037,6 @@ async function route(method, url, body, res, req) {
       if (!content || !content.trim()) return send(res, 400, { error: '原始文案不能为空' });
       const id = await createDirectArticle({ title, content, source, sourceLink, reflection, cat1, cat2, cat3, tag, ctype, summary });
       return send(res, 200, { ok: true, record_id: id });
-    }
-    if ((m = (req.url.split('?')[0]).match(/^\/api\/annual2$/))) {
-      const u = new URL(req.url, 'http://localhost');
-      const year = Number(u.searchParams.get('year')) || new Date().getFullYear();
-      if (method === 'GET') { await ensureAnnual2GroupOption(); return send(res, 200, await getAnnual2(year)); }
-      if (method === 'POST') { await ensureAnnual2GroupOption(); const id = await createAnnual2(body || {}); return send(res, 200, { ok: true, record_id: id }); }
-      return send(res, 405, { error: '方法不允许' });
-    }
-    if ((m = (req.url.split('?')[0]).match(/^\/api\/annual2\/([\w]+)$/))) {
-      const id = m[1];
-      if (method === 'PUT') { await updateAnnual2(id, body || {}); return send(res, 200, { ok: true }); }
-      if (method === 'DELETE') { await deleteAnnual2(id); return send(res, 200, { ok: true }); }
-      return send(res, 405, { error: '方法不允许' });
-    }
-    if ((m = (req.url.split('?')[0]).match(/^\/api\/monthplan2$/))) {
-      const u = new URL(req.url, 'http://localhost');
-      const year = Number(u.searchParams.get('year')) || new Date().getFullYear();
-      const month = Number(u.searchParams.get('month')) || (new Date().getMonth() + 1);
-      if (method === 'GET') return send(res, 200, await getMonthPlan2(year, month));
-      if (method === 'POST') { const id = await createMonthPlan2(body || {}); return send(res, 200, { ok: true, record_id: id }); }
-      return send(res, 405, { error: '方法不允许' });
-    }
-    if ((m = (req.url.split('?')[0]).match(/^\/api\/monthplan2\/([\w]+)$/))) {
-      const id = m[1];
-      if (method === 'PUT') { await updateMonthPlan2(id, body || {}); return send(res, 200, { ok: true }); }
-      if (method === 'DELETE') { await deleteMonthPlan2(id); return send(res, 200, { ok: true }); }
-      return send(res, 405, { error: '方法不允许' });
     }
     if ((m = (req.url.split('?')[0]).match(/^\/api\/section\/([\w]+)(?:\/(.+))?$/))) {
       const id = m[1], rec = m[2];

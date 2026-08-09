@@ -646,13 +646,46 @@ const _netList = id => apiJson('/section/'+id);
 const _netCreate = (id,obj) => apiJson('/section/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});
 const _netUpdate = (id,rec,obj) => apiJson('/section/'+id+'/'+rec,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});
 const _netDelete = (id,rec) => apiJson('/section/'+id+'/'+rec,{method:'DELETE'});
-const apiHabits = () => apiJson('/habits');
-const apiCreateHabit = name => apiJson('/habits',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
-const apiDeleteHabit = rec => apiJson('/habits/'+rec,{method:'DELETE'});
-const apiToggleHabit = (hid,date) => apiJson('/habit-toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({habitId:hid,date})});
-const apiReview = () => apiJson('/review');
-const apiSaveReview = (date,text) => apiJson('/review',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({date,text})});
-const apiDiary = () => apiJson('/diary');
+// 微习惯：本地优先；habits(微习惯表) + habitChecks(习惯打卡表) 两个本地桶，读时客户端重组 {id,name,history}
+async function apiHabits(){
+  const hs = await localList('habits');
+  const cs = await localList('habitChecks');
+  const byH = {};
+  cs.forEach(c=>{ if(!c.habit) return; if(!byH[c.habit]) byH[c.habit]={}; if(c.checked) byH[c.habit][c.date]=true; });
+  return hs.map(h=>({ id:h.id, name:h.name||'', history: byH[h.id]||{} }));
+}
+async function addHabitApi(name){ return localCreate('habits', { name }); }
+async function delHabitApi(id){
+  await localDelete('habits', id);
+  const all = await idbAll();
+  const checks = all.filter(d=> d.sectionId==='habitChecks' && d.data && d.data.habit===id && d._op!=='delete');
+  for(const c of checks){ await localDelete('habitChecks', c.id); }
+  return { ok:true };
+}
+async function toggleHabitApi(hid, dy){
+  // 确保该习惯已落到飞书（拿到真实 record_id），否则打卡记录的关联字段会指向本地 uuid 而失效
+  let habitDoc = (await idbAll()).find(d=> d.sectionId==='habits' && d._op!=='delete' && (d.id===hid || d.realId===hid));
+  if(habitDoc && !habitDoc.realId){
+    try{
+      const r = await _netCreate('habits', habitDoc.payload);
+      const realId = (r && r.id) || '';
+      if(realId){
+        const oldKey = habitDoc.key;
+        habitDoc.realId = realId; habitDoc.id = realId; habitDoc.data = Object.assign({}, habitDoc.data, { id: realId }); habitDoc._op='sync'; habitDoc._dirty=false; habitDoc._ts=0; habitDoc.key = lkey('habits', realId);
+        await idbDelete(oldKey); await idbPut(habitDoc);
+        hid = realId;
+      }
+    }catch(e){ console.warn('微习惯预同步失败，打卡将暂存本地 uuid：', e.message); }
+  }
+  // 本地切换打卡
+  const cs = await localList('habitChecks');
+  const existing = cs.find(c=> (c.habit===hid) && c.date===dy);
+  if(existing){ await localDelete('habitChecks', existing.id); }
+  else { await localCreate('habitChecks', { habit: hid, date: dy, checked: true }); }
+  return { ok:true };
+}
+const apiReview = () => localList('review');
+const apiDiary = () => localList('diary');
 const apiProject = section => apiJson('/project/'+section);
 const apiSaveProjectDesc = (section,desc) => apiJson('/project-desc',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({section,desc})});
 const apiEnsureMajor = recId => apiJson('/major-ensure/'+recId,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
@@ -683,7 +716,7 @@ function localSection(id){ const k = SECTIONS[id] && SECTIONS[id].kind; return (
 function lkey(sec, id){ return sec + '::' + id; }
 // 项目(ptask 思维导图) 仍走网络，不进本地缓存
 function localExcluded(id){ const k = SECTIONS[id] && SECTIONS[id].kind; return k==='project' || k==='ptask'; }
-const BACKED_KINDS = ['events','todos','wisdom','knowledge','kbcat','topics','publish','books','wishes','insprec','calendar'];
+const BACKED_KINDS = ['events','todos','wisdom','knowledge','kbcat','topics','publish','books','wishes','insprec','calendar','annual2','monthplan2','review','diary','habits','habitCheck'];
 function sectionBacked(id){ const s = SECTIONS[id]; return s && BACKED_KINDS.includes(s.kind); }
 const txt = v => (v && typeof v==='object') ? (v.text||'') : (v||'');
 // 人生灵感库：飞书中文键 → 前端友好字段
@@ -922,6 +955,7 @@ const SECTIONS = {
   outfit:{name:'穿搭IP',kind:'project',accent:'#ec4899',hint:'项目目标、任务与进度追踪。'},
   articleInput:{name:'文章录入',kind:'article',accent:'#8b5cf6',hint:'粘贴文章内容，保存到「人生灵感库」等待 AI 分析。'},
   diary:{name:'写日记',kind:'diary',accent:'#f43f5e',hint:'每天一篇私人日记：记录天气、心情与当日所思所想。提交后不可修改，日历中绿色日期可点开回看。'},
+  habitChecks:{name:'习惯打卡',kind:'habitCheck',accent:'#10b981'},
   calendar:{name:'日历',kind:'calendar',accent:'#0ea5e9',hint:'按月查看日程与提醒：左侧小日历切换月份，右侧当月格子每格右上角「＋」可添加当天日程（标题 / 时间 / 备注 / 是否提醒）。'},
   inspiration:{name:'人生灵感库',kind:'wisdom',accent:'#f97316',hint:'来自「人生灵感库」的完整文案资产（在飞书中维护；可删除，也可点「详情」手动编辑补充）。',readonly:true,allowDelete:true,allowEdit:true},
   topics:{name:'选题库',kind:'topics',accent:'#3b82f6',hint:'把灵感打磨成可发布的选题。'},
@@ -2060,9 +2094,9 @@ async function renderHabits(){
   html += '</div>';
   view.innerHTML = html;
 }
-async function addHabit(){ const i=document.getElementById('habitInput'); const v=i.value.trim(); if(!v)return; try{ await apiCreateHabit(v); await render(); }catch(e){ alert('添加失败：'+(e.message||e)); } }
-async function toggleHabit(id,dy){ try{ await apiToggleHabit(id,dy); await render(); }catch(e){ alert('打卡失败：'+(e.message||e)); } }
-async function delHabit(id){ if(!confirm('删除该习惯及其记录？'))return; try{ await apiDeleteHabit(id); await render(); }catch(e){ alert('删除失败：'+(e.message||e)); } }
+async function addHabit(){ const i=document.getElementById('habitInput'); const v=i.value.trim(); if(!v)return; try{ await addHabitApi(v); await render(); }catch(e){ alert('添加失败：'+(e.message||e)); } }
+async function toggleHabit(id,dy){ try{ await toggleHabitApi(id,dy); await render(); }catch(e){ alert('打卡失败：'+(e.message||e)); } }
+async function delHabit(id){ if(!confirm('删除该习惯及其记录？'))return; try{ await delHabitApi(id); await render(); }catch(e){ alert('删除失败：'+(e.message||e)); } }
 
 /* ---------- review ---------- */
 let reviewDate = today();
@@ -2084,7 +2118,16 @@ async function renderReview(){
   view.innerHTML = html;
 }
 function setReviewDate(v){ reviewDate=v; render(); }
-async function saveReview(){ const t=document.getElementById('reviewText').value; try{ await apiSaveReview(reviewDate,t); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); } }
+async function saveReview(){
+  const t=document.getElementById('reviewText').value;
+  try{
+    const all = await localList('review');
+    const cur = all.find(r=> r.date===reviewDate);
+    if(cur) await localUpdate('review', cur.id, { date:reviewDate, title:reviewDate, text:t });
+    else await localCreate('review', { date:reviewDate, title:reviewDate, text:t });
+    await render();
+  }catch(e){ alert('保存失败：'+(e.message||e)); }
+}
 
 /* ---------- 写日记（每日一篇，提交后不可改；本月日历绿格可点开回看） ---------- */
 let diaryYear = new Date().getFullYear();
@@ -2185,9 +2228,7 @@ async function saveDiary(){
   const content = document.getElementById('diaryContent').value.trim();
   if (!content){ alert('日记内容不能为空'); return; }
   try{
-    const r = await fetch(API+'/diary',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date: todayStr(), weather: diarySelWeather, mood: diarySelMood, content})});
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || '保存失败');
+    await localCreate('diary', { date: todayStr(), weather: diarySelWeather, mood: diarySelMood, content });
     alert('日记已记录 ✓');
     await renderDiary();
   }catch(e){ alert('保存失败：'+(e.message||e)); }
@@ -2231,16 +2272,18 @@ async function a2Load(year){
   const gen = ++a2Gen; a2Year = year;
   view.innerHTML = '<div class="empty">⏳ 加载中…</div>';
   try{
-    let recs = await apiJson('/annual2?year='+year);
+    const all = await localList('annual2');
     if(gen!==a2Gen) return;
-    if(!recs || !recs.length){
+    let recs = all.filter(r=> Number(r.year)===Number(year));
+    if(!recs.length){
       // 首次进入：自动播种 开头 / 一个默认分组(标题 + 一条内容「无」) / 结尾 / 分组(每行2组)
-      await apiJson('/annual2', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year, type:'开头', cellColor:'#ffffff', textColor:'#0f172a', sort:10000, text:''})});
-      await apiJson('/annual2', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year, type:'标题', cellColor:a2RandColor(), textColor:'#0f172a', sort:20000, text:''})});
-      await apiJson('/annual2', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year, type:'内容', cellColor:'#ffffff', textColor:'#0f172a', sort:20001, text:'无'})});
-      await apiJson('/annual2', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year, type:'结尾', cellColor:'#ffffff', textColor:'#0f172a', sort:30000, text:''})});
-      await apiJson('/annual2', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year, type:'分组', sort:2000})});
-      recs = await apiJson('/annual2?year='+year);
+      await localCreate('annual2', {year, type:'开头', cellColor:'#ffffff', textColor:'#0f172a', sort:10000, text:''});
+      await localCreate('annual2', {year, type:'标题', cellColor:a2RandColor(), textColor:'#0f172a', sort:20000, text:''});
+      await localCreate('annual2', {year, type:'内容', cellColor:'#ffffff', textColor:'#0f172a', sort:20001, text:'无'});
+      await localCreate('annual2', {year, type:'结尾', cellColor:'#ffffff', textColor:'#0f172a', sort:30000, text:''});
+      await localCreate('annual2', {year, type:'分组', sort:2000});
+      const all2 = await localList('annual2');
+      recs = all2.filter(r=> Number(r.year)===Number(year));
     }
     if(gen!==a2Gen) return;
     a2Model = a2BuildModel(recs, year);
@@ -2248,8 +2291,8 @@ async function a2Load(year){
     // 每个年度计划都保证有一条「分组」记录（用于保存每行分组数）
     if(!a2Model.arrangeRecId){
       try{
-        const r = await apiJson('/annual2', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year, type:'分组', sort:1000*a2Model.arrange})});
-        a2Model.arrangeRecId = r.record_id;
+        const r = await localCreate('annual2', {year, type:'分组', sort:1000*a2Model.arrange});
+        a2Model.arrangeRecId = r.id;
       }catch(e){ console.warn('创建分组记录失败', e); }
     }
     a2Paint();
@@ -2257,7 +2300,7 @@ async function a2Load(year){
 }
 function a2Switch(d){ a2Load(a2Year + d); }
 function a2FindContent(id){ for(const grp of a2Model.groups){ const c=grp.contents.find(x=>x.id===id); if(c) return c; } return null; }
-async function a2Patch(id, fields){ try{ await apiJson('/annual2/'+id, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(fields)}); }catch(e){ console.warn('年度计划2.0 保存失败', e); } }
+async function a2Patch(id, fields){ try{ await localUpdate('annual2', id, fields); }catch(e){ console.warn('年度计划2.0 保存失败', e); } }
 
 function a2CellHTML(rec, kind){
   return `<div class="a2-cell a2-${kind}" style="background:${rec.cellColor};color:${rec.textColor}">
@@ -2359,12 +2402,12 @@ async function a2AddGroup(){
   const g = a2Model.groups.length;
   const color = a2RandColor();
   try{
-    const rt = await apiJson('/annual2', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year:a2Year, type:'标题', cellColor:color, textColor:'#0f172a', sort:20000+g*100, text:''})});
-    const rc = await apiJson('/annual2', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year:a2Year, type:'内容', cellColor:'#ffffff', textColor:'#0f172a', sort:20000+g*100+1, text:'无'})});
+    const rt = await localCreate('annual2', {year:a2Year, type:'标题', cellColor:color, textColor:'#0f172a', sort:20000+g*100, text:''});
+    const rc = await localCreate('annual2', {year:a2Year, type:'内容', cellColor:'#ffffff', textColor:'#0f172a', sort:20000+g*100+1, text:'无'});
     a2Model.groups.push({
       g,
-      title:{id:rt.record_id, year:a2Year, type:'标题', cellColor:color, textColor:'#0f172a', text:'', sort:20000+g*100, done:false},
-      contents:[{id:rc.record_id, year:a2Year, type:'内容', cellColor:'#ffffff', textColor:'#0f172a', text:'无', sort:20000+g*100+1, done:false}]
+      title:{id:rt.id, year:a2Year, type:'标题', cellColor:color, textColor:'#0f172a', text:'', sort:20000+g*100, done:false},
+      contents:[{id:rc.id, year:a2Year, type:'内容', cellColor:'#ffffff', textColor:'#0f172a', text:'无', sort:20000+g*100+1, done:false}]
     });
     a2Paint();
   }catch(e){ alert('添加分组失败：'+(e.message||e)); }
@@ -2373,8 +2416,8 @@ async function a2AddItem(g){
   const grp=a2Model.groups.find(x=>x.g===g); if(!grp) return;
   const c = grp.contents.length + 1;
   try{
-    const r = await apiJson('/annual2', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year:a2Year, type:'内容', cellColor:'#ffffff', textColor:'#0f172a', sort:20000+g*100+c, text:''})});
-    grp.contents.push({id:r.record_id, year:a2Year, type:'内容', cellColor:'#ffffff', textColor:'#0f172a', text:'', sort:20000+g*100+c, done:false});
+    const r = await localCreate('annual2', {year:a2Year, type:'内容', cellColor:'#ffffff', textColor:'#0f172a', sort:20000+g*100+c, text:''});
+    grp.contents.push({id:r.id, year:a2Year, type:'内容', cellColor:'#ffffff', textColor:'#0f172a', text:'', sort:20000+g*100+c, done:false});
     a2Paint();
     const last=view.querySelector('.a2-group[data-g="'+g+'"] .a2-item:last-child .a2-item-text'); if(last) last.focus();
   }catch(e){ alert('添加条目失败：'+(e.message||e)); }
@@ -2385,8 +2428,8 @@ async function a2SetArrange(v){
   try{
     if(a2Model.arrangeRecId){ await a2Patch(a2Model.arrangeRecId, {sort:1000*v}); }
     else {
-      const r = await apiJson('/annual2', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({year:a2Year, type:'分组', sort:1000*v})});
-      a2Model.arrangeRecId = r.record_id;
+      const r = await localCreate('annual2', {year:a2Year, type:'分组', sort:1000*v});
+      a2Model.arrangeRecId = r.id;
     }
   }catch(e){ alert('保存分组数失败：'+(e.message||e)); }
 }
@@ -2401,7 +2444,7 @@ async function a2DelItem(id){
   const grp=a2Model.groups.find(x=>x.contents.some(c=>c.id===id));
   if(!grp) return;
   try{
-    await apiJson('/annual2/'+id, {method:'DELETE'});
+    await localDelete('annual2', id);
     grp.contents = grp.contents.filter(c=>c.id!==id);
     grp.contents.forEach((c,j)=>{ const ns=20000+grp.g*100+(j+1); if(c.sort!==ns){ c.sort=ns; a2Patch(c.id,{sort:ns}); } });
     a2Paint();
@@ -2412,7 +2455,7 @@ function a2DelCell(kind){
   if(!rec) return;
   a2Confirm('确定删除「'+(kind==='opening'?'开头':'结尾')+'」吗？此操作不可撤销。', async ()=>{
     try{
-      await apiJson('/annual2/'+rec.id, {method:'DELETE'});
+      await localDelete('annual2', rec.id);
       if(kind==='opening') a2Model.opening=null; else a2Model.ending=null;
       a2Paint();
     }catch(e){ alert('删除失败：'+(e.message||e)); }
@@ -2423,8 +2466,8 @@ function a2DelGroup(g){
   a2Confirm('确定删除该「标题+内容」分组吗？该标题下的所有内容数据将一并删除，此操作不可撤销。', async ()=>{
     try{
       const jobs=[];
-      if(grp.title) jobs.push(apiJson('/annual2/'+grp.title.id, {method:'DELETE'}));
-      grp.contents.forEach(c=> jobs.push(apiJson('/annual2/'+c.id, {method:'DELETE'})));
+      if(grp.title) jobs.push(localDelete('annual2', grp.title.id));
+      grp.contents.forEach(c=> jobs.push(localDelete('annual2', c.id)));
       await Promise.all(jobs);
       a2Model.groups = a2Model.groups.filter(x=>x.g!==g);
       await a2SyncSorts();
@@ -2460,9 +2503,9 @@ async function mp2Load(){
   const gen = ++mp2Gen;
   view.innerHTML = '<div class="empty">⏳ 加载中…</div>';
   try {
-    const d = await apiJson('/monthplan2?year=' + mp2Year + '&month=' + mp2Month);
+    const all = await localList('monthplan2');
     if (gen !== mp2Gen) return;
-    mp2Data = d || [];
+    mp2Data = all.filter(r => Number(r.year) === Number(mp2Year) && Number(r.month) === Number(mp2Month)) || [];
     mp2Paint();
   } catch (e) { view.innerHTML = '<div class="empty">⚠️ 加载失败：' + esc(e.message || e) + '</div>'; }
 }
@@ -2553,7 +2596,7 @@ async function mp2EditItem(id, text){
   // 级联：修改计划事项时，本月内其它相同文字的计划事项一并更新
   const affected = mp2Data.filter(x => x.item === oldText);
   try {
-    await Promise.all(affected.map(x => apiJson('/monthplan2/' + x.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: text }) })));
+    await Promise.all(affected.map(x => localUpdate('monthplan2', x.id, { item: text })));
     await mp2Load();
   } catch (e) { alert('保存失败：' + (e.message || e)); }
 }
@@ -2561,29 +2604,29 @@ async function mp2EditContent(id, text){
   const r = mp2Data.find(x => x.id === id); if (!r) return;
   const t = (text || '');
   if (t === r.content) return;
-  try { await apiJson('/monthplan2/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: t }) }); r.content = t; }
+  try { await localUpdate('monthplan2', id, { content: t }); r.content = t; }
   catch (e) { alert('保存失败：' + (e.message || e)); }
 }
 async function mp2EditDeadline(id, val){
   const r = mp2Data.find(x => x.id === id); if (!r) return;
-  try { await apiJson('/monthplan2/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deadline: val || null }) }); r.deadline = val; mp2Paint(); }
+  try { await localUpdate('monthplan2', id, { deadline: val || null }); r.deadline = val; mp2Paint(); }
   catch (e) { alert('保存失败：' + (e.message || e)); }
 }
 async function mp2ToggleDone(id, next){
   const r = mp2Data.find(x => x.id === id); if (!r) return;
-  try { await apiJson('/monthplan2/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ done: next ? 1 : 0 }) }); r.done = next ? 1 : 0; mp2Paint(); }
+  try { await localUpdate('monthplan2', id, { done: next ? 1 : 0 }); r.done = next ? 1 : 0; mp2Paint(); }
   catch (e) { alert('保存失败：' + (e.message || e)); }
 }
 async function mp2ToggleDaily(id, next){
   const r = mp2Data.find(x => x.id === id); if (!r) return;
   const body = { daily: next ? 1 : 0 };
   if (next) body.deadline = null; // 勾选「每日」则清空截止时间
-  try { await apiJson('/monthplan2/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); r.daily = next ? 1 : 0; if (next) r.deadline = null; mp2Paint(); }
+  try { await localUpdate('monthplan2', id, body); r.daily = next ? 1 : 0; if (next) r.deadline = null; mp2Paint(); }
   catch (e) { alert('保存失败：' + (e.message || e)); }
 }
 async function mp2Del(id){
   if (!confirm('确定删除这条计划？')) return;
-  try { await apiJson('/monthplan2/' + id, { method: 'DELETE' }); await mp2Load(); }
+  try { await localDelete('monthplan2', id); await mp2Load(); }
   catch (e) { alert('删除失败：' + (e.message || e)); }
 }
 function mp2Add(){
@@ -2615,7 +2658,7 @@ async function mp2ConfirmAdd(){
   if (!st.existingSeqs.includes(seq) && seq <= st.maxSeq) { alert('序号只能选择已有序号，或更大的（递增）新序号'); return; }
   closeModal();
   try {
-    await apiJson('/monthplan2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ year: mp2Year, month: mp2Month, seq, item, content: '', deadline: null, done: 0, daily: 0 }) });
+    await localCreate('monthplan2', { year: mp2Year, month: mp2Month, seq, item, content: '', deadline: null, done: 0, daily: 0 });
     await mp2Load();
   } catch (e) { alert('添加失败：' + (e.message || e)); }
 }
