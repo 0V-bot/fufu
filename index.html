@@ -2245,7 +2245,6 @@ function diaryPaint(){
   } else {
     mainHTML = `<div class="diary-write">
       <div class="dw-meta">
-        <div class="dw-date"><span class="dd-k">📅 日期</span><b>${today}</b><span class="muted">（不可修改）</span></div>
         <div class="dw-picks">
           <div class="pick"><div class="pick-label">天气</div><div class="wrow" id="wrow">${DIARY_WEATHER.map(w=>`<button class="wchip" onclick="pickWeather('${esc(w)}')">${w}</button>`).join('')}</div></div>
           <div class="pick"><div class="pick-label">今日心情</div><div class="mrow" id="mrow">${DIARY_MOOD.map(md=>`<button class="mchip" onclick="pickMood('${esc(md)}')">${md}</button>`).join('')}</div></div>
