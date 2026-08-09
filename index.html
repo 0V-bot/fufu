@@ -764,8 +764,20 @@ async function ensureLocal(sectionId){
   try{
     const remote = await apiJson('/section/'+sectionId+'?full=1');
     const arr = Array.isArray(remote) ? remote : [];
+    const locals = (await idbAll()).filter(d=> d.sectionId===sec);
+    const localByKey = {}; locals.forEach(d=> localByKey[d.key]=d);
     for(const it of arr){ if(!it || !it.id) continue;
-      await idbPut({ key:lkey(sec,it.id), sectionId:sec, pushSection:sectionId, id:it.id, realId:it.id, data:it, _op:'sync', _dirty:false, _ts:0 });
+      const key = lkey(sec, it.id);
+      const ex = localByKey[key];
+      if(ex){
+        if(ex._dirty) continue; // 本地有未推送修改：保持原样（含私有字段 size），待推送后由 mergePull 刷新
+        const data = Object.assign({}, it);
+        if(ex.data && ex.data.size) data.size = ex.data.size; // 保留纯本地私有字段（灵感卡片尺寸）
+        ex.data = data; ex._op='sync'; ex._dirty=false; ex._ts=0;
+        await idbPut(ex);
+      } else {
+        await idbPut({ key, sectionId:sec, pushSection:sectionId, id:it.id, realId:it.id, data:it, _op:'sync', _dirty:false, _ts:0 });
+      }
     }
   }catch(e){ console.warn('本地缓存种子失败('+sectionId+'):', e.message); _seeded[sec]=false; }
 }
@@ -2018,6 +2030,16 @@ async function delWish(id){
 
 /* ---------- 灵感记录 ---------- */
 let inspArr=[], inspTypes=[], inspResizeObserver=null;
+// 卡片尺寸为纯本地私有字段：仅写本地 IndexedDB，不打 _dirty、不进 payload、不触发待同步
+async function saveInspSize(id, size){
+  const sec = localSection('insprec');
+  const key = lkey(sec, id);
+  const docs = (await idbAll()).filter(d=> d.key===key);
+  const doc = docs[0];
+  if(!doc) return;
+  doc.data = Object.assign({}, doc.data, { size });
+  await idbPut(doc);
+}
 async function renderInsp(){
   let arr, types;
   try{ arr = await apiList('insprec'); types = (await apiJson('/insp-types')).types || []; }
@@ -2053,7 +2075,7 @@ async function renderInsp(){
       if(now === el._szBase) continue;
       el._szBase = now;
       clearTimeout(el._szT);
-      el._szT = setTimeout(()=>{ saveInspField(id,'size', now); }, 300);
+      el._szT = setTimeout(()=>{ saveInspSize(id, now); }, 300);
     }
   });
   document.querySelectorAll('.tcard').forEach(c=>{
@@ -2076,7 +2098,6 @@ async function saveInspField(id, field, value){
   const t=(inspArr||[]).find(x=>x.id===id); if(!t) return;
   if(field==='content') t.content=value;
   else if(field==='date') t.date=value;
-  else if(field==='size') t.size=value;
   else if(field==='type'){
     if(value==='__new__'){
       const nv=prompt('输入新的灵感类型名称：');
