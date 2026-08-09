@@ -320,7 +320,7 @@ const SECTIONS = {
   review:      { table: '日复盘', kind: 'review' },
   diary:       { table: '日记', kind: 'diary' },
   habits:      { table: '微习惯', kind: 'habits' },
-  habitCheck:  { table: '习惯打卡', kind: 'habitCheck' },
+  habitChecks: { table: '习惯打卡', kind: 'habitCheck' },
 };
 // 人生灵感库 / 知识库分类页 富字段映射（两者同源「人生灵感库」表，结构完全一致）
 function readInspireFields(r) {
