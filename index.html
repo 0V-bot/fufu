@@ -1298,7 +1298,7 @@ function genericBody(kind,it){
     if(f.key==='title') return;
     let v = it[f.key]; if(v==null||v==='') return;
     if(f.key==='tags'){ meta += (v.split(',').map(t=>`<span class="chip">${esc(t.trim())}</span>`).join('')); return; }
-    if(f.key==='content'||f.key==='detail'||f.key==='note'||f.key==='result'){ meta += `<div class="meta">${esc(v)}</div>`; return; }
+    if(f.key==='content'||f.key==='detail'||f.key==='note'||f.key==='result'){ meta += `<div class="meta"><b>${f.label}：</b>${esc(v)}</div>`; return; }
     if(f.key==='link'){ const safe = esc(String(v).trim()); meta += `<div class="meta"><b>${f.label}：</b><a href="${safe}" target="_blank" rel="noopener">${safe}</a></div>`; return; }
     meta += `<div class="meta"><b>${f.label}：</b>${esc(v)}</div>`;
   });
