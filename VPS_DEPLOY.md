@@ -93,6 +93,35 @@ npm i -g pm2 && pm2 start server.js --name fufu && pm2 save
 
 ## 十、常见问题
 - **外网打不开** → 防火墙 / 安全组没放端口（第二步），或容器没起来（`docker compose ps`）。
+
+## 十一、fufu.lwai.work 域名访问（已备案 + 解析到 8.130.181.74）
+
+DNS 已就绪（A 记录 fufu.lwai.work → 8.130.181.74）。让域名能直接打开有两种方式：
+
+### 方式 A（最快，免 nginx，仅 HTTP）
+1. 阿里云安全组入方向放行 **TCP 80**（域名默认走 80）。
+2. 在 VPS 的 `~/fufu/.env` 里加一行：`APP_PORT=80`，保存。
+3. 重建：`cd ~/fufu && git pull && sudo docker compose up -d --build`。
+4. 浏览器开 `http://fufu.lwai.work`（地址栏不用带端口）。
+   > 注意：此方式 node 直接监听 80，且 Cookie 不带 Secure（仅 HTTP，非加密）。
+
+### 方式 B（推荐，nginx 反代 + 免费 HTTPS）
+1. 阿里云安全组入方向放行 **TCP 80 和 443**。
+2. 安装：`apt install -y nginx certbot python3-certbot-nginx`。
+3. 把仓库里的 `nginx/fufu.lwai.work.conf` 放到 VPS 的
+   `/etc/nginx/sites-available/fufu.lwai.work.conf`，并软链到 `sites-enabled/`
+   （或直接放 `/etc/nginx/conf.d/fufu.lwai.work.conf`）。
+   该配置把 80 反代到 `127.0.0.1:3000`，并透传 `X-Forwarded-Proto`。
+4. 校验并重载：`nginx -t && systemctl reload nginx`。
+5. 申请免费证书（certbot 会自动改写该文件加上 443 + HTTP→HTTPS 跳转）：
+   `certbot --nginx -d fufu.lwai.work`。
+6. 之后访问 `https://fufu.lwai.work`，全程加密，登录 Cookie 自动带 `Secure`。
+   > `.env` 保持 `APP_PORT=3000`（容器 3000 不动，由 nginx 反代）；
+   > 若只想暴露域名、不再直连 :3000，可把 docker-compose 的 ports 改成
+   > `"127.0.0.1:3000:3000"`（仅本机可访问 3000，外网只走 nginx 的 80/443）。
+
+> 代码里 `API='/api'` 是相对路径、`server.js` 不限制 Host 头，因此换域名零改造即可生效。
+
 - **登录后页面空白 / 接口 401** → `ACCESS_PWD` 没真写进 `.env`，或改完没重启容器。
 - **飞书读写失败** → 飞书应用需开通 `bitable:app` 权限，且被加为 Base `Wwtfbm66VaJyLOsBQaTcTm1vnHg` 的「可编辑」协作者（与 Railway 阶段要求一致）。
 - **想换端口** → 改 `.env` 里的 `APP_PORT` 并放行对应端口，重启容器。
