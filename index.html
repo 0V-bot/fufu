@@ -293,7 +293,7 @@
   .q-filter{border:1px solid var(--line);border-radius:9px;padding:7px 8px;font-size:13px;font-family:inherit;outline:none;background:#fff;max-width:150px;}
   .q-add{display:flex;gap:9px;margin-top:6px;}
   .q-input{flex:1;border:1px solid var(--line);border-radius:10px;padding:11px 14px;font-size:14px;font-family:inherit;outline:none;background:#fff;}
-  .q-input{resize:vertical;min-height:42px;line-height:1.5;}
+  .q-input{resize:none;min-height:42px;line-height:1.5;overflow-y:hidden;}
   .q-input:focus{border-color:var(--brand);}
   .q-cat{border:1px solid var(--line);border-radius:10px;padding:11px 10px;font-size:14px;font-family:inherit;outline:none;background:#fff;max-width:160px;}
   .q-list{margin-top:10px;display:flex;flex-direction:column;gap:2px;}
@@ -2122,7 +2122,7 @@ function paintQuotes(){
       </div>
     </div>
     <div class="q-add">
-      <textarea id="qInput" class="q-input" rows="1" placeholder="摘抄一句打动你的话…（支持换行）" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();addQuote()}"></textarea>
+      <textarea id="qInput" class="q-input" rows="1" placeholder="摘抄一句打动你的话…（回车换行，点「摘抄」记录）" oninput="qAutoGrow(this)"></textarea>
       <select id="qCat" class="q-cat" onchange="qCatPick(this)">${addCatOpts}</select>
       <button class="btn primary" onclick="addQuote()">摘抄</button>
     </div>
@@ -2162,9 +2162,15 @@ async function addQuote(){
     const r = await apiCreate('quotes',{ content:v, category:cat, created:Date.now() });
     if(!quoteArr) quoteArr=[];
     quoteArr.push({ id:r.id, content:v, category:cat, created:Date.now() });
-    if(i) i.value='';
+    if(i){ i.value=''; qAutoGrow(i); }
     await renderQuotes();
   }catch(e){ alert('摘抄失败：'+(e.message||e)); }
+}
+// 文本输入框随内容自动增高（最小 1 行，最大约 10 行），无需手动拖拽
+function qAutoGrow(t){
+  if(!t) return;
+  t.style.height='auto';
+  t.style.height=Math.min(t.scrollHeight, 220)+'px';
 }
 function qCatPick(sel){
   if(sel.value==='__new__'){
