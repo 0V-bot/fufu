@@ -286,6 +286,27 @@
   .wish-item:hover .wish-del{opacity:1;}
   .wish-del:hover{color:#dc2626;background:#fee2e2;}
 
+  /* 金句摘抄 */
+  .q-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .q-search{border:1px solid var(--line);border-radius:9px;padding:7px 11px;font-size:13px;font-family:inherit;outline:none;width:170px;background:#fff;}
+  .q-search:focus{border-color:var(--brand);}
+  .q-filter{border:1px solid var(--line);border-radius:9px;padding:7px 8px;font-size:13px;font-family:inherit;outline:none;background:#fff;max-width:150px;}
+  .q-add{display:flex;gap:9px;margin-top:6px;}
+  .q-input{flex:1;border:1px solid var(--line);border-radius:10px;padding:11px 14px;font-size:14px;font-family:inherit;outline:none;background:#fff;}
+  .q-input:focus{border-color:var(--brand);}
+  .q-cat{border:1px solid var(--line);border-radius:10px;padding:11px 10px;font-size:14px;font-family:inherit;outline:none;background:#fff;max-width:160px;}
+  .q-list{margin-top:10px;display:flex;flex-direction:column;gap:2px;}
+  .q-item{display:flex;align-items:center;gap:10px;padding:9px 6px;border-radius:10px;transition:background .12s;}
+  .q-item:hover{background:#f8fafc;}
+  .q-text{flex:1;font-size:15px;color:#0f172a;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default;}
+  .q-item.open .q-text{white-space:normal;overflow:visible;text-overflow:clip;word-break:break-word;}
+  .q-expand{flex:0 0 auto;width:22px;height:22px;border:none;background:#eef2f7;color:#64748b;font-size:14px;line-height:1;cursor:pointer;border-radius:6px;transition:.12s;}
+  .q-expand:hover{background:#e2e8f0;color:#334155;}
+  .q-cat-tag{flex:0 0 auto;font-size:12px;color:#b45309;background:#fef3c7;border-radius:999px;padding:2px 9px;white-space:nowrap;}
+  .q-del{flex:0 0 auto;opacity:0;border:none;background:transparent;color:#cbd5e1;font-size:19px;cursor:pointer;line-height:1;padding:0 6px 2px;border-radius:6px;transition:.12s;}
+  .q-item:hover .q-del{opacity:1;}
+  .q-del:hover{color:#dc2626;background:#fee2e2;}
+
   /* todos 三列：未完成项 / 今日待办 / 明日计划 */
   .todos-3col{display:grid;grid-template-columns:1fr 1.7fr 1fr;gap:16px;align-items:start;margin-top:2px;}
   .tcol{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 15px;box-shadow:var(--shadow);}
@@ -745,7 +766,7 @@ function lkey(sec, id){ return sec + '::' + id; }
 // 项目(ptask 思维导图) 已纳入本地优先缓存 + 双向同步（与年/月计划等一致）；
 // 父子关联靠 tid：离线时本地分配 L 前缀临时 tid 建树，同步后回写真实 tid 并修正子任务指向。
 function localExcluded(id){ return false; }
-const BACKED_KINDS = ['events','todos','wisdom','knowledge','kbcat','topics','publish','books','wishes','insprec','calendar','annual2','monthplan2','review','diary','habits','habitCheck','menstrual','project','ptask','article'];
+const BACKED_KINDS = ['events','todos','wisdom','knowledge','kbcat','topics','publish','books','wishes','insprec','quotes','calendar','annual2','monthplan2','review','diary','habits','habitCheck','menstrual','project','ptask','article'];
 function sectionBacked(id){ const s = SECTIONS[id]; return s && BACKED_KINDS.includes(s.kind); }
 // ptask 类（project / ptask）通用判断与 tid 工具
 function isPtaskKind(k){ return k==='project' || k==='ptask'; }
@@ -1018,6 +1039,7 @@ const NAV = [
   ]},
   {id:'content', label:'灵感库', icon:'✍️', children:[
     {id:'insprec', label:'灵感记录'},
+    {id:'quotes', label:'金句摘抄'},
     {id:'topics', label:'选题库'},
     {id:'publish', label:'发布草稿'},
   ]},
@@ -1062,6 +1084,7 @@ const SECTIONS = {
   bookcorner:{name:'精神角落',kind:'books',accent:'#0d9488',hint:'记录读过的书，沉淀阅读与思考。'},
   wishes:{name:'100个愿望清单',kind:'wishes',accent:'#2563eb',hint:'把想去的地方、想做的事写下来；实现了就打勾，并记录圆梦时刻。'},
   insprec:{name:'灵感记录',kind:'insprec',accent:'#f97316',hint:'随手记下灵光一现，选择灵感类型（9 种可选，也可自由新增），积累你的灵感库。'},
+  quotes:{name:'金句摘抄',kind:'quotes',accent:'#f59e0b',hint:'收藏打动你的句子，按记录时间倒序，可分类、搜索、筛选。'},
 };
 
 /* 人生灵感库「标签」可选分类（与飞书「人生灵感库」表的「标签」单选字段保持一致） */
@@ -2060,6 +2083,100 @@ async function toggleWish(id){
 async function delWish(id){
   if(!confirm('删除这个愿望？')) return;
   try{ await apiDelete('wishes', id); wishArr=(wishArr||[]).filter(x=>x.id!==id); await renderWishes(); }
+  catch(e){ alert('删除失败：'+(e.message||e)); }
+}
+
+/* ---------- 金句摘抄（灵感库下：输入框 + 分类下拉 + 摘抄；按记录时间倒序；可按分类筛选/搜索；超出一行可展开） ---------- */
+let quoteArr=[];
+const quoteState = { search:'', filter:'' };   // 搜索词 / 分类筛选（'' = 全部）
+function quoteCats(){ const s=new Set(); (quoteArr||[]).forEach(q=>{ if(q.category) s.add(q.category); }); return [...s].sort((a,b)=>a.localeCompare(b,'zh')); }
+async function renderQuotes(){
+  let arr;
+  try{ arr = await apiList('quotes'); }
+  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  quoteArr = arr || [];
+  quoteArr.forEach(q=>{ if(!q.created) q.created = 0; });
+  paintQuotes();
+}
+function paintQuotes(){
+  const cats = quoteCats();
+  // 应用搜索 + 筛选
+  let list = (quoteArr||[]).slice().sort((a,b)=> (b.created||0)-(a.created||0));   // 最新记录在最上
+  const q = (quoteState.search||'').trim().toLowerCase();
+  if(q) list = list.filter(x=> (x.content||'').toLowerCase().includes(q));
+  if(quoteState.filter) list = list.filter(x=> x.category===quoteState.filter);
+  const catOpts = cats.map(c=>`<option value="${esc(c)}" ${quoteState.filter===c?'selected':''}>${esc(c)}</option>`).join('');
+  const addCatOpts = cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')
+    + `<option value="__new__">＋ 新建分类…</option>`;
+  let html = `<div class="card">
+    <div class="h"><div class="t">金句摘抄 <span class="muted" style="font-weight:500">· ${quoteArr.length} 条${list.length!==quoteArr.length?'，命中 '+list.length:'（全部分类）'}</span></div>
+      <div class="q-toolbar">
+        <input id="qSearch" class="q-search" placeholder="搜索金句…" value="${esc(quoteState.search||'')}" onkeydown="if(event.key==='Enter')qSearchRun()" />
+        <button class="btn ghost mini" onclick="qSearchRun()" title="搜索">🔍</button>
+        <select id="qFilter" class="q-filter" onchange="qFilterSel(this.value)">
+          <option value="">全部分类</option>${catOpts}
+        </select>
+      </div>
+    </div>
+    <div class="q-add">
+      <input id="qInput" class="q-input" placeholder="摘抄一句打动你的话…" onkeydown="if(event.key==='Enter')addQuote()" />
+      <select id="qCat" class="q-cat" onchange="qCatPick(this)">${addCatOpts}</select>
+      <button class="btn primary" onclick="addQuote()">摘抄</button>
+    </div>
+    <div class="q-list">`;
+  if(!list.length){ html += `<div class="empty">${quoteArr.length?'没有符合条件的金句':'还没有金句，摘抄第一句吧 ✨'}</div>`; }
+  list.forEach(t=>{
+    const did=t.id;
+    const cat = t.category ? `<span class="q-cat-tag">${esc(t.category)}</span>` : '';
+    html += `<div class="q-item" id="q-${did}">
+      <span class="q-text">${esc(t.content||'')}</span>
+      <button class="q-expand" style="display:none" onclick="qToggle('${did}')" title="展开/收起">⌄</button>
+      ${cat}
+      <button class="q-del" onclick="delQuote('${did}')" title="删除">×</button>
+    </div>`;
+  });
+  html += `</div></div>`;
+  view.innerHTML = html;
+  qMeasure();
+}
+// 渲染后测量每条金句是否超出一行：超出的才显示展开图标
+function qMeasure(){
+  document.querySelectorAll('.q-item').forEach(it=>{
+    const txt = it.querySelector('.q-text'); const btn = it.querySelector('.q-expand');
+    if(!txt || !btn) return;
+    if(it.classList.contains('open')){ btn.style.display=''; btn.textContent='⌃'; return; }
+    const overflow = txt.scrollWidth > txt.clientWidth + 2;
+    if(overflow){ btn.style.display=''; btn.textContent='⌄'; } else { btn.style.display='none'; }
+  });
+}
+async function addQuote(){
+  const i=document.getElementById('qInput'); const v=(i?i.value:'').trim();
+  if(!v){ if(i) i.focus(); return; }
+  const catSel=document.getElementById('qCat');
+  let cat='';
+  if(catSel){ const cv=catSel.value; if(cv==='__new__'){ const nv=prompt('新分类名称：'); cat=(nv||'').trim(); } else cat=cv; }
+  try{
+    const r = await apiCreate('quotes',{ content:v, category:cat, created:Date.now() });
+    if(!quoteArr) quoteArr=[];
+    quoteArr.push({ id:r.id, content:v, category:cat, created:Date.now() });
+    await renderQuotes();
+  }catch(e){ alert('摘抄失败：'+(e.message||e)); }
+}
+function qCatPick(sel){
+  if(sel.value==='__new__'){
+    const nv=(prompt('新分类名称：')||'').trim();
+    if(nv){
+      if(![...sel.options].some(o=>o.value===nv)){ const op=document.createElement('option'); op.value=nv; op.textContent=nv; sel.insertBefore(op, sel.querySelector('option[value="__new__"]')); }
+      sel.value=nv;
+    } else { sel.selectedIndex=0; }
+  }
+}
+function qToggle(id){ const el=document.getElementById('q-'+id); if(!el) return; el.classList.toggle('open'); qMeasure(); }
+function qSearchRun(){ const i=document.getElementById('qSearch'); quoteState.search = i? i.value : ''; paintQuotes(); }
+function qFilterSel(v){ quoteState.filter = v; paintQuotes(); }
+async function delQuote(id){
+  if(!confirm('删除这句金句？')) return;
+  try{ await apiDelete('quotes', id); quoteArr=(quoteArr||[]).filter(x=>x.id!==id); await renderQuotes(); }
   catch(e){ alert('删除失败：'+(e.message||e)); }
 }
 
@@ -3580,6 +3697,7 @@ async function render(){
     if(kind==='monthplan2') return await renderMonthPlan2();
     if(kind==='wishes') return await renderWishes();
     if(kind==='insprec') return await renderInsp();
+    if(kind==='quotes') return await renderQuotes();
     if(kind==='topics') return await renderTopics();
     if(current==='major') return await renderMajor();
     if(current==='calendar') return await renderCalendar();

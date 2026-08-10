@@ -25,6 +25,7 @@ const CATEGORY_TABLE = process.env.CATEGORY_TABLE_TOKEN || 'tblfMizz0bw1juvw';
 const GRID_TABLE = process.env.GRID_TABLE || '计划表格';
 const WISH_TABLE = process.env.WISH_TABLE || '愿望清单';
 const INSP_TABLE = process.env.INSP_TABLE || '灵感记录';
+const QUOTES_TABLE = process.env.QUOTES_TABLE || '金句摘抄';
 const INSP_TYPE_TABLE = process.env.INSP_TYPE_TABLE || '灵感类型';
 const INSP_TYPE_DEFAULTS = ['健康', '友情', '感情', '心理学', '女性成长', '时间管理', '精力管理', '职场', '情绪管理'];
 const ACCESS_PWD = process.env.ACCESS_PWD || '';           // 空 = 不加密
@@ -319,6 +320,7 @@ const SECTIONS = {
   bookcorner:  { table: '精神角落', kind: 'books' },
   wishes:      { table: WISH_TABLE, kind: 'wishes' },
   insprec:     { table: INSP_TABLE, kind: 'insprec' },
+  quotes:      { table: QUOTES_TABLE, base: INSPIRE_BASE, kind: 'quotes' },
   calendar:    { table: '日程', kind: 'calendar' },
   // —— 以下模块纳入本地优先缓存 + 双向同步（此前走专用路由直连飞书，未走本地层）——
   annual2:     { table: ANNUAL2_TABLE, kind: 'annual2' },
@@ -382,6 +384,8 @@ function readRec(kind, r) {
     case 'books':     return { id: r.record_id, title: r['书名'] || '', author: r['作者'] || '', category: sel(r['分类']) || '', status: sel(r['状态']) || '', core: r['书本核心内容'] || '', note: r['读后感'] || '', source: r['来源'] || '', link: r['链接'] || '', date: dateOnly(r['日期']) };
     case 'calendar':  return { id: r.record_id, date: dateOnly(r['日期']), title: r['标题'] || '', time: r['时间'] || '', note: r['备注'] || '', remind: !!r['提醒'] };
     case 'menstrual': return { id: r.record_id, date: dateOnly(r['日期']), flow: sel(r['流量']) || '', note: r['备注'] || '' };
+    // 金句摘抄：内容 / 分类(文本) / 记录时间(本地创建时间，ms)，created 以本地缓存为准（pull 不覆盖）
+    case 'quotes':    return { id: r.record_id, content: r['内容'] || '', category: r['分类'] || '', created: Number(r['记录时间']) || 0 };
     // —— 本地优先模块：前端友好字段（与服务端 readRec 同源，供本地缓存种子/同步拉取）——
     case 'annual2':   return { id: r.record_id, year: Number(r['年份']), type: sel(r['类型']) || '', cellColor: (r['格子颜色'] || '') || '#ffffff', text: (r['文案'] || ''), textColor: (r['文字颜色'] || '') || '#0f172a', sort: Number(r['排序']) || 0, done: !!r['完成标记'] };
     case 'monthplan2': return { id: r.record_id, year: Number(r['年份']), month: Number(r['月份']), seq: num(r['序号']), item: (r['计划事项'] || ''), content: (r['计划内容'] || ''), deadline: dateOnly(r['截止时间']), done: Number(r['完成标签']) ? 1 : 0, daily: !!r['每日'], created: Number(r['创建时间']) || 0 };
@@ -423,6 +427,8 @@ async function writeRec(kind, o, fix) {
     case 'publish':   return { '计划发布时间': toFeishuDateTime(o.planTime), '标题': o.title || '', '文案': o.content || '', '备注': o.note || '' };
     case 'calendar':  return { '日期': toFeishuDate(o.date), '标题': o.title || '', '时间': o.time || '', '备注': o.note || '', '提醒': !!o.remind };
     case 'menstrual': return { '日期': toFeishuDate(o.date), '流量': o.flow ? o.flow : null, '备注': o.note || '' };
+    // 金句摘抄：分类为纯文本字段（允许自由新增分类），记录时间写本地 created(ms)
+    case 'quotes':    return { '内容': o.content || '', '分类': o.category || '', '记录时间': o.created ? Number(o.created) : null };
     case 'knowledge': return { '文案标题': o.title, '标签': o.tags || '', '来源': o.source || '', 'AI总结': o.content || '' };
     case 'ptask': {
       const proj = PROJ_MAP[fix];
