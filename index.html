@@ -293,6 +293,7 @@
   .q-filter{border:1px solid var(--line);border-radius:9px;padding:7px 8px;font-size:13px;font-family:inherit;outline:none;background:#fff;max-width:150px;}
   .q-add{display:flex;gap:9px;margin-top:6px;}
   .q-input{flex:1;border:1px solid var(--line);border-radius:10px;padding:11px 14px;font-size:14px;font-family:inherit;outline:none;background:#fff;}
+  .q-input{resize:vertical;min-height:42px;line-height:1.5;}
   .q-input:focus{border-color:var(--brand);}
   .q-cat{border:1px solid var(--line);border-radius:10px;padding:11px 10px;font-size:14px;font-family:inherit;outline:none;background:#fff;max-width:160px;}
   .q-list{margin-top:10px;display:flex;flex-direction:column;gap:2px;}
@@ -1012,6 +1013,8 @@ let majorExpandedRecId = null;
 
 const today = () => new Date().toISOString().slice(0,10);
 const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// 转义并保留换行：\n → <br>，使金句等多行文本正常换行显示
+const escNl = s => esc(s).replace(/\r?\n/g,'<br>');
 
 /* ---------- nav config ---------- */
 const NAV = [
@@ -2119,7 +2122,7 @@ function paintQuotes(){
       </div>
     </div>
     <div class="q-add">
-      <input id="qInput" class="q-input" placeholder="摘抄一句打动你的话…" onkeydown="if(event.key==='Enter')addQuote()" />
+      <textarea id="qInput" class="q-input" rows="1" placeholder="摘抄一句打动你的话…（支持换行）" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();addQuote()}"></textarea>
       <select id="qCat" class="q-cat" onchange="qCatPick(this)">${addCatOpts}</select>
       <button class="btn primary" onclick="addQuote()">摘抄</button>
     </div>
@@ -2129,7 +2132,7 @@ function paintQuotes(){
     const did=t.id;
     const cat = t.category ? `<span class="q-cat-tag">${esc(t.category)}</span>` : '';
     html += `<div class="q-item" id="q-${did}">
-      <span class="q-text">${esc(t.content||'')}</span>
+      <span class="q-text">${escNl(t.content||'')}</span>
       <button class="q-expand" style="display:none" onclick="qToggle('${did}')" title="展开/收起">⌄</button>
       ${cat}
       <button class="q-del" onclick="delQuote('${did}')" title="删除">×</button>
@@ -2159,6 +2162,7 @@ async function addQuote(){
     const r = await apiCreate('quotes',{ content:v, category:cat, created:Date.now() });
     if(!quoteArr) quoteArr=[];
     quoteArr.push({ id:r.id, content:v, category:cat, created:Date.now() });
+    if(i) i.value='';
     await renderQuotes();
   }catch(e){ alert('摘抄失败：'+(e.message||e)); }
 }
