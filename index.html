@@ -300,7 +300,9 @@
   .q-item{display:flex;align-items:center;gap:10px;padding:9px 6px;border-radius:10px;transition:background .12s;}
   .q-item:hover{background:#f8fafc;}
   .q-text{flex:1;font-size:15px;color:#0f172a;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default;}
+  .q-text br{display:none;}                       /* 收起时只显示第一行，换行符隐藏 */
   .q-item.open .q-text{white-space:normal;overflow:visible;text-overflow:clip;word-break:break-word;}
+  .q-item.open .q-text br{display:inline;}        /* 展开时还原换行 */
   .q-expand{flex:0 0 auto;width:22px;height:22px;border:none;background:#eef2f7;color:#64748b;font-size:14px;line-height:1;cursor:pointer;border-radius:6px;transition:.12s;}
   .q-expand:hover{background:#e2e8f0;color:#334155;}
   .q-cat-tag{flex:0 0 auto;font-size:12px;color:#b45309;background:#fef3c7;border-radius:999px;padding:2px 9px;white-space:nowrap;}
@@ -2114,8 +2116,9 @@ function paintQuotes(){
   let html = `<div class="card">
     <div class="h"><div class="t">金句摘抄 <span class="muted" style="font-weight:500">· ${quoteArr.length} 条${list.length!==quoteArr.length?'，命中 '+list.length:'（全部分类）'}</span></div>
       <div class="q-toolbar">
-        <input id="qSearch" class="q-search" placeholder="搜索金句…" value="${esc(quoteState.search||'')}" onkeydown="if(event.key==='Enter')qSearchRun()" />
+        <input id="qSearch" class="q-search" placeholder="搜索金句…" value="${esc(quoteState.search||'')}" oninput="qSearchInput(this)" onkeydown="if(event.key==='Enter')qSearchRun()" />
         <button class="btn ghost mini" onclick="qSearchRun()" title="搜索">🔍</button>
+        <button id="qClear" class="btn ghost mini" onclick="qClearSearch()" title="清空搜索" style="display:${quoteState.search?'inline-flex':'none'}">×</button>
         <select id="qFilter" class="q-filter" onchange="qFilterSel(this.value)">
           <option value="">全部分类</option>${catOpts}
         </select>
@@ -2131,7 +2134,7 @@ function paintQuotes(){
   list.forEach(t=>{
     const did=t.id;
     const cat = t.category ? `<span class="q-cat-tag">${esc(t.category)}</span>` : '';
-    html += `<div class="q-item" id="q-${did}">
+    html += `<div class="q-item" id="q-${did}" data-multiline="${(t.content||'').includes('\n')?'1':'0'}">
       <span class="q-text">${escNl(t.content||'')}</span>
       <button class="q-expand" style="display:none" onclick="qToggle('${did}')" title="展开/收起">⌄</button>
       ${cat}
@@ -2148,7 +2151,9 @@ function qMeasure(){
     const txt = it.querySelector('.q-text'); const btn = it.querySelector('.q-expand');
     if(!txt || !btn) return;
     if(it.classList.contains('open')){ btn.style.display=''; btn.textContent='⌃'; return; }
-    const overflow = txt.scrollWidth > txt.clientWidth + 2;
+    // 多行内容或未溢出整行时，都显示展开图标（多行内容只展示第一行，点击展开全部）
+    const multiline = it.dataset.multiline === '1';
+    const overflow = multiline || (txt.scrollWidth > txt.clientWidth + 2);
     if(overflow){ btn.style.display=''; btn.textContent='⌄'; } else { btn.style.display='none'; }
   });
 }
@@ -2183,6 +2188,8 @@ function qCatPick(sel){
 }
 function qToggle(id){ const el=document.getElementById('q-'+id); if(!el) return; el.classList.toggle('open'); qMeasure(); }
 function qSearchRun(){ const i=document.getElementById('qSearch'); quoteState.search = i? i.value : ''; paintQuotes(); }
+function qSearchInput(el){ if(quoteState.search !== el.value){ quoteState.search = el.value; const c=document.getElementById('qClear'); if(c) c.style.display = el.value ? 'inline-flex' : 'none'; } }
+function qClearSearch(){ const i=document.getElementById('qSearch'); if(i) i.value=''; quoteState.search=''; const c=document.getElementById('qClear'); if(c) c.style.display='none'; paintQuotes(); }
 function qFilterSel(v){ quoteState.filter = v; paintQuotes(); }
 async function delQuote(id){
   if(!confirm('删除这句金句？')) return;
