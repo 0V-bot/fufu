@@ -698,6 +698,12 @@
     .topic-mtop .btn{flex:0 0 auto;}
     .tp-title{width:100%;box-sizing:border-box;padding:8px 9px;border:1px solid #ccd5e0;border-radius:6px;font-size:14px;background:#fff;color:#1f2937;margin-bottom:6px;resize:vertical;min-height:38px;font-family:inherit;line-height:1.4;}
     .tp-note{width:100%;box-sizing:border-box;padding:8px 9px;border:1px solid #ccd5e0;border-radius:6px;font-size:13px;background:#fff;color:#1f2937;resize:vertical;min-height:34px;font-family:inherit;line-height:1.4;}
+    /* 年度计划手机端：每组占满整行，添加按钮整行置于「结尾」上方（桌面端 .a2-groups 多列网格不变） */
+    .a2-main{flex-direction:column;}
+    .a2-groups{display:grid !important; grid-template-columns:1fr !important; gap:12px; flex:none;}  /* 覆盖内联 repeat(arrange,1fr)，强制单列 */
+    .a2-group{width:100%;}
+    .a2-addgroup{width:100%; flex:0 0 auto; height:auto; min-height:46px; margin-left:0; margin-top:12px; padding:10px 0; font-size:22px;}  /* 由右侧窄竖条改为整行按钮，落在结尾上方 */
+    .a2-arrange{display:none;}   /* 手机强制单列，每行分组数(2/3/4)控制无意义，隐藏避免误导 */
   }
 </style>
 </head>
