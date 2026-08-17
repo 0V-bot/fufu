@@ -666,8 +666,14 @@
     .ms-item{padding:12px 18px; color:#cbd5e1; font-size:14px; border-bottom:1px solid #1a2540;}
     .ms-item:active{background:#1e293b;}
     /* 微习惯手机端：4天滑动窗口（桌面端 .habit-head/.habit-row 不使用，互不干扰） */
-    .habit-mhead{display:flex;align-items:center;gap:6px;margin:2px 0 8px;}
-    .habit-mhead .mh-strip{flex:1;display:flex;gap:6px;cursor:grab;user-select:none;-webkit-user-select:none;overflow:hidden;touch-action:pan-y;}
+    .habit-mnav{display:flex;align-items:center;gap:8px;margin:2px 0 8px;}
+    .habit-mnav .mh-hint{flex:1;font-size:11px;color:#9aa3b8;}
+    .habit-mnav .mh-nav-right{display:flex;gap:6px;flex:0 0 auto;}
+    .habit-mnav .mh-today{flex:0 0 auto;}
+    .habit-mhead{display:flex;align-items:center;gap:8px;margin:0 0 10px;}
+    .habit-mhead .mh-sp{flex:0 0 70px;min-width:0;}            /* 与 .mh-nm 同宽，保证日期列与打卡列对齐 */
+    .habit-mhead .mh-sp-r{flex:0 0 34px;min-width:0;}          /* 与 .habit-del 同宽 */
+    .habit-mhead .mh-strip{flex:1;min-width:0;display:flex;gap:6px;cursor:grab;user-select:none;-webkit-user-select:none;overflow:hidden;touch-action:pan-y;}
     .habit-mhead .mh-strip:active{cursor:grabbing;}
     .habit-mhead .mh-i{flex:1;text-align:center;font-style:normal;display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 0;border-radius:9px;background:#f1f5f9;font-size:11px;line-height:1.1;min-width:0;}
     .habit-mhead .mh-i .dn{font-size:14px;font-weight:700;color:#0f172a;}
@@ -676,11 +682,11 @@
     .habit-mhead .mh-i.we .dw{color:#ef4444;font-weight:700;}
     .habit-mhead .mh-i.today{background:#fff7ed;box-shadow:0 0 0 2px #f59e0b inset;}
     .habit-mhead .mh-i.today .dn{color:#d97706;}
-    .habit-mhead .mh-today{margin-left:8px;flex:0 0 auto;}
     .habit-mrow{display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid var(--line);}
     .habit-mrow:first-of-type{border-top:none;}
     .mh-nm{flex:0 0 70px;font-weight:650;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .mh-days{flex:1;min-width:0;display:flex;gap:6px;}
+    .habit-del{width:34px;flex:0 0 34px;}                       /* 固定宽度，配合 mh-sp-r 对齐 */
     .mh-days .mcell{height:36px;border-radius:9px;background:#eef1f7;cursor:pointer;display:grid;place-items:center;font-size:15px;transition:.12s;flex:1;min-width:0;}
     .mh-days .mcell.we{background:#fdecec;}
     .mh-days .mcell.on{background:#10b981;color:#fff;}
@@ -2520,15 +2526,25 @@ function renderHabitsMobile(arr){
   }).join('');
   const todayInWin = days.some(d=>bjDateStr(d)===todayStr);
   const backBtn = todayInWin ? '' : `<button class="btn mini mh-today" onclick="habitMobileBackToday()">回到今天</button>`;
-  let html = `<div class="card"><div class="h"><div class="t">微习惯打卡</div>
-    <div class="inline-add" style="margin:0;width:auto"><input id="habitInput" placeholder="新增习惯名称…" style="padding:7px 11px"/>
-    <button class="btn" onclick="addHabit()">+ 习惯</button></div></div>`;
-  html += `<div class="habit-mhead">
-    <button class="btn mini" onclick="habitMobileShift(-1)" title="前一阵子">‹</button>
-    <div class="mh-strip" id="mhStrip">${headCells}</div>
-    <button class="btn mini" onclick="habitMobileShift(1)" title="后一阵子">›</button>
-    ${backBtn}
-  </div>`;
+  const navRight = `<button class="btn mini" onclick="habitMobileShift(-1)" title="前一阵子">‹</button>
+      <button class="btn mini" onclick="habitMobileShift(1)" title="后一阵子">›</button>`;
+  let html = `<div class="card"><div class="h" style="display:flex;flex-direction:column;align-items:stretch;gap:9px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div class="t">微习惯打卡</div>
+        <button class="btn" onclick="addHabit()">+ 习惯</button>
+      </div>
+      <input id="habitInput" placeholder="新增习惯名称…" style="padding:9px 11px;width:100%;box-sizing:border-box;font-family:inherit;font-size:14px"/>
+    </div>`;
+  html += `<div class="habit-mnav">
+      ${backBtn}
+      <span class="mh-hint">← 左右拖动切换日期 →</span>
+      <span class="mh-nav-right">${navRight}</span>
+    </div>
+    <div class="habit-mhead">
+      <span class="mh-sp"></span>
+      <div class="mh-strip" id="mhStrip">${headCells}</div>
+      <span class="mh-sp-r"></span>
+    </div>`;
   if(!arr.length){ html += `<div class="empty">还没有习惯，添加一个开始坚持吧 🌱</div></div>`; view.innerHTML=html; habitMobileBindDrag(); return; }
   arr.forEach(h=>{
     let cells='';
@@ -2563,10 +2579,25 @@ function habitMobileBackToday(){
 }
 function habitMobileBindDrag(){
   const strip=document.getElementById('mhStrip'); if(!strip) return;
-  let startX=null, dragging=false;
-  strip.addEventListener('pointerdown', e=>{ startX=e.clientX; dragging=true; try{ strip.setPointerCapture(e.pointerId); }catch(_){} });
-  strip.addEventListener('pointermove', e=>{ if(!dragging) return; const dx=e.clientX-startX; strip.style.transform='translateX('+dx+'px)'; });
-  const end=e=>{ if(!dragging) return; dragging=false; const dx=e.clientX-startX; strip.style.transform=''; if(Math.abs(dx)>40) habitMobileShift(dx<0?1:-1); startX=null; };
+  let startX=null, startT=null, lastT=null, dragging=false, moved=false;
+  const cellW = ()=> Math.max(40, strip.clientWidth/4);   // 单日格子约宽
+  strip.addEventListener('pointerdown', e=>{ startX=e.clientX; startT=performance.now(); lastT=startT; dragging=true; moved=false; try{ strip.setPointerCapture(e.pointerId); }catch(_){} });
+  strip.addEventListener('pointermove', e=>{ if(!dragging) return; const dx=e.clientX-startX; if(Math.abs(dx)>4) moved=true; lastT=performance.now(); if(Math.abs(dx)>8) strip.style.transform='translateX('+dx+'px)'; });
+  const end=e=>{
+    if(!dragging) return; dragging=false; strip.style.transform='';
+    if(!moved){ startX=null; return; }
+    const dx=e.clientX-startX;
+    const dt=Math.max(1, lastT-startT);
+    const vel=Math.abs(dx)/dt;                 // px/ms，识别松手速度（甩动）
+    let shift=-Math.round(dx/cellW());         // 按位移量估算天数
+    if(vel>0.6){                              // 快速甩动额外多跳几天
+      const boost=Math.min(10, Math.max(2, Math.round(vel*6)));
+      shift += (dx<0?boost:-boost);
+    }
+    shift=Math.max(-14, Math.min(14, shift));  // 单次上限 ±14 天
+    if(shift!==0) habitMobileShift(shift);
+    startX=null;
+  };
   strip.addEventListener('pointerup', end);
   strip.addEventListener('pointercancel', ()=>{ dragging=false; startX=null; strip.style.transform=''; });
 }
