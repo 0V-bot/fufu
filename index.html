@@ -1979,14 +1979,14 @@ function resetArticleForm(){
 function fmtDeadline(v){
   if(!v) return '';
   if(typeof v === 'number'){
-    const d = new Date(v + 8*3600*1000), p = n => (n<10?'0'+n:'');
+    const d = new Date(v + 8*3600*1000), p = n => (n<10?'0'+n:String(n));
     return `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())}T${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
   }
   return String(v).replace(' ','T').slice(0,16);
 }
 // 北京时间今天的 YYYY-MM-DD（与截止时间显示口径一致）
 function todayStr(){
-  const d = new Date(Date.now() + 8*3600*1000), p = n => (n<10?'0'+n:'');
+  const d = new Date(Date.now() + 8*3600*1000), p = n => (n<10?'0'+n:String(n));
   return `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())}`;
 }
 const datePart = s => s ? String(s).slice(0,10) : '';
