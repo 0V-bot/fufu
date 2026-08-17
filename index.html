@@ -620,6 +620,43 @@
   .mp2-add:hover{background:var(--brand-soft);}
   .mp2-hint{font-size:12px; color:var(--muted); margin:4px 0 2px; line-height:1.5;}
   .mp2-seq-input{width:120px;}
+
+  /* ---------- 移动端：左侧功能栏改为底部导航栏 ---------- */
+  .mobile-nav{display:none;}
+  .mobile-sub{display:none;}
+  @media (max-width: 768px){
+    .sidebar{display:none;}
+    .app{flex-direction:column; min-height:100vh;}
+    .main{padding:16px 14px 76px;}            /* 底部留出导航栏高度 */
+    .topbar{flex-direction:column; align-items:flex-start; gap:8px; margin-bottom:16px;}
+    .topbar-right{width:100%; justify-content:flex-start;}
+    .grid.cols-2, .grid.cols-3{grid-template-columns:1fr;}   /* 卡片单列堆叠 */
+    .card{display:block;}
+    .sync-card{flex-direction:column; align-items:flex-start;}
+    /* 底部功能导航栏 */
+    .mobile-nav{
+      display:flex; position:fixed; left:0; right:0; bottom:0; z-index:50;
+      height:56px; background:#0f172a; border-top:1px solid #1e293b;
+      align-items:stretch; justify-content:space-around; padding-bottom:env(safe-area-inset-bottom);
+    }
+    .mb-tab{
+      flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+      background:none; border:none; color:#94a3b8; font-size:10px; cursor:pointer; padding:4px 0;
+    }
+    .mb-tab .mb-ic{font-size:18px; line-height:1;}
+    .mb-tab.active{color:#e2e8f0;}
+    .mb-tab.active .mb-ic{filter:drop-shadow(0 0 5px rgba(99,102,241,.7));}
+    /* 子菜单弹出层（位于底部栏之上） */
+    .mobile-sub{
+      position:fixed; left:0; right:0; bottom:56px; z-index:49;
+      background:#111c33; border-top:1px solid #1e293b;
+      max-height:42vh; overflow-y:auto; padding:4px 0; display:none;
+      box-shadow:0 -6px 18px rgba(0,0,0,.25);
+    }
+    .mobile-sub.open{display:block;}
+    .ms-item{padding:12px 18px; color:#cbd5e1; font-size:14px; border-bottom:1px solid #1a2540;}
+    .ms-item:active{background:#1e293b;}
+  }
 </style>
 </head>
 <body>
@@ -659,6 +696,10 @@
     <div id="view"></div>
   </main>
 </div>
+
+<!-- 移动端底部功能导航栏（仅窄屏显示） -->
+<nav class="mobile-nav" id="mobileNav"></nav>
+<div class="mobile-sub" id="mobileSub" data-for=""></div>
 
 <div class="overlay" id="overlay">
   <div class="modal" id="modal"></div>
@@ -1198,6 +1239,48 @@ function toggleGroup(id){
 }
 buildNav();
 
+/* ---------- 移动端底部导航栏 ---------- */
+function closeMobileSub(){
+  const p = document.getElementById('mobileSub');
+  if(p){ p.classList.remove('open'); p.dataset.for=''; }
+  const mn = document.getElementById('mobileNav');
+  if(mn) mn.querySelectorAll('.mb-tab').forEach(t=>t.classList.remove('active'));
+}
+function buildMobileNav(){
+  const bar = document.getElementById('mobileNav');
+  if(!bar) return;
+  let html = '';
+  NAV.forEach(g=>{
+    const hasKids = !!g.children;
+    const target = (g.id==='knowledge') ? 'inspiration' : g.id;
+    html += `<button class="mb-tab" data-id="${g.id}" data-target="${target}" data-kids="${hasKids?1:0}">`
+          + `<span class="mb-ic">${g.icon}</span><span class="mb-lb">${g.label}</span></button>`;
+  });
+  bar.innerHTML = html;
+  bar.querySelectorAll('.mb-tab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      const id = tab.dataset.id, target = tab.dataset.target, kids = tab.dataset.kids==='1';
+      if(kids){ toggleMobileSub(id, target); }
+      else { go(target); closeMobileSub(); }
+    });
+  });
+}
+function toggleMobileSub(id, target){
+  const panel = document.getElementById('mobileSub');
+  if(!panel) return;
+  if(panel.dataset.for===id && panel.classList.contains('open')){ closeMobileSub(); return; }
+  const g = NAV.find(x=>x.id===id);
+  let items = '';
+  if(id==='knowledge'){ items += `<div class="ms-item" onclick="go('inspiration');closeMobileSub()">人生灵感库</div>`; }
+  (g.children||[]).forEach(c=>{ items += `<div class="ms-item" onclick="go('${c.id}');closeMobileSub()">${c.label}</div>`; });
+  panel.innerHTML = items;
+  panel.dataset.for = id;
+  panel.classList.add('open');
+  const mn = document.getElementById('mobileNav');
+  if(mn) mn.querySelectorAll('.mb-tab').forEach(t=>t.classList.toggle('active', t.dataset.id===id));
+}
+buildMobileNav();
+
 /* ---------- routing ---------- */
 let current = 'dashboard';
 function go(id){
@@ -1206,6 +1289,15 @@ function go(id){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.id===id));
   // 进入「人生灵感库」时，高亮「知识管理库」整组标题
   document.querySelectorAll('.nav-head').forEach(n=>n.classList.toggle('active', (n.dataset.id==='knowledge' && id==='inspiration') || n.dataset.id===id));
+  // 移动端：同步底部栏高亮 + 关闭子菜单弹出层
+  const mn = document.getElementById('mobileNav');
+  if(mn){
+    let activeId = null;
+    if(id==='inspiration') activeId='knowledge';
+    else { for(const g of NAV){ if(g.id===id){ activeId=g.id; break; } if(g.children && g.children.some(c=>c.id===id)){ activeId=g.id; break; } } }
+    mn.querySelectorAll('.mb-tab').forEach(t=>t.classList.toggle('active', t.dataset.id===activeId));
+    closeMobileSub();
+  }
   render();
 }
 function crumbPath(id){
@@ -3474,7 +3566,7 @@ async function renderDashboard(){
     </div>`;
   }
 
-  const syncCard = `<div class="card" style="margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+  const syncCard = `<div class="card sync-card" style="margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
     <div>
       <div class="t" style="font-weight:700">🔄 本地数据同步</div>
       <div class="muted" style="font-size:12.5px;margin-top:4px" id="syncInfo">所有数据已缓存到浏览器本地，修改即时保存；点击同步与飞书双向合并。</div>
