@@ -362,7 +362,16 @@
   .ts-move{border:none;background:transparent;cursor:pointer;font-size:15px;line-height:1;padding:4px 5px;border-radius:7px;color:#cbd5e1;transition:.12s;align-self:center;}
   .ts-move:hover{background:#dcfce7;color:#10b981;}
   .empty.sm{color:#94a3b8;font-size:12.5px;text-align:center;padding:14px 0;}
-  @media(max-width:780px){ .todos-3col{grid-template-columns:1fr;} }
+  @media(max-width:780px){
+    .todos-3col{grid-template-columns:1fr;}
+    /* 今日待办：手机端把「完成框 / 日期选择 / 备注·删除按钮」置于上方，文字内容置于下方 */
+    .tm-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
+    .tcheck{order:1;}
+    .tm-deadline{order:2;flex:1 1 auto;align-self:center;max-width:none;}
+    .tm-deadline input{max-width:none;width:100%;}
+    .tm-actions{order:3;align-self:center;}
+    .tm-main{order:4;flex:1 0 100%;}   /* 整块文字（含备注内容）落到第二行并铺满宽度 */
+  }
 
   /* habits */
   .streak{font-size:12px;color:var(--muted);}
