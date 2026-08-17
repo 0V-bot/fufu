@@ -666,11 +666,10 @@
     .ms-item{padding:12px 18px; color:#cbd5e1; font-size:14px; border-bottom:1px solid #1a2540;}
     .ms-item:active{background:#1e293b;}
     /* 微习惯手机端：4天滑动窗口（桌面端 .habit-head/.habit-row 不使用，互不干扰） */
-    .habit-mhead{display:flex;align-items:center;gap:8px;margin:0 0 10px;}
-    .habit-mhead .mh-today{flex:0 0 auto;margin-right:4px;}
-    .habit-mhead .mh-sp{flex:0 0 70px;min-width:0;}            /* 与 .mh-nm 同宽，保证日期列与打卡列对齐 */
-    .habit-mhead .mh-sp-r{flex:0 0 34px;min-width:0;}          /* 与 .habit-del 同宽 */
-    .habit-mhead .mh-strip{flex:1;min-width:0;display:flex;gap:6px;cursor:grab;user-select:none;-webkit-user-select:none;overflow:hidden;touch-action:pan-y;}
+    .habit-mhead{display:flex;align-items:center;gap:8px;margin:0 0 10px;position:relative;}
+    .habit-mhead .mh-today{position:absolute;left:0;top:50%;transform:translateY(-50%);z-index:3;}  /* 浮在左侧空白对齐区，不占流宽、不挤压日期格 */
+    .habit-mhead .mh-strip{flex:1;min-width:0;display:flex;gap:6px;cursor:grab;user-select:none;-webkit-user-select:none;overflow:hidden;touch-action:pan-y;
+      padding-left:78px;padding-right:42px;box-sizing:border-box;}   /* 78=习惯名70+间距8，42=间距8+删除34，保证日期格与打卡格逐列对齐且不随按钮变窄 */
     .habit-mhead .mh-strip:active{cursor:grabbing;}
     .habit-mhead .mh-i{flex:1;text-align:center;font-style:normal;display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 0;border-radius:9px;background:#f1f5f9;font-size:11px;line-height:1.1;min-width:0;}
     .habit-mhead .mh-i .dn{font-size:14px;font-weight:700;color:#0f172a;}
@@ -683,7 +682,7 @@
     .habit-mrow:first-of-type{border-top:none;}
     .mh-nm{flex:0 0 70px;font-weight:650;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .mh-days{flex:1;min-width:0;display:flex;gap:6px;}
-    .habit-del{width:34px;flex:0 0 34px;}                       /* 固定宽度，配合 mh-sp-r 对齐 */
+    .habit-del{width:34px;flex:0 0 34px;}                       /* 固定宽度，配合日期条右 padding 对齐 */
     .mh-days .mcell{height:36px;border-radius:9px;background:#eef1f7;cursor:pointer;display:grid;place-items:center;font-size:15px;transition:.12s;flex:1;min-width:0;}
     .mh-days .mcell.we{background:#fdecec;}
     .mh-days .mcell.on{background:#10b981;color:#fff;}
@@ -2532,9 +2531,7 @@ function renderHabitsMobile(arr){
     </div>`;
   html += `<div class="habit-mhead">
       ${backBtn}
-      <span class="mh-sp"></span>
       <div class="mh-strip" id="mhStrip">${headCells}</div>
-      <span class="mh-sp-r"></span>
     </div>`;
   if(!arr.length){ html += `<div class="empty">还没有习惯，添加一个开始坚持吧 🌱</div></div>`; view.innerHTML=html; habitMobileBindDrag(); return; }
   arr.forEach(h=>{
