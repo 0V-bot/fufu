@@ -666,11 +666,8 @@
     .ms-item{padding:12px 18px; color:#cbd5e1; font-size:14px; border-bottom:1px solid #1a2540;}
     .ms-item:active{background:#1e293b;}
     /* 微习惯手机端：4天滑动窗口（桌面端 .habit-head/.habit-row 不使用，互不干扰） */
-    .habit-mnav{display:flex;align-items:center;gap:8px;margin:2px 0 8px;}
-    .habit-mnav .mh-hint{flex:1;font-size:11px;color:#9aa3b8;}
-    .habit-mnav .mh-nav-right{display:flex;gap:6px;flex:0 0 auto;}
-    .habit-mnav .mh-today{flex:0 0 auto;}
     .habit-mhead{display:flex;align-items:center;gap:8px;margin:0 0 10px;}
+    .habit-mhead .mh-today{flex:0 0 auto;margin-right:4px;}
     .habit-mhead .mh-sp{flex:0 0 70px;min-width:0;}            /* 与 .mh-nm 同宽，保证日期列与打卡列对齐 */
     .habit-mhead .mh-sp-r{flex:0 0 34px;min-width:0;}          /* 与 .habit-del 同宽 */
     .habit-mhead .mh-strip{flex:1;min-width:0;display:flex;gap:6px;cursor:grab;user-select:none;-webkit-user-select:none;overflow:hidden;touch-action:pan-y;}
@@ -2526,8 +2523,6 @@ function renderHabitsMobile(arr){
   }).join('');
   const todayInWin = days.some(d=>bjDateStr(d)===todayStr);
   const backBtn = todayInWin ? '' : `<button class="btn mini mh-today" onclick="habitMobileBackToday()">回到今天</button>`;
-  const navRight = `<button class="btn mini" onclick="habitMobileShift(-1)" title="前一阵子">‹</button>
-      <button class="btn mini" onclick="habitMobileShift(1)" title="后一阵子">›</button>`;
   let html = `<div class="card"><div class="h" style="display:flex;flex-direction:column;align-items:stretch;gap:9px;margin-bottom:10px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
         <div class="t">微习惯打卡</div>
@@ -2535,12 +2530,8 @@ function renderHabitsMobile(arr){
       </div>
       <input id="habitInput" placeholder="新增习惯名称…" style="padding:9px 11px;width:100%;box-sizing:border-box;font-family:inherit;font-size:14px"/>
     </div>`;
-  html += `<div class="habit-mnav">
+  html += `<div class="habit-mhead">
       ${backBtn}
-      <span class="mh-hint">← 左右拖动切换日期 →</span>
-      <span class="mh-nav-right">${navRight}</span>
-    </div>
-    <div class="habit-mhead">
       <span class="mh-sp"></span>
       <div class="mh-strip" id="mhStrip">${headCells}</div>
       <span class="mh-sp-r"></span>
