@@ -665,6 +665,27 @@
     .mobile-sub.open{display:block;}
     .ms-item{padding:12px 18px; color:#cbd5e1; font-size:14px; border-bottom:1px solid #1a2540;}
     .ms-item:active{background:#1e293b;}
+    /* 微习惯手机端：4天滑动窗口（桌面端 .habit-head/.habit-row 不使用，互不干扰） */
+    .habit-mhead{display:flex;align-items:center;gap:6px;margin:2px 0 8px;}
+    .habit-mhead .mh-strip{flex:1;display:flex;gap:6px;cursor:grab;user-select:none;-webkit-user-select:none;overflow:hidden;touch-action:pan-y;}
+    .habit-mhead .mh-strip:active{cursor:grabbing;}
+    .habit-mhead .mh-i{flex:1;text-align:center;font-style:normal;display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 0;border-radius:9px;background:#f1f5f9;font-size:11px;line-height:1.1;min-width:0;}
+    .habit-mhead .mh-i .dn{font-size:14px;font-weight:700;color:#0f172a;}
+    .habit-mhead .mh-i .dw{font-size:10px;color:#9aa3b8;}
+    .habit-mhead .mh-i.we{background:#fdecec;}
+    .habit-mhead .mh-i.we .dw{color:#ef4444;font-weight:700;}
+    .habit-mhead .mh-i.today{background:#fff7ed;box-shadow:0 0 0 2px #f59e0b inset;}
+    .habit-mhead .mh-i.today .dn{color:#d97706;}
+    .habit-mhead .mh-today{margin-left:8px;flex:0 0 auto;}
+    .habit-mrow{display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid var(--line);}
+    .habit-mrow:first-of-type{border-top:none;}
+    .mh-nm{flex:0 0 70px;font-weight:650;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .mh-days{flex:1;min-width:0;display:flex;gap:6px;}
+    .mh-days .mcell{height:36px;border-radius:9px;background:#eef1f7;cursor:pointer;display:grid;place-items:center;font-size:15px;transition:.12s;flex:1;min-width:0;}
+    .mh-days .mcell.we{background:#fdecec;}
+    .mh-days .mcell.on{background:#10b981;color:#fff;}
+    .mh-days .mcell.today{box-shadow:0 0 0 2px #f59e0b inset;}
+    .mh-days .mcell.disabled{cursor:not-allowed;opacity:.5;}
   }
 </style>
 </head>
@@ -2418,6 +2439,8 @@ async function delInsp(id){
 
 /* ---------- habits ---------- */
 let habitMonthOffset = 0;
+let habitWinStart = null;   // 手机端 4 天滑动窗口最左列日期(Date)；null=未初始化(默认今天在第三列)
+const isMobile = () => (window.innerWidth || document.documentElement.clientWidth || 0) <= 768;
 function bjDateStr(d){ const p=n=>n<10?'0'+n:''+n; const bj=new Date(d.getTime()+8*3600*1000); return bj.getUTCFullYear()+'-'+p(bj.getUTCMonth()+1)+'-'+p(bj.getUTCDate()); }
 function bjToday(){ return bjDateStr(new Date()); }
 function habitMonthInfo(offset){
@@ -2441,6 +2464,7 @@ async function renderHabits(){
   try{ arr = await apiHabits(); }
   catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
   cache.habits = arr;
+  if(isMobile()){ renderHabitsMobile(arr); return; }
   const info = habitMonthInfo(habitMonthOffset);
   const todayStr = bjToday();
   const nextDisabled = habitMonthOffset>=0 ? 'disabled' : '';
@@ -2481,6 +2505,70 @@ async function renderHabits(){
   });
   html += '</div>';
   view.innerHTML = html;
+}
+// —— 手机端：4 天滑动窗口（桌面端由 isMobile() 分支跳过，互不影响）——
+function habitMobileTodayBase(){ const t=new Date(); t.setHours(0,0,0,0); return t; }
+function renderHabitsMobile(arr){
+  const todayStr = bjToday();
+  const tBase = habitMobileTodayBase();
+  if(!habitWinStart || Math.abs((habitWinStart.getTime() - tBase.getTime())/86400000) > 30) habitWinStart = new Date(tBase.getTime() - 2*86400000);  // 今天落在第 3 列（左2/今/右1）；长期停留(>30天)自动重新居中
+  const wd=['日','一','二','三','四','五','六'];
+  const days=[]; for(let i=0;i<4;i++) days.push(new Date(habitWinStart.getTime()+i*86400000));
+  const headCells = days.map(d=>{
+    const dy=bjDateStr(d), w=d.getDay(), isWe=(w===0||w===6), isToday=(dy===todayStr);
+    return `<i class="mh-i ${isWe?'we':''} ${isToday?'today':''}"><span class="dn">${d.getDate()}</span><span class="dw">${wd[w]}</span></i>`;
+  }).join('');
+  const todayInWin = days.some(d=>bjDateStr(d)===todayStr);
+  const backBtn = todayInWin ? '' : `<button class="btn mini mh-today" onclick="habitMobileBackToday()">回到今天</button>`;
+  let html = `<div class="card"><div class="h"><div class="t">微习惯打卡</div>
+    <div class="inline-add" style="margin:0;width:auto"><input id="habitInput" placeholder="新增习惯名称…" style="padding:7px 11px"/>
+    <button class="btn" onclick="addHabit()">+ 习惯</button></div></div>`;
+  html += `<div class="habit-mhead">
+    <button class="btn mini" onclick="habitMobileShift(-1)" title="前一阵子">‹</button>
+    <div class="mh-strip" id="mhStrip">${headCells}</div>
+    <button class="btn mini" onclick="habitMobileShift(1)" title="后一阵子">›</button>
+    ${backBtn}
+  </div>`;
+  if(!arr.length){ html += `<div class="empty">还没有习惯，添加一个开始坚持吧 🌱</div></div>`; view.innerHTML=html; habitMobileBindDrag(); return; }
+  arr.forEach(h=>{
+    let cells='';
+    days.forEach(d=>{
+      const dy=bjDateStr(d);
+      const on = h.history && h.history[dy];
+      const isToday=(dy===todayStr);
+      const w=d.getDay(), isWe=(w===0||w===6);
+      const clickable = dy <= todayStr;
+      const cls='mcell '+(on?'on ':'')+(isWe?'we ':'')+(isToday?'today ':'')+(clickable?'':'disabled');
+      const onclick = clickable?`onclick="toggleHabit('${h.id}','${dy}')"`:'';
+      cells += `<div class="${cls.trim()}" ${onclick}>${on?'✓':''}</div>`;
+    });
+    html += `<div class="habit-mrow">
+      <span class="mh-nm">${esc(h.name)}</span>
+      <div class="mh-days">${cells}</div>
+      <button class="habit-del" title="删除" onclick="delHabit('${h.id}')">🗑</button>
+    </div>`;
+  });
+  html += '</div>';
+  view.innerHTML = html;
+  habitMobileBindDrag();
+}
+function habitMobileShift(n){
+  if(!habitWinStart) return;
+  habitWinStart = new Date(habitWinStart.getTime() + n*86400000);
+  renderHabitsMobile(cache.habits||[]);
+}
+function habitMobileBackToday(){
+  habitWinStart = new Date(habitMobileTodayBase().getTime() - 2*86400000);
+  renderHabitsMobile(cache.habits||[]);
+}
+function habitMobileBindDrag(){
+  const strip=document.getElementById('mhStrip'); if(!strip) return;
+  let startX=null, dragging=false;
+  strip.addEventListener('pointerdown', e=>{ startX=e.clientX; dragging=true; try{ strip.setPointerCapture(e.pointerId); }catch(_){} });
+  strip.addEventListener('pointermove', e=>{ if(!dragging) return; const dx=e.clientX-startX; strip.style.transform='translateX('+dx+'px)'; });
+  const end=e=>{ if(!dragging) return; dragging=false; const dx=e.clientX-startX; strip.style.transform=''; if(Math.abs(dx)>40) habitMobileShift(dx<0?1:-1); startX=null; };
+  strip.addEventListener('pointerup', end);
+  strip.addEventListener('pointercancel', ()=>{ dragging=false; startX=null; strip.style.transform=''; });
 }
 async function addHabit(){ const i=document.getElementById('habitInput'); const v=i.value.trim(); if(!v)return; try{ await addHabitApi(v); await render(); }catch(e){ alert('添加失败：'+(e.message||e)); } }
 async function toggleHabit(id,dy){ try{ await toggleHabitApi(id,dy); await render(); }catch(e){ alert('打卡失败：'+(e.message||e)); } }
