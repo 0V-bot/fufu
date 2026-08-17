@@ -688,6 +688,16 @@
     .mh-days .mcell.on{background:#10b981;color:#fff;}
     .mh-days .mcell.today{box-shadow:0 0 0 2px #f59e0b inset;}
     .mh-days .mcell.disabled{cursor:not-allowed;opacity:.5;}
+    /* 选题库手机端：每行三行块（桌面端 .item 行布局不渲染，互不干扰） */
+    .topic-mhead{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+    .topic-mhead .btn{flex:0 0 auto;}                 /* 添加按钮固定在右上角 */
+    .topic-mrow{border:1px solid var(--line);border-radius:10px;background:#fff;padding:9px 10px;margin:9px 0;}
+    .topic-mtop{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px;}
+    .topic-mtop .tp-inp{flex:1 1 38%;min-width:78px;padding:6px 8px;border:1px solid #ccd5e0;border-radius:6px;font-size:13px;background:#fff;color:#1f2937;box-sizing:border-box;}
+    .topic-mtop .tp-used{display:flex;align-items:center;gap:3px;font-size:12px;color:#475569;white-space:nowrap;}
+    .topic-mtop .btn{flex:0 0 auto;}
+    .tp-title{width:100%;box-sizing:border-box;padding:8px 9px;border:1px solid #ccd5e0;border-radius:6px;font-size:14px;background:#fff;color:#1f2937;margin-bottom:6px;resize:vertical;min-height:38px;font-family:inherit;line-height:1.4;}
+    .tp-note{width:100%;box-sizing:border-box;padding:8px 9px;border:1px solid #ccd5e0;border-radius:6px;font-size:13px;background:#fff;color:#1f2937;resize:vertical;min-height:34px;font-family:inherit;line-height:1.4;}
   }
 </style>
 </head>
@@ -3752,10 +3762,30 @@ async function renderTopics() {
 function paintTopics() {
   const s = SECTIONS.topics;
   const rows = topicsState ? topicsState.rows : [];
-  let html = `<div class="card"><div class="h"><div class="t">${s.name}（${rows.length}）</div></div>`;
+  const mob = isMobile();
+  // 手机端：卡片标题左侧、右上角直接放「+ 添加」按钮（避免选题很多时翻到底才找得到）
+  let html = `<div class="card"><div class="h ${mob ? 'topic-mhead' : ''}">` +
+    `<div class="t">${s.name}（${rows.length}）</div>` +
+    (mob ? `<button class="btn" onclick="topicsAddRow()">+ 添加</button>` : '') +
+    `</div>`;
   if (topicsMsg) html += `<div class="muted" style="color:#16a34a;margin:2px 10px 6px;font-size:13px">${esc(topicsMsg)}</div>`;
   if (!rows.length) {
-    html += `<div class="empty">还没有选题，点击下方「+ 添加」开始记录 ✨</div>`;
+    html += `<div class="empty">还没有选题，点击右上角「+ 添加」开始记录 ✨</div>`;
+  } else if (mob) {
+    // 手机端：每条三行块——顶行(平台/状态/已使用/保存删除) → 选题文本框 → 备注文本框
+    rows.forEach(r => {
+      html += `<div class="topic-mrow">
+        <div class="topic-mtop">
+          <input class="tp-inp" value="${esc(r.platform)}" placeholder="平台" oninput="topicsField(${r._uid},'platform',this.value)">
+          <select class="tp-inp" onchange="topicsField(${r._uid},'status',this.value)">${statusOpts(r.status)}</select>
+          <label class="tp-used"><input type="checkbox" ${r.used ? 'checked' : ''} onchange="topicsField(${r._uid},'used',this.checked)">已使用</label>
+          <button class="btn mini" onclick="topicsSaveRow(${r._uid})">保存</button>
+          <button class="btn danger mini" onclick="topicsDelRow(${r._uid})">删除</button>
+        </div>
+        <textarea class="tp-title" placeholder="选题文案" oninput="topicsField(${r._uid},'title',this.value)">${esc(r.title)}</textarea>
+        <textarea class="tp-note" placeholder="备注" oninput="topicsField(${r._uid},'note',this.value)">${esc(r.note)}</textarea>
+      </div>`;
+    });
   } else {
     html += `<div style="display:flex;gap:8px;padding:6px 10px;font-size:12px;color:#888;font-weight:600">
       <span style="flex:2">选题</span><span style="flex:1">平台</span><span style="flex:1">状态</span>
@@ -3775,7 +3805,8 @@ function paintTopics() {
         </div></div>`;
     });
   }
-  html += `<div style="padding:10px"><button class="btn" onclick="topicsAddRow()">+ 添加</button></div></div>`;
+  if (!mob) html += `<div style="padding:10px"><button class="btn" onclick="topicsAddRow()">+ 添加</button></div></div>`;
+  else html += `</div>`;
   view.innerHTML = html;
 }
 async function topicsSaveRow(uid) {
@@ -3816,8 +3847,13 @@ function topicsAddRow() {
   topicsState.rows.push({ _uid: ++topicsUid, id: null, title: '', platform: '', status: '灵感', note: '', used: false, _new: true });
   paintTopics();
   // 聚焦到新行的第一个输入框
-  const inputs = view.querySelectorAll('.item input');
-  if (inputs.length) inputs[inputs.length - 4] && inputs[inputs.length - 4].focus();
+  if (isMobile()) {
+    const el = view.querySelector('.topic-mrow:last-of-type .tp-title');
+    if (el) el.focus();
+  } else {
+    const inputs = view.querySelectorAll('.item input');
+    if (inputs.length) inputs[inputs.length - 4] && inputs[inputs.length - 4].focus();
+  }
 }
 
 /* ---------- 姨妈记录 ---------- */
