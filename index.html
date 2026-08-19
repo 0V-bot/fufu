@@ -3653,25 +3653,33 @@ async function renderDashboard(){
   const t = (() => { const d = new Date(Date.now() + 8 * 3600 * 1000), p = n => (n < 10 ? '0' + n : '' + n); return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()); })();
   let todayTodos=[], todoPending=0, habits=[], major=[], projCount=0, insp=0, topics=0, knowledge=0, inputPending=-1;
   try {
-    const todos = await safe(()=>localList('todos'), []);
+    // 并行拉取所有本地缓存（原串行 await 约 10 次，改为一次性并发，大幅缩短首页加载耗时）
+    const [todos, habitRows, checks, majorArr, taobao, caps, counseling, outfit, insprecArr, topicsArr, articleInputArr] = await Promise.all([
+      safe(()=>localList('todos'), []),
+      safe(()=>localList('habits'), []),
+      safe(()=>localList('habitCheck'), []),
+      safe(()=>localList('major'), []),
+      safe(()=>localList('taobao'), []),
+      safe(()=>localList('caps'), []),
+      safe(()=>localList('counseling'), []),
+      safe(()=>localList('outfit'), []),
+      safe(()=>localList('insprec'), []),
+      safe(()=>localList('topics'), []),
+      safe(()=>localList('articleInput'), []),
+    ]);
     todayTodos = todos.filter(x => x.date === t);
     todoPending = todayTodos.filter(x => !x.done).length;
     // 微习惯 + 打卡历史（复刻服务端 getHabits）
-    const habitRows = await safe(()=>localList('habits'), []);
-    const checks = await safe(()=>localList('habitCheck'), []);
     const byH = {};
     checks.forEach(c => { const hid = c.habit; if (!hid) return; if (!byH[hid]) byH[hid] = {}; if (c.checked) byH[hid][c.date] = true; });
     habits = habitRows.map(h => ({ id: h.id, name: h.name, history: byH[h.id] || {} }));
-    major = await safe(()=>localList('major'), []);
-    // 项目任务：跨 4 个项目（与「项目中心」一致）
-    let pc = 0;
-    for (const s of ['taobao','caps','counseling','outfit']) { const arr = await safe(()=>localList(s), []); pc += arr.length; }
-    projCount = pc;
-    insp = (await safe(()=>localList('insprec'), [])).length;
-    topics = (await safe(()=>localList('topics'), [])).length;
+    major = majorArr;
+    projCount = taobao.length + caps.length + counseling.length + outfit.length;
+    insp = insprecArr.length;
+    topics = topicsArr.length;
     knowledge = insp; // 「知识沉淀」与灵感同源同一张「人生灵感库」表
-    inputPending = (await safe(()=>localList('articleInput'), [])).length;
-  } catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+    inputPending = articleInputArr.length;
+  } catch(e){ if(current!=='dashboard') return; view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
   dashCache = { todayTodos };
   const upcoming = major.filter(m=>!m.status||m.status!=='已完成').slice(0,4);
   const habitDoneToday = habits.filter(h=>h.history&&h.history[t]).length;
@@ -3729,6 +3737,7 @@ async function renderDashboard(){
   else upcoming.forEach(m=>{ html += `<div class="item" style="padding:10px 12px;margin-bottom:8px"><div class="it-title" style="font-size:13.5px">${esc(m.title||'')}</div><div class="meta">${m.date?('<b>日期：</b>'+esc(m.date)+'　'):''}${m.status?('<b>状态：</b>'+esc(m.status)):''}</div></div>`; });
   html += `</div></div>`;
 
+  if(current!=='dashboard') return;   // 防止首页异步加载完成后覆盖已切换到的其他界面
   view.innerHTML = html;
 }
 async function toggleDashboardTodo(id){ const a=(dashCache&&dashCache.todayTodos)||[]; const t=a.find(x=>x.id===id); if(!t) return; t.done=!t.done; try{ await apiUpdate('todos',id,t); await render(); }catch(e){ alert('更新失败：'+(e.message||e)); } }
