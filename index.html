@@ -1480,17 +1480,18 @@ async function submitModal(){
 
 /* ---------- generic list renderer ---------- */
 async function renderList(sectionId, kind){
+  const pg = sectionId;
   const s = SECTIONS[sectionId];
   // 灵感库类板块(wisdom/kbcat)走服务端分页懒加载，自行取数渲染
   if(s.kind==='wisdom' || s.kind==='kbcat') return renderInspirationSection(sectionId);
   let arr;
   try{ arr = await apiList(sectionId); }
-  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  catch(e){ setView(`<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`, pg); return; }
   cache[sectionId] = arr;
   let html = `<div class="card"><div class="h"><div class="t">${s.name}（${arr.length}）</div>`;
   if(!s.readonly) html += `<button class="btn" onclick="addGeneric('${sectionId}')">+ 添加</button>`;
   html += `</div>`;
-  if(!arr.length){ html += `<div class="empty">${s.readonly?'这个库还是空的，去飞书「人生灵感库」添加内容吧':'还没有内容，点击「添加」开始记录 ✨'}</div></div>`; view.innerHTML=html; return; }
+  if(!arr.length){ html += `<div class="empty">${s.readonly?'这个库还是空的，去飞书「人生灵感库」添加内容吧':'还没有内容，点击「添加」开始记录 ✨'}</div></div>`; setView(html, pg); return; }
   html += '<div class="grid cols-2">';
   arr.forEach(it=>{
     let ops = '';
@@ -1504,7 +1505,7 @@ async function renderList(sectionId, kind){
     html += `<div class="item">${ops}${body}</div>`;
   });
   html += '</div></div>';
-  view.innerHTML = html;
+  setView(html, pg)
 }
 function genericBody(kind,it){
   const fields = SCHEMA[kind];
@@ -1612,7 +1613,7 @@ async function renderInspirationSection(sectionId){
   html += `<div class="grid cols-2" id="inspGrid"></div>`;
   html += `<div id="inspLoader" class="muted" style="text-align:center;padding:18px;display:none">⏳ 加载中…</div>`;
   html += `<div id="inspEnd" class="muted" style="text-align:center;padding:18px;display:none">— 已经到底啦 —</div>`;
-  view.innerHTML = html;
+  setView(html, sectionId)
   document.getElementById('inspToolbarWrap').innerHTML = inspToolbar(sectionId);
   await loadMoreInsp(sectionId, true);
   setupInspScroll(sectionId);
@@ -1911,7 +1912,7 @@ async function renderArticle(){
   const cat = await getCategory();
   const tree = cat.tree||{};
   const sel = (k,label,opts,cur)=> `<div class="field"><label>${label}（可选）</label><select id="${k}">${optList(opts,cur)}</select></div>`;
-  view.innerHTML = `<div class="card">
+  setView(`<div class="card">
     <div class="h">
       <div class="t">文章录入</div>
       <label class="multi-toggle" title="开启后，AI 会自动把原始文案拆分成多篇文章分别分析">
@@ -1950,7 +1951,7 @@ async function renderArticle(){
         开启「多篇」时，AI 会先按文章规律拆成多条再分别分析。
       </div>
     </div>
-  </div>`;
+  </div>`, 'articleInput');
   const c1=document.getElementById('aiCat1'), c2=document.getElementById('aiCat2'), c3=document.getElementById('aiCat3');
   c1.addEventListener('change',()=>{ c2.innerHTML=optList(Object.keys(tree[c1.value]||{}),''); c3.innerHTML=optList([],''); });
   c2.addEventListener('change',()=>{ c3.innerHTML=optList((tree[c1.value]||{})[c2.value]||[],''); });
@@ -2038,7 +2039,7 @@ function todoBucket(t, td){ return datePart(t.deadline) || td; }   // 截止日�
 async function renderTodos(){
   let arr;
   try{ arr = await apiList('todos'); }
-  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  catch(e){ setView(`<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`, 'todos'); return; }
   cache.todos = arr;
   arr.forEach(t => { if (t.deadline) t.deadline = fmtDeadline(t.deadline); });
   const td = todayStr();
@@ -2073,7 +2074,7 @@ async function renderTodos(){
   future.forEach(t => html += tsRow(t, true));
   html += `</div></div>`;
   html += `</div>`;
-  view.innerHTML = html;
+  setView(html, 'todos')
 }
 // 侧栏行：内容 + 截止时间 + 备注(下) + 删除（ro 时无删除）
 function tsRow(t, ro){
@@ -2161,7 +2162,7 @@ let wishArr=[];
 async function renderWishes(){
   let arr;
   try{ arr = await apiList('wishes'); }
-  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  catch(e){ setView(`<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`, 'wishes'); return; }
   wishArr = arr;
   arr.forEach(t => { if (t.realized) t.realized = fmtDeadline(t.realized); });
   const done = arr.filter(t=>t.done).length;
@@ -2184,7 +2185,7 @@ async function renderWishes(){
     </div>`;
   });
   html += `</div></div>`;
-  view.innerHTML = html;
+  setView(html, 'wishes')
 }
 async function addWish(){
   const i=document.getElementById('wishInput'); const v=(i?i.value:'').trim();
@@ -2237,7 +2238,7 @@ function quoteCats(){ const s=new Set(); (quoteArr||[]).forEach(q=>{ if(q.catego
 async function renderQuotes(){
   let arr;
   try{ arr = await apiList('quotes'); }
-  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  catch(e){ setView(`<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`, 'quotes'); return; }
   quoteArr = arr || [];
   quoteArr.forEach(q=>{ if(!q.created) q.created = 0; });
   paintQuotes();
@@ -2281,7 +2282,7 @@ function paintQuotes(){
     </div>`;
   });
   html += `</div></div>`;
-  view.innerHTML = html;
+  setView(html, 'quotes')
   qMeasure();
 }
 // 渲染后测量每条金句是否超出一行：超出的才显示展开图标
@@ -2354,7 +2355,7 @@ async function saveInspSize(id, size){
 async function renderInsp(){
   let arr, types;
   try{ arr = await apiList('insprec'); types = (await apiJson('/insp-types')).types || []; }
-  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  catch(e){ setView(`<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`, 'insprec'); return; }
   inspArr = arr; inspTypes = types;
   let html = `<div class="card">
     <div class="h"><div class="t">灵感记录 <span class="muted" style="font-weight:500">· 共 ${arr.length} 条</span></div></div>
@@ -2374,7 +2375,7 @@ async function renderInsp(){
     </div>`;
   });
   html += `</div></div>`;
-  view.innerHTML = html;
+  setView(html, 'insprec')
   // 卡片尺寸：应用已存尺寸 + 监听用户拖拽（ResizeObserver），写入后持久保存
   // 双保险：全局 mouseup/touchend 在拖拽手柄松手时保存当前尺寸，避免依赖 ResizeObserver 触发时机导致漏存
   if(!inspSizeSaveBound){
@@ -2480,7 +2481,7 @@ function habitShiftMonth(d){ habitMonthOffset+=d; renderHabits(); }
 async function renderHabits(){
   let arr;
   try{ arr = await apiHabits(); }
-  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  catch(e){ setView(`<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`, 'habits'); return; }
   cache.habits = arr;
   if(isMobile()){ renderHabitsMobile(arr); return; }
   const info = habitMonthInfo(habitMonthOffset);
@@ -2492,7 +2493,7 @@ async function renderHabits(){
   html += `<div class="mo-nav"><button class="btn mini" onclick="habitShiftMonth(-1)">‹ 上一月</button>
     <span class="mo-label">${info.label}</span>
     <button class="btn mini" ${nextDisabled} onclick="habitShiftMonth(1)">下一月 ›</button></div>`;
-  if(!arr.length){ html += `<div class="empty">还没有习惯，添加一个开始坚持吧 🌱</div></div>`; view.innerHTML=html; return; }
+  if(!arr.length){ html += `<div class="empty">还没有习惯，添加一个开始坚持吧 🌱</div></div>`; setView(html, 'habits'); return; }
   const wd=['日','一','二','三','四','五','六'];
   const headNums = info.days.map(d=>{
     const w=d.getDay();
@@ -2522,7 +2523,7 @@ async function renderHabits(){
     </div>`;
   });
   html += '</div>';
-  view.innerHTML = html;
+  setView(html, 'habits')
 }
 // —— 手机端：4 天滑动窗口（桌面端由 isMobile() 分支跳过，互不影响）——
 function habitMobileTodayBase(){ const t=new Date(); t.setHours(0,0,0,0); return t; }
@@ -2549,7 +2550,7 @@ function renderHabitsMobile(arr){
       ${backBtn}
       <div class="mh-strip" id="mhStrip">${headCells}</div>
     </div>`;
-  if(!arr.length){ html += `<div class="empty">还没有习惯，添加一个开始坚持吧 🌱</div></div>`; view.innerHTML=html; habitMobileBindDrag(); return; }
+  if(!arr.length){ html += `<div class="empty">还没有习惯，添加一个开始坚持吧 🌱</div></div>`; setView(html, 'habits'); habitMobileBindDrag(); return; }
   arr.forEach(h=>{
     let cells='';
     days.forEach(d=>{
@@ -2569,7 +2570,7 @@ function renderHabitsMobile(arr){
     </div>`;
   });
   html += '</div>';
-  view.innerHTML = html;
+  setView(html, 'habits')
   habitMobileBindDrag();
 }
 function habitMobileShift(n){
@@ -2614,7 +2615,7 @@ let reviewDate = today();
 async function renderReview(){
   let all;
   try{ all = await apiReview(); }
-  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  catch(e){ setView(`<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`, 'review'); return; }
   cache.review = all;
   const cur = all.find(r=>r.date===reviewDate);
   let list = all.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6)
@@ -2626,7 +2627,7 @@ async function renderReview(){
     <div style="margin-top:12px;text-align:right"><button class="btn" onclick="saveReview()">保存复盘</button></div>
   </div>`;
   if(list) html += `<div class="card review-list"><div class="t" style="font-weight:700;margin-bottom:10px">历史复盘</div>${list}</div>`;
-  view.innerHTML = html;
+  setView(html, 'review')
 }
 function setReviewDate(v){ reviewDate=v; render(); }
 async function saveReview(){
@@ -2649,7 +2650,7 @@ let diarySelWeather = '', diarySelMood = '';
 async function renderDiary(){
   let all;
   try{ all = await apiDiary(); }
-  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  catch(e){ setView(`<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`, 'diary'); return; }
   diaryData = all || [];
   diaryYear = new Date().getFullYear();
   diaryMonth = new Date().getMonth() + 1;
@@ -2713,13 +2714,13 @@ function diaryPaint(){
     </div>`;
   }
 
-  view.innerHTML = `<div class="card diary-card">
+  setView(`<div class="card diary-card">
     <div class="h"><div class="t">写日记</div><span class="muted" style="font-weight:500">${diaryTodayDone?'今日已记录 ✓':'今天还没写哦'}</span></div>
     <div class="diary-layout">
       <div class="diary-main">${mainHTML}</div>
       <div class="diary-side">${cal}</div>
     </div>
-  </div>`;
+  </div>`, 'diary');
 }
 function diaryMove(delta){
   let m = diaryMonth + delta, y = diaryYear;
@@ -2791,7 +2792,7 @@ function a2BuildModel(recs, year){
 }
 async function a2Load(year){
   const gen = ++a2Gen; a2Year = year;
-  view.innerHTML = '<div class="empty">⏳ 加载中…</div>';
+  setView('<div class="empty">⏳ 加载中…</div>', 'annual2')
   try{
     const all = await localList('annual2');
     if(gen!==a2Gen) return;
@@ -2817,7 +2818,7 @@ async function a2Load(year){
       }catch(e){ console.warn('创建分组记录失败', e); }
     }
     a2Paint();
-  }catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; }
+  }catch(e){ setView(`<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`, 'annual2') }
 }
 function a2Switch(d){ a2Load(a2Year + d); }
 function a2FindContent(id){ for(const grp of a2Model.groups){ const c=grp.contents.find(x=>x.id===id); if(c) return c; } return null; }
@@ -2868,7 +2869,7 @@ function a2Paint(){
   if(a2Model.ending) html += a2CellHTML(a2Model.ending, 'ending');
   html += `<div class="a2-arrange">每行分组数：<input type="number" min="2" max="4" value="${a2Model.arrange}" onchange="a2SetArrange(Number(this.value))"> <span>（2=一行两组，3=一行三组，4=一行四组）</span></div>`;
   html += `</div>`;
-  view.innerHTML = html;
+  setView(html, 'annual2')
 }
 function a2CellText(kind, t){ const rec = kind==='opening'?a2Model.opening:a2Model.ending; if(!rec) return; rec.text=t; a2Patch(rec.id, {text:t}); }
 function a2TitleText(g, t){ const grp=a2Model.groups.find(x=>x.g===g); if(!grp||!grp.title) return; grp.title.text=t; a2Patch(grp.title.id,{text:t}); }
@@ -3022,13 +3023,13 @@ async function renderMonthPlan2(){
 }
 async function mp2Load(){
   const gen = ++mp2Gen;
-  view.innerHTML = '<div class="empty">⏳ 加载中…</div>';
+  setView('<div class="empty">⏳ 加载中…</div>', 'monthplan2')
   try {
     const all = await localList('monthplan2');
     if (gen !== mp2Gen) return;
     mp2Data = all.filter(r => Number(r.year) === Number(mp2Year) && Number(r.month) === Number(mp2Month)) || [];
     mp2Paint();
-  } catch (e) { view.innerHTML = '<div class="empty">⚠️ 加载失败：' + esc(e.message || e) + '</div>'; }
+  } catch (e) { setView('<div class="empty">⚠️ 加载失败：' + esc(e.message || e) + '</div>', 'monthplan2') }
 }
 function mp2SwitchMonth(d){
   const n = new Date(mp2Year, mp2Month - 1 + d, 1);
@@ -3107,7 +3108,7 @@ function mp2Paint(){
   html += '</tbody></table>';
   html += '<div class="mp2-add" onclick="mp2Add()">＋ 添加计划</div>';
   html += '</div>';
-  view.innerHTML = html;
+  setView(html, 'monthplan2')
 }
 async function mp2EditItem(id, text){
   text = (text || '').trim();
@@ -3190,7 +3191,7 @@ async function mp2ConfirmAdd(){
 async function renderMajor(){
   let arr = [];
   try { arr = await apiList('major'); }
-  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  catch(e){ setView(`<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`, 'major'); return; }
   cache['major'] = arr;
   // 若当前展开的重大事项已被删除，则收起
   if (majorExpandedRecId && !arr.find(x => x.id === majorExpandedRecId)) majorExpandedRecId = null;
@@ -3215,10 +3216,10 @@ async function renderMajor(){
     </div>`;
   });
   cells += `<div class="major-cell add-cell" onclick="addGeneric('major')">＋ 添加重大事项</div>`;
-  view.innerHTML = `<div class="card"><div class="h"><div class="t">重大事项（${arr.length}）</div></div>
+  setView(`<div class="card"><div class="h"><div class="t">重大事项（${arr.length}）</div></div>
     <div class="major-row">${cells}</div>
   </div>
-  <div class="major-expand-wrap" id="majorExpandWrap"></div>`;
+  <div class="major-expand-wrap" id="majorExpandWrap"></div>`, 'major');
   await renderMajorExpand();
 }
 async function renderMajorExpand(){
@@ -3371,7 +3372,7 @@ async function renderCalendar(){
   if(calYear===null){ calYear = today.getFullYear(); calMonth = today.getMonth()+1; }
   let arr;
   try{ arr = await apiList('calendar'); }
-  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  catch(e){ setView(`<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`, 'calendar'); return; }
   cache['calendar'] = arr;
   const byDate = {};
   (arr||[]).forEach(it=>{ const d = it.date; if(!d) return; (byDate[d]=byDate[d]||[]).push(it); });
@@ -3424,7 +3425,7 @@ async function renderCalendar(){
     </div>`;
   }
 
-  view.innerHTML = `<div class="card"><div class="h"><div class="t">${s.name}</div></div>
+  setView(`<div class="card"><div class="h"><div class="t">${s.name}</div></div>
     <div class="cal-wrap">
       <div class="cal-left">
         <div class="cal-left-h">
@@ -3439,7 +3440,7 @@ async function renderCalendar(){
         <div class="cal-big">${head}${cells}</div>
       </div>
     </div>
-  </div>`;
+  </div>`, 'calendar');
 
   if(calIntervalId) clearInterval(calIntervalId);
   calIntervalId = setInterval(()=>{ if(current==='calendar') refreshReminderColors(); }, 20000);
@@ -3456,9 +3457,10 @@ async function calDelSchedule(id){
 }
 
 async function renderProject(id){
+  const pg = id;
   let tasks, desc='';
   try{ tasks = await localList(id); }
-  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  catch(e){ setView(`<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`, pg); return; }
   tasks.sort((a,b)=> (a.tid||0)-(b.tid||0));
   try{ desc = await loadProjDesc(id); }catch(e){}
   const s = SECTIONS[id];
@@ -3472,7 +3474,7 @@ async function renderProject(id){
   <div class="card"><div class="h"><div class="t">任务思维导图（${tasks.length}）</div></div>
     <div id="mmHost">${tasks.length ? renderTaskMindmap(id, tasks, s) : '<div class="empty" style="margin:6px 0 12px">还没有任务，点击根节点「'+esc(s.name)+'」右边的「＋」添加第一个吧</div>'}</div>
   </div>`;
-  view.innerHTML = html;
+  setView(html, pg)
 }
 // 由「上级任务标题」(存父任务 ID) 构建思维导图：根=项目名，父级按 ID 匹配子任务，可折叠
 // 思维导图状态（仅前端，避免每次操作重新拉取）
@@ -3679,7 +3681,7 @@ async function renderDashboard(){
     topics = topicsArr.length;
     knowledge = insp; // 「知识沉淀」与灵感同源同一张「人生灵感库」表
     inputPending = articleInputArr.length;
-  } catch(e){ if(current!=='dashboard') return; view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  } catch(e){ if(current!=='dashboard') return; setView(`<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`, 'dashboard'); return; }
   dashCache = { todayTodos };
   const upcoming = major.filter(m=>!m.status||m.status!=='已完成').slice(0,4);
   const habitDoneToday = habits.filter(h=>h.history&&h.history[t]).length;
@@ -3738,12 +3740,13 @@ async function renderDashboard(){
   html += `</div></div>`;
 
   if(current!=='dashboard') return;   // 防止首页异步加载完成后覆盖已切换到的其他界面
-  view.innerHTML = html;
+  setView(html, 'dashboard')
 }
 async function toggleDashboardTodo(id){ const a=(dashCache&&dashCache.todayTodos)||[]; const t=a.find(x=>x.id===id); if(!t) return; t.done=!t.done; try{ await apiUpdate('todos',id,t); await render(); }catch(e){ alert('更新失败：'+(e.message||e)); } }
 
 /* ---------- main render ---------- */
 const view = document.getElementById('view');
+function setView(html, page){ if(current !== page) return; view.innerHTML = html; }
 /* ---------- 选题库：行内可编辑表格（添加按钮置底 / 不弹窗 / 每行保存+删除 / 已使用勾选） ---------- */
 let topicsState = null;     // { rows:[{_uid,id,title,platform,status,note,used,_new}], loaded }
 let topicsUid = 0;
@@ -3767,7 +3770,7 @@ async function renderTopics() {
         loaded: true
       };
     } catch (e) {
-      view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message || e)}</div>`;
+      setView(`<div class="empty">⚠️ 加载失败：${esc(e.message || e)}</div>`, 'topics')
       return;
     }
     cache.topics = topicsState.rows.map(x => ({ id: x.id }));
@@ -3822,7 +3825,7 @@ function paintTopics() {
   }
   if (!mob) html += `<div style="padding:10px"><button class="btn" onclick="topicsAddRow()">+ 添加</button></div></div>`;
   else html += `</div>`;
-  view.innerHTML = html;
+  setView(html, 'topics')
 }
 async function topicsSaveRow(uid) {
   if (!topicsState) return;
@@ -3881,7 +3884,7 @@ async function renderMenstrual(){
   if(!mentYm) mentYm = today().slice(0,7);
   let list = [];
   try{ list = await apiList('menstrual'); }
-  catch(e){ view.innerHTML = `<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`; return; }
+  catch(e){ setView(`<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`, 'menstrual'); return; }
   const byDate = {}; list.forEach(r=>{ if(r.date) byDate[r.date] = r; });
   const periodDays = Object.keys(byDate).filter(d=> byDate[d].flow && byDate[d].flow!=='无').sort();
   const ym = mentYm;
@@ -3922,7 +3925,7 @@ async function renderMenstrual(){
   const monthEnd = yy + '-' + p2(mm) + '-' + p2(days);
   const prev = mentAddDays(yy + '-' + p2(mm) + '-01', -1).slice(0,7);
   const next = mentAddDays(monthEnd, 1).slice(0,7);
-  view.innerHTML = `<div class="card">
+  setView(`<div class="card">
     <div class="h"><div class="t">姨妈记录</div>
       <div class="ment-cycle">周期 <input id="mentCycle" type="number" min="15" max="45" value="${mentCycle}"> 天
         <button class="btn mini" onclick="mentSaveCycle()">保存</button></div>
@@ -3935,7 +3938,7 @@ async function renderMenstrual(){
     </div>
     <div class="mg-grid">${head}${body}</div>
     <div class="muted" style="margin-top:10px;font-size:12px">点击任意日期可记录 / 编辑当天生理期情况（流量与备注）。</div>
-  </div>`;
+  </div>`, 'menstrual');
 }
 function mentGo(ym){ mentYm = ym; renderMenstrual(); }
 function mentSaveCycle(){ const v = Number(document.getElementById('mentCycle').value); if(v >= 15 && v <= 45){ mentCycle = v; localStorage.setItem('mentCycle', String(v)); renderMenstrual(); } else alert('周期天数请在 15–45 之间'); }
