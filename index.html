@@ -3346,7 +3346,7 @@ function lunarText(yy,mm,dd){
 // 格子内农历：初一只显示月份（不写“初一”）；其余日期只显示日，不写月份
 function lunarCellText(yy,mm,dd){
   const L=solarToLunar(yy,mm,dd);
-  const mName=(L.isLeap?'闰':'')+lunarMonthNames[L.lunarMonth-1];
+  const mName=(L.isLeap?'闰':'')+lunarMonthNames[L.lunarMonth-1]+'月';
   if(L.lunarDay===1) return mName;
   return cnLunarDay(L.lunarDay);
 }
