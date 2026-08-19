@@ -578,9 +578,26 @@ async function ensureAnnual2GroupOptionOnce() {
   try { await ensureAnnual2GroupOption(); _annual2GroupEnsured = true; }
   catch (e) { console.warn('ensureAnnual2GroupOption 失败（重试于下次写入）:', e.message); _annual2GroupEnsured = false; }
 }
+// ---- 创建幂等去重：用客户端传来的 _cid 防止同步重试 / 飞书抖动 / 重复提交产生重复记录 ----
+// 同一 _cid 重复提交（同一本地记录多次推送、或 UI 抖动导致的重复点击）直接返回已存在的记录 id，不再新建。
+const CID_MAP_FILE = path.join(__dirname, '__cid_map.json');
+let _cidMap = {};
+try { _cidMap = JSON.parse(fs.readFileSync(CID_MAP_FILE, 'utf8') || '{}'); } catch (_) { _cidMap = {}; }
+let _cidMapDirty = false;
+function saveCidMap() { if (!_cidMapDirty) return; try { fs.writeFileSync(CID_MAP_FILE, JSON.stringify(_cidMap)); _cidMapDirty = false; } catch (_) {} }
+(function pruneCidMap() { const cut = Date.now() - 30 * 86400000; let ch = false; for (const k of Object.keys(_cidMap)) { if (Date.now() - (_cidMap[k].ts || 0) > cut) { delete _cidMap[k]; ch = true; } } if (ch) _cidMapDirty = true; saveCidMap(); })();
+async function dedupeCreateId(id, cid) {
+  if (!cid) return null;
+  const e = _cidMap[cid]; if (!e) return null;
+  try { const rec = await sectionRecord(id, e.rid); if (rec) return e.rid; } catch (_) { /* 读回失败视为失效 */ }
+  delete _cidMap[cid]; _cidMapDirty = true; saveCidMap(); return null;
+}
+function recordCid(cid, rid) { if (!cid) return; _cidMap[cid] = { rid, ts: Date.now() }; _cidMapDirty = true; saveCidMap(); }
+
 async function sectionCreate(id, o) {
   const cfg = SECTIONS[id];
   const base = cfg.base || BASE_TOKEN;
+  const cid = o && o._cid; if (o && cid) delete o._cid; // _cid 仅用于幂等去重，不写入飞书
   if (cfg.kind === 'ptask') {
     await ensureProjects();
     // 非「每日」任务必须设置截止时间（前端同样拦截，这里兜底）
@@ -589,7 +606,11 @@ async function sectionCreate(id, o) {
     }
   }
   if (cfg.kind === 'annual2') await ensureAnnual2GroupOptionOnce();
-  return { id: await createRecord(cfg.table, await writeRec(cfg.kind, o, cfg.fix || cfg.proj), base) };
+  // 幂等：同一 _cid 重复提交直接返回已存在记录，避免抖动/重试产生重复数据
+  if (cid) { const existing = await dedupeCreateId(id, cid); if (existing) return { id: existing }; }
+  const rid = await createRecord(cfg.table, await writeRec(cfg.kind, o, cfg.fix || cfg.proj), base);
+  if (cid) recordCid(cid, rid);
+  return { id: rid };
 }
 async function sectionUpdate(id, rec, o) {
   const cfg = SECTIONS[id];

@@ -937,6 +937,7 @@ async function localCreate(sectionId, obj){
     if(!data.tag) data.tag = SECTIONS[sectionId].name;
   }
   const payload = sectionPayload(sectionId, data); delete payload.id;
+  payload._cid = id; // 客户端唯一 id：供后端创建幂等去重（同步重试/飞书抖动不重复建记录）；同一本地 doc 重试时保持一致
   if(isPtaskKind(k) && !isRealTid(data.tid)) delete payload.tid; // 让后端分配真实序号
   const doc = { key:lkey(sec,id), sectionId:sec, pushSection:sectionId, id, realId:'', data, _op:'create', _dirty:true, _ts:Date.now(), payload };
   await idbPut(doc); updateSyncBadge();
@@ -1458,6 +1459,10 @@ async function confirmAddOption(key, dyn){
 function closeModal(){ overlay.classList.remove('show'); modal.classList.remove('wide'); }
 overlay.addEventListener('click', e=>{ if(e.target===overlay) closeModal(); });
 async function submitModal(){
+  if(modal._submitting) return; // 防止卡顿/连点导致同一表单被提交多次 → 重复数据
+  modal._submitting = true;
+  const saveBtn = modal.querySelector('.modal-ops .btn:not(.soft)');
+  if(saveBtn) saveBtn.disabled = true;
   const schema = modal._schema, vals = modal._values;
   const out = Object.assign({}, vals);
   for(const f of schema){
@@ -1472,9 +1477,10 @@ async function submitModal(){
       if(f.type==='checkbox') v = el.checked;
     }
     out[f.key]=v;
-    if(f.required && !String(v).trim()){ alert('请填写：'+f.label); return; }
+    if(f.required && !String(v).trim()){ alert('请填写：'+f.label); modal._submitting=false; if(saveBtn) saveBtn.disabled=false; return; }
   }
   try{ await modal._onSave(out); }catch(e){ alert('保存失败：'+(e&&e.message||e)); return; }
+  finally{ modal._submitting = false; if(saveBtn) saveBtn.disabled = false; }
   closeModal();
 }
 
@@ -1956,7 +1962,9 @@ async function renderArticle(){
   c1.addEventListener('change',()=>{ c2.innerHTML=optList(Object.keys(tree[c1.value]||{}),''); c3.innerHTML=optList([],''); });
   c2.addEventListener('change',()=>{ c3.innerHTML=optList((tree[c1.value]||{})[c2.value]||[],''); });
 }
+let articleSubmitting = false;
 async function submitArticle(){
+  if(articleSubmitting) return; articleSubmitting = true; // 防连点重复录入
   const title = document.getElementById('aiTitle').value.trim();
   const source = document.getElementById('aiSource').value.trim();
   const sourceLink = document.getElementById('aiSourceLink').value.trim();
@@ -1977,8 +1985,10 @@ async function submitArticle(){
     alert('已记录到「录入表」（record_id: '+j.record_id+'）'+(multi?'（多篇模式已开启）':'')+'，请在 WorkBuddy 说「处理待分析文章」触发 AI 分析');
     resetArticleForm();
   }catch(e){ alert('保存失败：'+(e.message||e)); }
+  finally{ articleSubmitting = false; }
 }
 async function submitArticleDirect(){
+  if(articleSubmitting) return; articleSubmitting = true; // 防连点重复录入
   const title = document.getElementById('aiTitle').value.trim();
   const source = document.getElementById('aiSource').value.trim();
   const sourceLink = document.getElementById('aiSourceLink').value.trim();
@@ -1998,6 +2008,7 @@ async function submitArticleDirect(){
     alert('已直接录入「人生灵感库」（record_id: '+j.record_id+'）');
     resetArticleForm();
   }catch(e){ alert('保存失败：'+(e.message||e)); }
+  finally{ articleSubmitting = false; }
 }
 function resetArticleForm(){
   document.getElementById('aiTitle').value='';
@@ -2114,6 +2125,7 @@ async function addTodo(){
   const i=document.getElementById('todoInput');
   const v=(i?i.value:'').trim();
   if(!v){ if(i) i.focus(); return; }
+  if(i) i.value=''; // 立即清空：防止 UI 卡顿时连点「＋」产生多条相同待办
   const dl=todayStr();  // 默认截止=今日，输入框无需选时间
   try{
     await apiCreate('todos',{title:v,done:false,date:dl,deadline:dl,note:''});
@@ -2190,6 +2202,7 @@ async function renderWishes(){
 async function addWish(){
   const i=document.getElementById('wishInput'); const v=(i?i.value:'').trim();
   if(!v){ if(i) i.focus(); return; }
+  if(i) i.value=''; // 立即清空：防止卡顿时连点「许愿」产生多条相同愿望
   try{
     const r = await apiCreate('wishes',{title:v,done:false,realized:''});
     if(!wishArr) wishArr=[];
@@ -2300,6 +2313,7 @@ function qMeasure(){
 async function addQuote(){
   const i=document.getElementById('qInput'); const v=(i?i.value:'').trim();
   if(!v){ if(i) i.focus(); return; }
+  if(i) i.value=''; // 立即清空：防止卡顿时连点产生多条相同摘抄
   const catSel=document.getElementById('qCat');
   let cat='';
   if(catSel){ const cv=catSel.value; if(cv==='__new__'){ const nv=prompt('新分类名称：'); cat=(nv||'').trim(); } else cat=cv; }
@@ -2443,6 +2457,7 @@ async function saveInspField(id, field, value){
 }
 async function addInsp(){
   const i=document.getElementById('inspInput'); const v=(i?i.value:'').trim();
+  if(i && v) i.value=''; // 立即清空：防止卡顿时连点「添加卡片」产生多条相同灵感
   try{
     const r = await apiCreate('insprec',{content:v,type:'',date:today()});
     await render();
@@ -2606,7 +2621,7 @@ function habitMobileBindDrag(){
   strip.addEventListener('pointerup', end);
   strip.addEventListener('pointercancel', ()=>{ dragging=false; startX=null; strip.style.transform=''; });
 }
-async function addHabit(){ const i=document.getElementById('habitInput'); const v=i.value.trim(); if(!v)return; try{ await addHabitApi(v); await render(); }catch(e){ alert('添加失败：'+(e.message||e)); } }
+async function addHabit(){ const i=document.getElementById('habitInput'); const v=i.value.trim(); if(!v)return; i.value=''; try{ await addHabitApi(v); await render(); }catch(e){ alert('添加失败：'+(e.message||e)); } }
 async function toggleHabit(id,dy){ try{ await toggleHabitApi(id,dy); await render(); }catch(e){ alert('打卡失败：'+(e.message||e)); } }
 async function delHabit(id){ if(!confirm('删除该习惯及其记录？'))return; try{ await delHabitApi(id); await render(); }catch(e){ alert('删除失败：'+(e.message||e)); } }
 
