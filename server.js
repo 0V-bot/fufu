@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
+const { Readable } = require('stream');
 
 const PORT = Number(process.env.PORT || 3210);
 const BASE_TOKEN = process.env.BASE_TOKEN || 'Wwtfbm66VaJyLOsBQaTcTm1vnHg';
@@ -1117,12 +1118,22 @@ async function downloadFile(id, req, res){
     const item = info.list && info.list[0];
     if (!item || !item.dlink) throw new Error('获取下载链接失败: ' + JSON.stringify(info).slice(0, 200));
     const r = await retryFetch(() => fetch(item.dlink, { headers: { 'User-Agent': 'pan.baidu.com' } }));
+    if (!r.ok) throw new Error('百度下载链接返回 HTTP ' + r.status + ' ' + (await r.text()).slice(0, 200));
+    const size = r.headers.get('Content-Length');
     res.writeHead(200, {
-      'Content-Type': 'application/octet-stream',
+      'Content-Type': r.headers.get('Content-Type') || 'application/octet-stream',
       'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(meta.name)}`,
-      'Cache-Control': 'no-store'
+      'Cache-Control': 'no-store',
+      ...(size ? { 'Content-Length': size } : {})
     });
-    r.body.pipe(res);
+    // fetch 的 Response.body 是 Web ReadableStream，没有 .pipe；转 Node 流或直接读缓冲
+    let src;
+    if (r.body && typeof r.body.pipe === 'function') src = r.body;
+    else if (r.body && typeof r.body.getReader === 'function') src = Readable.fromWeb(r.body);
+    else { const buf = Buffer.from(await r.arrayBuffer()); res.end(buf); return; }
+    src.on('error', () => { try { res.destroy(); } catch (_) {} });
+    res.on('error', () => { try { src.destroy(); } catch (_) {} });
+    src.pipe(res);
   } catch (e) {
     res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('下载失败: ' + e.message);
