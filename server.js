@@ -1117,7 +1117,11 @@ async function downloadFile(id, req, res){
     const info = await baiduGetJson(`https://pan.baidu.com/rest/2.0/xpan/multimedia?method=filemetas&access_token=${encodeURIComponent(tok)}&fsids=[${meta.fsId}]&dlink=1&thumb=0`);
     const item = info.list && info.list[0];
     if (!item || !item.dlink) throw new Error('获取下载链接失败: ' + JSON.stringify(info).slice(0, 200));
-    const r = await retryFetch(() => fetch(item.dlink, { headers: { 'User-Agent': 'pan.baidu.com' } }));
+    // dlink 直连百度需要带 access_token 标识用户，否则报 31045 user not exists。
+    // 先剥离 dlink 中可能过期的旧 token，再追加当前有效 token。
+    let dlUrl = item.dlink.replace(/([?&])access_token=[^&]*/i, '');
+    dlUrl += (dlUrl.includes('?') ? '&' : '?') + 'access_token=' + encodeURIComponent(tok);
+    const r = await retryFetch(() => fetch(dlUrl, { headers: { 'User-Agent': 'pan.baidu.com' } }));
     if (!r.ok) throw new Error('百度下载链接返回 HTTP ' + r.status + ' ' + (await r.text()).slice(0, 200));
     const size = r.headers.get('Content-Length');
     res.writeHead(200, {
