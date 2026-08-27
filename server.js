@@ -46,6 +46,17 @@ const BAIDU_APP_DIR   = process.env.BAIDU_APP_DIR   || _baiduCfg.appDir    || ('
 const BAIDU_REDIRECT  = process.env.BAIDU_REDIRECT  || 'https://fufu.lwai.work/api/baidu/callback';
 const DATA_DIR        = process.env.DATA_DIR || path.join(__dirname, 'data');
 try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {}
+// 启动清理：上一次运行若崩溃/重启，正在上传的临时文件 up_* 会成为孤儿长期占盘（data/ 是持久卷）；
+// 此时无任何上传在进行，可安全删除全部 up_*。
+(function cleanupOrphanTemp(){
+  try {
+    let n = 0;
+    for (const f of fs.readdirSync(DATA_DIR)) {
+      if (f.startsWith('up_')) { try { fs.unlinkSync(path.join(DATA_DIR, f)); n++; } catch (_) {} }
+    }
+    if (n) console.log('[cleanup] 已清理', n, '个遗留上传临时文件');
+  } catch (e) {}
+})();
 
 const USE_OPENAPI = !!(APP_ID && APP_SECRET);
 const FEISHU_API = 'https://open.feishu.cn/open-apis';
@@ -1152,8 +1163,18 @@ async function deleteFile(id){
   saveMeta(list.filter(f => f.id !== id));
   return { ok: true };
 }
-// 上传任务表（内存）：jobId -> {status, name, size, category, error, file}
+// 上传任务表（内存）：jobId -> {status, name, size, category, error, file, createdAt}
 const uploadJobs = new Map();
+// 周期性清理已终态（done/error）且超过 10 分钟的上传任务记录，防内存泄漏；
+// 前端拿到终态后会自行清除轮询，正常情况下记录很快被下方 /job 路由即时删除，这里只是兜底。
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, job] of uploadJobs) {
+    if ((job.status === 'done' || job.status === 'error') && now - (job.createdAt || 0) > 10 * 60 * 1000) {
+      uploadJobs.delete(id);
+    }
+  }
+}, 5 * 60 * 1000);
 // 上传入口：客户端原始字节流 → 落临时文件 → 立即回 202 → 后台异步传百度（前端轮询进度，避免长连接空闲导致 nginx 504）
 async function handleFileUpload(req, res){
   if (!authed(req)) { send(res, 401, { error: 'unauthorized' }); return; }
@@ -1168,7 +1189,7 @@ async function handleFileUpload(req, res){
   ws.on('error', e => { try { fs.unlinkSync(tmp); } catch (_) {} send(res, 500, { error: '上传写入失败: ' + e.message }); });
   ws.on('finish', async () => {
     const jobId = crypto.randomUUID();
-    const job = { status: 'uploading', name, size: 0, category, error: null, file: null };
+    const job = { status: 'uploading', name, size: 0, category, error: null, file: null, createdAt: Date.now() };
     uploadJobs.set(jobId, job);
     // 立刻返回 202，百度上传在后台进行；响应连接不再被长时间空占，根除 504
     send(res, 202, { ok: true, jobId, status: 'uploading' });
@@ -1298,7 +1319,10 @@ async function route(method, url, body, res, req) {
     if (method === 'DELETE' && (m = (url.split('?')[0]).match(/^\/api\/files\/([\w-]+)$/))) return send(res, 200, await deleteFile(m[1]));
     if (method === 'GET' && (m = (url.split('?')[0]).match(/^\/api\/files\/job\/([\w-]+)$/))) {
       const job = uploadJobs.get(m[1]);
-      return send(res, 200, job || { status: 'notfound' });
+      if (!job) return send(res, 200, { status: 'notfound' });
+      // 前端拿到终态（done/error）即不再需要此记录，立即释放，避免内存无限增长
+      if (job.status === 'done' || job.status === 'error') uploadJobs.delete(m[1]);
+      return send(res, 200, job);
     }
     if (method === 'GET' && url === '/api/dashboard') return send(res, 200, await getDashboard());
     if (method === 'GET' && url === '/api/input-pending') {
