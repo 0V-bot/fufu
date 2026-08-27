@@ -1,60 +1,38 @@
 #!/usr/bin/env python3
-# 傅傅的工作台 · 文件库上传上限一键修复（小白专用）
+# 傅傅的工作台 · 文件库上传上限一键修复（小白专用，路径无关）
 #
-# 作用：在「线上真实」nginx 配置的 80 与 443 两个 server 块的 location / 里，
-#       加入 client_max_body_size 512M 等指令，使 300MB 视频能正常上传。
-# 特点：只增量插入，绝不改动 certbot 已生成的证书段；幂等（已存在则跳过）。
+# 原理：在 /etc/nginx/conf.d/fufu-upload.conf 写入 http 全局指令
+#       （client_max_body_size 512M 等）。该文件被 nginx.conf 的 http{} 自动包含，
+#       对所有 server 块（含 certbot 生成的 443 块）统一生效——
+#       无需定位站点配置文件，也不会触碰 certbot 已生成的证书段。幂等（已含 512M 则跳过）。
 #
-# 用法（在 VPS 上，仓库根目录执行）：
+# 用法（在 VPS 仓库根目录执行）：
 #   sudo python3 nginx/fix_upload_limit.py
-# 然后按提示确认 nginx -t 通过并已 reload。
+# 脚本会执行 nginx -t 校验并在通过后 reload。
 
 import os
-import re
 import subprocess
 
-CANDIDATES = [
-    '/etc/nginx/conf.d/fufu.lwai.work.conf',
-    '/etc/nginx/sites-enabled/fufu.lwai.work.conf',
-    '/etc/nginx/sites-available/fufu.lwai.work.conf',
-]
-PATH = next((p for p in CANDIDATES if os.path.exists(p)), None)
-if not PATH:
-    print('未找到 nginx 配置文件，请确认路径（可能不在上述三个位置之一）。')
-    raise SystemExit(1)
-print('找到配置:', PATH)
+CONF_D = '/etc/nginx/conf.d'
+TARGET = os.path.join(CONF_D, 'fufu-upload.conf')
+DIRECTIVES = (
+    'client_max_body_size 512M;\n'
+    'proxy_read_timeout 600s;\n'
+    'proxy_send_timeout 600s;\n'
+)
 
-s = open(PATH, encoding='utf-8').read()
-lines = s.split('\n')
-out = []
-depth = 0          # 当前花括号深度
-in_server = False  # 是否处于顶层 server 块内
-added = False      # 当前 server 块是否已插入
-DIRECTIVES = [
-    '    client_max_body_size 512M;',
-    '    proxy_read_timeout 600s;',
-    '    proxy_send_timeout 600s;',
-]
+os.makedirs(CONF_D, exist_ok=True)
 
-for line in lines:
-    out.append(line)
-    if not in_server and depth == 0 and re.match(r'\s*server\s*\{', line):
-        in_server = True
-        added = False
-    elif in_server and re.match(r'\s*server_name', line) and not added:
-        if 'client_max_body_size' not in line:
-            out.extend(DIRECTIVES)
-        added = True
-    depth += line.count('{') - line.count('}')
-    if in_server and depth <= 0:
-        in_server = False
-
-new = '\n'.join(out)
-if new == s:
-    print('无需修改（指令已存在，或未能匹配 server 块）。')
+if os.path.exists(TARGET):
+    cur = open(TARGET, encoding='utf-8').read()
+    if 'client_max_body_size 512M' in cur:
+        print('已存在且含 512M 指令，无需修改。')
+    else:
+        open(TARGET, 'w', encoding='utf-8').write(DIRECTIVES)
+        print('已更新', TARGET)
 else:
-    open(PATH, 'w', encoding='utf-8').write(new)
-    print('已写入修改。')
+    open(TARGET, 'w', encoding='utf-8').write(DIRECTIVES)
+    print('已写入', TARGET)
 
 r = subprocess.run(['nginx', '-t'], capture_output=True, text=True)
 print('--- nginx -t ---')
@@ -63,4 +41,4 @@ if r.returncode == 0:
     subprocess.run(['systemctl', 'reload', 'nginx'])
     print('nginx 已重载，配置生效。')
 else:
-    print('nginx -t 校验失败，已回滚未执行 reload，请检查上面的报错。')
+    print('nginx -t 校验失败，未执行 reload，请检查上面的报错。')
