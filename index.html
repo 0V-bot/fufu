@@ -4078,14 +4078,15 @@ function uploadFile(){
 }
 // 后台转存期间轮询任务状态，完成/失败后再刷新列表
 function startJobPoll(jobId, inp, btn, bar, txt){
-  txt.textContent = '已收到文件，正在转存百度网盘…'; bar.style.width = '100%';
+  txt.textContent = '已收到文件，正在转存百度网盘 0%…'; bar.style.width = '0%';
   const timer = setInterval(async () => {
     try{
       const r = await fetch(API+'/files/job/'+jobId); const j = await r.json();
       if(j.status==='done'){ clearInterval(timer); btn.disabled=false; inp.value=''; txt.textContent='转存完成 ✓'; loadFileList(); }
       else if(j.status==='error'){ clearInterval(timer); btn.disabled=false; bar.style.width='0%'; txt.textContent='转存失败：'+(j.error||'未知错误'); alert('转存百度网盘失败：'+(j.error||'未知错误')); }
       else if(j.status==='notfound'){ clearInterval(timer); btn.disabled=false; bar.style.width='0%'; txt.textContent='任务丢失，请重试'; alert('上传任务丢失（可能服务重启），请重新上传'); }
-      // 否则保持"正在转存…"
+      // 转存中：显示分片进度（X% + n/N）
+      else if(j.total){ const pct = j.total ? Math.round((j.progress||0)/j.total*100) : 0; txt.textContent='正在转存百度网盘 '+pct+'% ('+(j.progress||0)+'/'+j.total+')'; bar.style.width = pct+'%'; }
     }catch(e){ /* 瞬时轮询失败忽略，下次再试 */ }
   }, 1500);
 }

@@ -1030,43 +1030,61 @@ function sanitizeName(n){ return String(n).replace(/[\/\\:*?"<>|]/g, '_').slice(
 function extOf(n){ const m = /\.([^.]+)$/.exec(n || ''); return m ? m[1].toLowerCase() : ''; }
 
 // 把本地临时文件分 4MB 块上传到百度网盘，返回 { fsId, path }
-async function uploadToBaidu(srcPath, destPath){
+// 并发池：限制同时进行的分片上传数，既避免打满连接又尽量利用带宽
+async function mapPool(items, limit, fn){
+  const ret = new Array(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) {
+      const idx = i++;
+      ret[idx] = await fn(items[idx], idx);
+    }
+  });
+  await Promise.all(workers);
+  return ret;
+}
+async function uploadToBaidu(srcPath, destPath, job){
   const size = fs.statSync(srcPath).size;
   const BLOCK = 4 * 1024 * 1024;
   const nBlocks = Math.max(1, Math.ceil(size / BLOCK));
   const blockList = [];
-  const tmpDir = path.join(DATA_DIR, 'tmp_' + crypto.randomBytes(6).toString('hex'));
-  fs.mkdirSync(tmpDir, { recursive: true });
-  let fd = null;
+  const slices = [];
+  const fd = fs.openSync(srcPath, 'r');
   try {
-    fd = fs.openSync(srcPath, 'r');
     for (let i = 0; i < nBlocks; i++) {
-      const len = Math.min(BLOCK, size - i * BLOCK);
+      const offset = i * BLOCK;
+      const len = Math.min(BLOCK, size - offset);
       const buf = Buffer.alloc(len);
-      fs.readSync(fd, buf, 0, len, i * BLOCK);
+      fs.readSync(fd, buf, 0, len, offset);
       blockList.push(crypto.createHash('md5').update(buf).digest('hex'));
-      fs.writeFileSync(path.join(tmpDir, i + '.part'), buf);
+      slices.push({ offset, len });
     }
-    fs.closeSync(fd); fd = null;
+    if (job) { job.total = nBlocks; job.progress = 0; job.phase = 'precreate'; }
     const pre = await baiduXpan('precreate', { path: destPath, size, isdir: 0, autoinit: 1, block_list: JSON.stringify(blockList), rtype: 1 });
     if (pre.errno !== 0) throw new Error('百度 precreate 失败(errno=' + pre.errno + '): ' + JSON.stringify(pre).slice(0, 200));
     const uploadid = pre.uploadid;
     const tok = await ensureBaiduToken();
-    for (let i = 0; i < nBlocks; i++) await baiduUploadChunk(tok, uploadid, i, path.join(tmpDir, i + '.part'), destPath);
+    if (job) job.phase = 'uploading';
+    // 4 路并发传分片（百度 superfile2 支持同 uploadid 不同 partseq 并发）
+    await mapPool(slices, 4, async (s, idx) => {
+      const buf = Buffer.alloc(s.len);
+      fs.readSync(fd, buf, 0, s.len, s.offset);
+      await baiduUploadChunk(tok, uploadid, idx, buf, destPath);
+      if (job) job.progress = (job.progress || 0) + 1;
+    });
+    if (job) job.phase = 'create';
     const cre = await baiduXpan('create', { path: destPath, size, isdir: 0, uploadid, block_list: JSON.stringify(blockList), rtype: 1 });
     if (cre.errno !== 0) throw new Error('百度 create 失败(errno=' + cre.errno + '): ' + JSON.stringify(cre).slice(0, 200));
     return { fsId: cre.fs_id, path: destPath };
   } finally {
-    if (fd) try { fs.closeSync(fd); } catch (e) {}
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+    try { fs.closeSync(fd); } catch (e) {}
   }
 }
-async function baiduUploadChunk(tok, uploadid, partseq, chunkPath, destPath){
+async function baiduUploadChunk(tok, uploadid, partseq, buf, destPath){
   const boundary = '----fub' + crypto.randomBytes(8).toString('hex');
   const head = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="p.bin"\r\nContent-Type: application/octet-stream\r\n\r\n`);
-  const data = fs.readFileSync(chunkPath);
   const tail = Buffer.from(`\r\n--${boundary}--\r\n`);
-  const body = Buffer.concat([head, data, tail]);
+  const body = Buffer.concat([head, buf, tail]);
   // 分片上传必须传完整文件路径（与 precreate 一致），且用 superfile2 端点（xpan 续传协议）
   const url = `https://d.pcs.baidu.com/rest/2.0/pcs/superfile2?method=upload&type=tmpfile&access_token=${encodeURIComponent(tok)}&path=${encodeURIComponent(destPath)}&uploadid=${encodeURIComponent(uploadid)}&partseq=${partseq}`;
   const r = await retryFetch(() => fetch(url, { method: 'POST', headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length }, body }));
@@ -1132,7 +1150,7 @@ async function handleFileUpload(req, res){
         const size = fs.statSync(tmp).size;
         const destPath = BAIDU_APP_DIR + '/' + name;
         job.size = size;
-        const { fsId, path: bpath } = await uploadToBaidu(tmp, destPath);
+        const { fsId, path: bpath } = await uploadToBaidu(tmp, destPath, job);
         try { fs.unlinkSync(tmp); } catch (e) {}
         const meta = { id: crypto.randomUUID(), name, size, type: extOf(name), category, createdAt: new Date().toISOString(), fsId, path: bpath };
         const list = loadMeta(); list.push(meta); saveMeta(list);
