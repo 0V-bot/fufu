@@ -1049,7 +1049,7 @@ async function uploadToBaidu(srcPath, destPath){
     if (pre.errno !== 0) throw new Error('百度 precreate 失败(errno=' + pre.errno + '): ' + JSON.stringify(pre).slice(0, 200));
     const uploadid = pre.uploadid;
     const tok = await ensureBaiduToken();
-    for (let i = 0; i < nBlocks; i++) await baiduUploadChunk(tok, uploadid, i, path.join(tmpDir, i + '.part'));
+    for (let i = 0; i < nBlocks; i++) await baiduUploadChunk(tok, uploadid, i, path.join(tmpDir, i + '.part'), destPath);
     const cre = await baiduXpan('create', { path: destPath, size, isdir: 0, uploadid, block_list: JSON.stringify(blockList), rtype: 1 });
     if (cre.errno !== 0) throw new Error('百度 create 失败(errno=' + cre.errno + '): ' + JSON.stringify(cre).slice(0, 200));
     return { fsId: cre.fs_id, path: destPath };
@@ -1058,17 +1058,20 @@ async function uploadToBaidu(srcPath, destPath){
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 }
-async function baiduUploadChunk(tok, uploadid, partseq, chunkPath){
+async function baiduUploadChunk(tok, uploadid, partseq, chunkPath, destPath){
   const boundary = '----fub' + crypto.randomBytes(8).toString('hex');
   const head = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="p.bin"\r\nContent-Type: application/octet-stream\r\n\r\n`);
   const data = fs.readFileSync(chunkPath);
   const tail = Buffer.from(`\r\n--${boundary}--\r\n`);
   const body = Buffer.concat([head, data, tail]);
-  const url = `https://d.pcs.baidu.com/rest/2.0/pcs/file?method=upload&type=tmpfile&access_token=${encodeURIComponent(tok)}&path=${encodeURIComponent(BAIDU_APP_DIR)}&uploadid=${encodeURIComponent(uploadid)}&partseq=${partseq}`;
+  // 分片上传必须传完整文件路径（与 precreate 一致），且用 superfile2 端点（xpan 续传协议）
+  const url = `https://d.pcs.baidu.com/rest/2.0/pcs/superfile2?method=upload&type=tmpfile&access_token=${encodeURIComponent(tok)}&path=${encodeURIComponent(destPath)}&uploadid=${encodeURIComponent(uploadid)}&partseq=${partseq}`;
   const r = await retryFetch(() => fetch(url, { method: 'POST', headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length }, body }));
   const txt = await r.text();
   let j; try { j = JSON.parse(txt); } catch (e) { throw new Error('百度分片上传返回非 JSON: ' + txt.slice(0, 200)); }
-  if (j.errno !== 0) throw new Error('百度分片上传失败(errno=' + j.errno + '): ' + txt.slice(0, 200));
+  // 该端点成功返回 errno=0；失败返回 error_code（非 errno），需同时兼容两种字段
+  if ((j.errno !== undefined && j.errno !== 0) || (j.error_code !== undefined && j.error_code !== 0))
+    throw new Error('百度分片上传失败(errno=' + (j.errno !== undefined ? j.errno : j.error_code) + '): ' + txt.slice(0, 200));
   return j;
 }
 async function downloadFile(id, req, res){
