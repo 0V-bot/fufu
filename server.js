@@ -1160,6 +1160,11 @@ const server = http.createServer((req, res) => {
   if (req.url.startsWith('/api/')) { handleApi(req, res); return; }
   res.writeHead(404); res.end('not found');
 });
+
+// 大文件上传时，服务器在把字节传给百度网盘期间响应 socket 长期空闲。
+// 关闭 Node 默认 120s socket 超时，避免被误杀导致 nginx 504（应用侧用 retryFetch 自行控超时）。
+server.timeout = 0;
+server.keepAliveTimeout = 1800 * 1000;
 function send(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(obj));
