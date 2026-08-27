@@ -142,23 +142,34 @@ async function feishuRequest(method, path, body) {
   }
   return j;
 }
-async function retryFetch(fn, timeoutMs = 120000) {
-  let lastErr;
-  for (let i = 0; i < 5; i++) {
+async function retryFetch(fn, timeoutMs = 120000, opts = {}) {
+  const tag = opts.tag ? ('[' + opts.tag + '] ') : '';
+  const max = opts.max || 5;
+  let lastMsg = 'retryFetch 失败';
+  for (let i = 0; i < max; i++) {
     try {
       const res = await Promise.race([
         fn(),
         new Promise((_, rej) => setTimeout(() => rej(new Error('请求超时(timeout ' + timeoutMs + 'ms)')), timeoutMs))
       ]);
-      if (res.status >= 500) throw new Error('HTTP ' + res.status);
+      // 百度偶发 5xx/429 视为可重试的瞬态错误
+      if (res.status >= 500 || res.status === 429) {
+        let body = '';
+        try { body = (await res.text()).slice(0, 240); } catch (_) {}
+        lastMsg = tag + 'HTTP ' + res.status + (body ? ' ' + body : ' (百度未返回正文)');
+        if (i < max - 1) { await sleep(600 * (i + 1)); continue; }
+        throw new Error(lastMsg);
+      }
       return res;
     } catch (e) {
-      lastErr = e;
-      if (NET_RE.test(e.message || '') && i < 4) { await sleep(400 * (i + 1)); continue; }
+      lastMsg = e.message;
+      // 网络层错误（断连/EOF/超时）重试；其余（含超时）立即抛出并保留阶段标签
+      if (NET_RE.test(e.message || '') && i < max - 1) { await sleep(400 * (i + 1)); continue; }
+      if (!NET_RE.test(e.message || '')) throw new Error(tag + e.message);
       throw e;
     }
   }
-  throw lastErr;
+  throw new Error(lastMsg);
 }
 // 飞书写接口的瞬时抖动/字段未就绪（建表后立即写记录偶发 1254001/1254607/1254291）重试
 async function feishuRetry(fn, tries = 3, base = 900) {
@@ -1010,12 +1021,12 @@ async function exchangeBaiduCode(code){
   saveBaiduToken(tok); return tok;
 }
 // 百度 xpan 写接口：POST form-urlencoded，access_token 走 query
-async function baiduXpan(method, params){
+async function baiduXpan(method, params, tag){
   const tok = await ensureBaiduToken();
   const url = 'https://pan.baidu.com/rest/2.0/xpan/file?method=' + method + '&access_token=' + encodeURIComponent(tok);
   const { access_token, ...rest } = params;
   const body = new URLSearchParams(rest).toString();
-  const r = await retryFetch(() => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body }));
+  const r = await retryFetch(() => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body }), 120000, { tag: tag || method });
   const txt = await r.text();
   let j; try { j = JSON.parse(txt); } catch (e) { throw new Error('百度返回非 JSON: ' + txt.slice(0, 200)); }
   return j;
@@ -1060,20 +1071,21 @@ async function uploadToBaidu(srcPath, destPath, job){
       slices.push({ offset, len });
     }
     if (job) { job.total = nBlocks; job.progress = 0; job.phase = 'precreate'; }
-    const pre = await baiduXpan('precreate', { path: destPath, size, isdir: 0, autoinit: 1, block_list: JSON.stringify(blockList), rtype: 1 });
+    const pre = await baiduXpan('precreate', { path: destPath, size, isdir: 0, autoinit: 1, block_list: JSON.stringify(blockList), rtype: 1 }, 'precreate');
     if (pre.errno !== 0) throw new Error('百度 precreate 失败(errno=' + pre.errno + '): ' + JSON.stringify(pre).slice(0, 200));
     const uploadid = pre.uploadid;
     const tok = await ensureBaiduToken();
     if (job) job.phase = 'uploading';
-    // 4 路并发传分片（百度 superfile2 支持同 uploadid 不同 partseq 并发）
-    await mapPool(slices, 4, async (s, idx) => {
+    // 串行传分片：百度 superfile2 对同一 uploadid 并发分片会持续返回 500，故改为串行；
+    // 提速来自省去 .part 临时文件（直接按偏移读源文件）+ retryFetch 的 5xx 退避重试。
+    await mapPool(slices, 1, async (s, idx) => {
       const buf = Buffer.alloc(s.len);
       fs.readSync(fd, buf, 0, s.len, s.offset);
       await baiduUploadChunk(tok, uploadid, idx, buf, destPath);
       if (job) job.progress = (job.progress || 0) + 1;
     });
     if (job) job.phase = 'create';
-    const cre = await baiduXpan('create', { path: destPath, size, isdir: 0, uploadid, block_list: JSON.stringify(blockList), rtype: 1 });
+    const cre = await baiduXpan('create', { path: destPath, size, isdir: 0, uploadid, block_list: JSON.stringify(blockList), rtype: 1 }, 'create');
     if (cre.errno !== 0) throw new Error('百度 create 失败(errno=' + cre.errno + '): ' + JSON.stringify(cre).slice(0, 200));
     return { fsId: cre.fs_id, path: destPath };
   } finally {
@@ -1087,7 +1099,7 @@ async function baiduUploadChunk(tok, uploadid, partseq, buf, destPath){
   const body = Buffer.concat([head, buf, tail]);
   // 分片上传必须传完整文件路径（与 precreate 一致），且用 superfile2 端点（xpan 续传协议）
   const url = `https://d.pcs.baidu.com/rest/2.0/pcs/superfile2?method=upload&type=tmpfile&access_token=${encodeURIComponent(tok)}&path=${encodeURIComponent(destPath)}&uploadid=${encodeURIComponent(uploadid)}&partseq=${partseq}`;
-  const r = await retryFetch(() => fetch(url, { method: 'POST', headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length }, body }));
+  const r = await retryFetch(() => fetch(url, { method: 'POST', headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length }, body }), 120000, { tag: '分片' + partseq });
   const txt = await r.text();
   let j; try { j = JSON.parse(txt); } catch (e) { throw new Error('百度分片上传返回非 JSON: ' + txt.slice(0, 200)); }
   // 该端点成功返回 errno=0；失败返回 error_code（非 errno），需同时兼容两种字段
