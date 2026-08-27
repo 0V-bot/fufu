@@ -1107,7 +1107,9 @@ async function deleteFile(id){
   saveMeta(list.filter(f => f.id !== id));
   return { ok: true };
 }
-// 上传入口：客户端原始字节流 → 落临时文件 → 分片传百度
+// 上传任务表（内存）：jobId -> {status, name, size, category, error, file}
+const uploadJobs = new Map();
+// 上传入口：客户端原始字节流 → 落临时文件 → 立即回 202 → 后台异步传百度（前端轮询进度，避免长连接空闲导致 nginx 504）
 async function handleFileUpload(req, res){
   if (!authed(req)) { send(res, 401, { error: 'unauthorized' }); return; }
   if (req.method !== 'POST') { send(res, 405, { error: '方法不允许' }); return; }
@@ -1120,19 +1122,27 @@ async function handleFileUpload(req, res){
   req.pipe(ws);
   ws.on('error', e => { try { fs.unlinkSync(tmp); } catch (_) {} send(res, 500, { error: '上传写入失败: ' + e.message }); });
   ws.on('finish', async () => {
-    try {
-      const size = fs.statSync(tmp).size;
-      const destPath = BAIDU_APP_DIR + '/' + name;
-      const { fsId, path: bpath } = await uploadToBaidu(tmp, destPath);
-      try { fs.unlinkSync(tmp); } catch (e) {}
-      const meta = { id: crypto.randomUUID(), name, size, type: extOf(name), category, createdAt: new Date().toISOString(), fsId, path: bpath };
-      const list = loadMeta(); list.push(meta); saveMeta(list);
-      send(res, 200, { ok: true, file: meta });
-    } catch (e) {
-      try { fs.unlinkSync(tmp); } catch (_) {}
-      console.error('[upload] 失败:', e.message);
-      send(res, 500, { error: e.message });
-    }
+    const jobId = crypto.randomUUID();
+    const job = { status: 'uploading', name, size: 0, category, error: null, file: null };
+    uploadJobs.set(jobId, job);
+    // 立刻返回 202，百度上传在后台进行；响应连接不再被长时间空占，根除 504
+    send(res, 202, { ok: true, jobId, status: 'uploading' });
+    (async () => {
+      try {
+        const size = fs.statSync(tmp).size;
+        const destPath = BAIDU_APP_DIR + '/' + name;
+        job.size = size;
+        const { fsId, path: bpath } = await uploadToBaidu(tmp, destPath);
+        try { fs.unlinkSync(tmp); } catch (e) {}
+        const meta = { id: crypto.randomUUID(), name, size, type: extOf(name), category, createdAt: new Date().toISOString(), fsId, path: bpath };
+        const list = loadMeta(); list.push(meta); saveMeta(list);
+        job.status = 'done'; job.file = meta;
+      } catch (e) {
+        try { fs.unlinkSync(tmp); } catch (_) {}
+        console.error('[upload] 后台失败:', e.message);
+        job.status = 'error'; job.error = e.message;
+      }
+    })();
   });
 }
 
@@ -1241,6 +1251,10 @@ async function route(method, url, body, res, req) {
     if (method === 'GET' && url.split('?')[0] === '/api/files') return send(res, 200, { files: loadMeta() });
     if (method === 'GET' && (m = (url.split('?')[0]).match(/^\/api\/files\/([\w-]+)\/download$/))) return await downloadFile(m[1], req, res);
     if (method === 'DELETE' && (m = (url.split('?')[0]).match(/^\/api\/files\/([\w-]+)$/))) return send(res, 200, await deleteFile(m[1]));
+    if (method === 'GET' && (m = (url.split('?')[0]).match(/^\/api\/files\/job\/([\w-]+)$/))) {
+      const job = uploadJobs.get(m[1]);
+      return send(res, 200, job || { status: 'notfound' });
+    }
     if (method === 'GET' && url === '/api/dashboard') return send(res, 200, await getDashboard());
     if (method === 'GET' && url === '/api/input-pending') {
       // 录入表待处理条数（文章录入后、被 skill 写入人生灵感库前）。count=-1 表示查询失败。
