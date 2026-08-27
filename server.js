@@ -142,11 +142,14 @@ async function feishuRequest(method, path, body) {
   }
   return j;
 }
-async function retryFetch(fn) {
+async function retryFetch(fn, timeoutMs = 120000) {
   let lastErr;
   for (let i = 0; i < 5; i++) {
     try {
-      const res = await fn();
+      const res = await Promise.race([
+        fn(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('请求超时(timeout ' + timeoutMs + 'ms)')), timeoutMs))
+      ]);
       if (res.status >= 500) throw new Error('HTTP ' + res.status);
       return res;
     } catch (e) {

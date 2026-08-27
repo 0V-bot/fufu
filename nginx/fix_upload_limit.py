@@ -2,7 +2,7 @@
 # 傅傅的工作台 · 文件库上传上限一键修复（小白专用，路径无关）
 #
 # 原理：在 /etc/nginx/conf.d/fufu-upload.conf 写入 http 全局指令
-#       （client_max_body_size 512M 等）。该文件被 nginx.conf 的 http{} 自动包含，
+#       （client_max_body_size 1024M、proxy_read_timeout/send_timeout 1800s 等）。该文件被 nginx.conf 的 http{} 自动包含，
 #       对所有 server 块（含 certbot 生成的 443 块）统一生效——
 #       无需定位站点配置文件，也不会触碰 certbot 已生成的证书段。幂等（已含 512M 则跳过）。
 #
@@ -16,17 +16,17 @@ import subprocess
 CONF_D = '/etc/nginx/conf.d'
 TARGET = os.path.join(CONF_D, 'fufu-upload.conf')
 DIRECTIVES = (
-    'client_max_body_size 512M;\n'
-    'proxy_read_timeout 600s;\n'
-    'proxy_send_timeout 600s;\n'
+    'client_max_body_size 1024M;\n'
+    'proxy_read_timeout 1800s;\n'
+    'proxy_send_timeout 1800s;\n'
 )
 
 os.makedirs(CONF_D, exist_ok=True)
 
 if os.path.exists(TARGET):
     cur = open(TARGET, encoding='utf-8').read()
-    if 'client_max_body_size 512M' in cur:
-        print('已存在且含 512M 指令，无需修改。')
+    if 'proxy_read_timeout 1800s' in cur:
+        print('已是最新（含 1800s 超时与 1024M 上限），无需修改。')
     else:
         open(TARGET, 'w', encoding='utf-8').write(DIRECTIVES)
         print('已更新', TARGET)
