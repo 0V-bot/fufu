@@ -1,6 +1,20 @@
-.git
+# —— 运行时数据：已由 docker-compose 的 ./data 卷挂载提供，绝不能打进镜像 ——
+data/
+node_modules/
+.git/
+.gitignore
+
+# —— 仅宿主机/运维用，容器不需要 ——
+nginx/
+*.py
 .env
 .env.local
 .env.*.local
+baidu-config.json
 *.log
-node_modules
+
+# —— 仅开发态/文档，不打进镜像 ——
+.workbuddy/
+skills/
+*.md
+.DS_Store
