@@ -33,6 +33,19 @@ const APP_ID = process.env.FEISHU_APP_ID || '';
 const APP_SECRET = process.env.FEISHU_APP_SECRET || '';
 const LARK_CLI = process.env.LARK_CLI || '';
 
+/* ===================== 百度网盘（文件存储后端） ===================== */
+// 凭证优先读环境变量（VPS 经 .env 注入），本地开发可放 baidu-config.json（已 gitignore，绝不入库）
+let _baiduCfg = {};
+try { _baiduCfg = JSON.parse(fs.readFileSync(path.join(__dirname, 'baidu-config.json'), 'utf8')); } catch (e) { _baiduCfg = {}; }
+const BAIDU_APP_KEY  = process.env.BAIDU_APP_KEY  || _baiduCfg.appKey  || '';
+const BAIDU_SECRET    = process.env.BAIDU_SECRET_KEY || _baiduCfg.secretKey || '';
+const BAIDU_SIGN      = process.env.BAIDU_SIGN_KEY  || _baiduCfg.signKey   || '';
+const BAIDU_APP_ID    = process.env.BAIDU_APP_ID    || _baiduCfg.appId     || '';
+const BAIDU_APP_DIR   = process.env.BAIDU_APP_DIR   || _baiduCfg.appDir    || ('/apps/fufu' + (BAIDU_APP_ID ? '-' + BAIDU_APP_ID : ''));
+const BAIDU_REDIRECT  = process.env.BAIDU_REDIRECT  || 'https://fufu.lwai.work/api/baidu/callback';
+const DATA_DIR        = process.env.DATA_DIR || path.join(__dirname, 'data');
+try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {}
+
 const USE_OPENAPI = !!(APP_ID && APP_SECRET);
 const FEISHU_API = 'https://open.feishu.cn/open-apis';
 
@@ -964,6 +977,159 @@ async function addInspType(type) {
   return getInspTypes();
 }
 
+/* ===================== 百度网盘文件存储（字节存百度，元数据存服务端） ===================== */
+function _tokenPath(){ return path.join(DATA_DIR, 'token.json'); }
+function _metaPath(){ return path.join(DATA_DIR, 'files-meta.json'); }
+function loadBaiduToken(){ try { return JSON.parse(fs.readFileSync(_tokenPath(), 'utf8')); } catch (e) { return null; } }
+function saveBaiduToken(t){ fs.writeFileSync(_tokenPath(), JSON.stringify(t, null, 2)); }
+function loadMeta(){ try { return JSON.parse(fs.readFileSync(_metaPath(), 'utf8')); } catch (e) { return []; } }
+function saveMeta(list){ fs.writeFileSync(_metaPath(), JSON.stringify(list, null, 2)); }
+
+async function ensureBaiduToken(){
+  const t = loadBaiduToken();
+  if (t && t.access_token && t.expires_at && Date.now() < t.expires_at - 60000) return t.access_token;
+  if (t && t.refresh_token) { const nt = await refreshBaiduToken(t.refresh_token); saveBaiduToken(nt); return nt.access_token; }
+  throw new Error('百度网盘尚未授权：请在工作台「文件库」页点"授权百度网盘"，或访问 /api/baidu/auth');
+}
+async function refreshBaiduToken(rt){
+  const u = `https://openapi.baidu.com/oauth/2.0/token?grant_type=refresh_token&refresh_token=${encodeURIComponent(rt)}&client_id=${BAIDU_APP_KEY}&client_secret=${BAIDU_SECRET}`;
+  const r = await retryFetch(() => fetch(u));
+  const j = await r.json();
+  if (!j.access_token) throw new Error('刷新百度 token 失败: ' + JSON.stringify(j).slice(0, 200));
+  return { access_token: j.access_token, refresh_token: j.refresh_token || rt, expires_at: Date.now() + (Number(j.expires_in) || 2592000) * 1000 };
+}
+async function exchangeBaiduCode(code){
+  const u = `https://openapi.baidu.com/oauth/2.0/token?grant_type=authorization_code&code=${encodeURIComponent(code)}&client_id=${BAIDU_APP_KEY}&client_secret=${BAIDU_SECRET}&redirect_uri=${encodeURIComponent(BAIDU_REDIRECT)}`;
+  const r = await retryFetch(() => fetch(u));
+  const j = await r.json();
+  if (!j.access_token) throw new Error('换取百度 token 失败: ' + JSON.stringify(j).slice(0, 200));
+  const tok = { access_token: j.access_token, refresh_token: j.refresh_token, expires_at: Date.now() + (Number(j.expires_in) || 2592000) * 1000 };
+  saveBaiduToken(tok); return tok;
+}
+// 百度 xpan 写接口：POST form-urlencoded，access_token 走 query
+async function baiduXpan(method, params){
+  const tok = await ensureBaiduToken();
+  const url = 'https://pan.baidu.com/rest/2.0/xpan/file?method=' + method + '&access_token=' + encodeURIComponent(tok);
+  const { access_token, ...rest } = params;
+  const body = new URLSearchParams(rest).toString();
+  const r = await retryFetch(() => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body }));
+  const txt = await r.text();
+  let j; try { j = JSON.parse(txt); } catch (e) { throw new Error('百度返回非 JSON: ' + txt.slice(0, 200)); }
+  return j;
+}
+async function baiduGetJson(url){
+  const r = await retryFetch(() => fetch(url));
+  const txt = await r.text();
+  let j; try { j = JSON.parse(txt); } catch (e) { throw new Error('百度返回非 JSON: ' + txt.slice(0, 200)); }
+  return j;
+}
+function sanitizeName(n){ return String(n).replace(/[\/\\:*?"<>|]/g, '_').slice(0, 120) || '未命名文件'; }
+function extOf(n){ const m = /\.([^.]+)$/.exec(n || ''); return m ? m[1].toLowerCase() : ''; }
+
+// 把本地临时文件分 4MB 块上传到百度网盘，返回 { fsId, path }
+async function uploadToBaidu(srcPath, destPath){
+  const size = fs.statSync(srcPath).size;
+  const BLOCK = 4 * 1024 * 1024;
+  const nBlocks = Math.max(1, Math.ceil(size / BLOCK));
+  const blockList = [];
+  const tmpDir = path.join(DATA_DIR, 'tmp_' + crypto.randomBytes(6).toString('hex'));
+  fs.mkdirSync(tmpDir, { recursive: true });
+  let fd = null;
+  try {
+    fd = fs.openSync(srcPath, 'r');
+    for (let i = 0; i < nBlocks; i++) {
+      const len = Math.min(BLOCK, size - i * BLOCK);
+      const buf = Buffer.alloc(len);
+      fs.readSync(fd, buf, 0, len, i * BLOCK);
+      blockList.push(crypto.createHash('md5').update(buf).digest('hex'));
+      fs.writeFileSync(path.join(tmpDir, i + '.part'), buf);
+    }
+    fs.closeSync(fd); fd = null;
+    const pre = await baiduXpan('precreate', { path: destPath, size, isdir: 0, autoinit: 1, block_list: JSON.stringify(blockList), rtype: 1 });
+    if (pre.errno !== 0) throw new Error('百度 precreate 失败(errno=' + pre.errno + '): ' + JSON.stringify(pre).slice(0, 200));
+    const uploadid = pre.uploadid;
+    const tok = await ensureBaiduToken();
+    for (let i = 0; i < nBlocks; i++) await baiduUploadChunk(tok, uploadid, i, path.join(tmpDir, i + '.part'));
+    const cre = await baiduXpan('create', { path: destPath, size, isdir: 0, uploadid, block_list: JSON.stringify(blockList), rtype: 1 });
+    if (cre.errno !== 0) throw new Error('百度 create 失败(errno=' + cre.errno + '): ' + JSON.stringify(cre).slice(0, 200));
+    return { fsId: cre.fs_id, path: destPath };
+  } finally {
+    if (fd) try { fs.closeSync(fd); } catch (e) {}
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+async function baiduUploadChunk(tok, uploadid, partseq, chunkPath){
+  const boundary = '----fub' + crypto.randomBytes(8).toString('hex');
+  const head = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="p.bin"\r\nContent-Type: application/octet-stream\r\n\r\n`);
+  const data = fs.readFileSync(chunkPath);
+  const tail = Buffer.from(`\r\n--${boundary}--\r\n`);
+  const body = Buffer.concat([head, data, tail]);
+  const url = `https://d.pcs.baidu.com/rest/2.0/pcs/file?method=upload&type=tmpfile&access_token=${encodeURIComponent(tok)}&path=${encodeURIComponent(BAIDU_APP_DIR)}&uploadid=${encodeURIComponent(uploadid)}&partseq=${partseq}`;
+  const r = await retryFetch(() => fetch(url, { method: 'POST', headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length }, body }));
+  const txt = await r.text();
+  let j; try { j = JSON.parse(txt); } catch (e) { throw new Error('百度分片上传返回非 JSON: ' + txt.slice(0, 200)); }
+  if (j.errno !== 0) throw new Error('百度分片上传失败(errno=' + j.errno + '): ' + txt.slice(0, 200));
+  return j;
+}
+async function downloadFile(id, req, res){
+  if (!authed(req)) { res.writeHead(401); res.end('unauthorized'); return; }
+  const meta = loadMeta().find(f => f.id === id);
+  if (!meta) { res.writeHead(404); res.end('not found'); return; }
+  try {
+    const tok = await ensureBaiduToken();
+    const info = await baiduGetJson(`https://pan.baidu.com/rest/2.0/xpan/multimedia?method=filemetas&access_token=${encodeURIComponent(tok)}&fsids=[${meta.fsId}]&dlink=1&thumb=0`);
+    const item = info.list && info.list[0];
+    if (!item || !item.dlink) throw new Error('获取下载链接失败: ' + JSON.stringify(info).slice(0, 200));
+    const r = await retryFetch(() => fetch(item.dlink, { headers: { 'User-Agent': 'pan.baidu.com' } }));
+    res.writeHead(200, {
+      'Content-Type': 'application/octet-stream',
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(meta.name)}`,
+      'Cache-Control': 'no-store'
+    });
+    r.body.pipe(res);
+  } catch (e) {
+    res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('下载失败: ' + e.message);
+  }
+}
+async function deleteFile(id){
+  const list = loadMeta();
+  const meta = list.find(f => f.id === id);
+  if (!meta) return { ok: true, deleted: false };
+  try { await baiduXpan('filemanager', { opera: 'delete', async: 0, filelist: JSON.stringify([meta.path]) }); }
+  catch (e) { console.warn('[baidu] 删除远端文件失败（仍清理元数据）:', e.message); }
+  saveMeta(list.filter(f => f.id !== id));
+  return { ok: true };
+}
+// 上传入口：客户端原始字节流 → 落临时文件 → 分片传百度
+async function handleFileUpload(req, res){
+  if (!authed(req)) { send(res, 401, { error: 'unauthorized' }); return; }
+  if (req.method !== 'POST') { send(res, 405, { error: '方法不允许' }); return; }
+  if (!BAIDU_APP_KEY || !BAIDU_SECRET) { send(res, 500, { error: '服务端未配置百度网盘凭证' }); return; }
+  const u = new URL(req.url, 'http://localhost');
+  const name = sanitizeName(u.searchParams.get('name') || '未命名文件');
+  const category = u.searchParams.get('category') || '其他';
+  const tmp = path.join(DATA_DIR, 'up_' + crypto.randomBytes(8).toString('hex'));
+  const ws = fs.createWriteStream(tmp);
+  req.pipe(ws);
+  ws.on('error', e => { try { fs.unlinkSync(tmp); } catch (_) {} send(res, 500, { error: '上传写入失败: ' + e.message }); });
+  ws.on('finish', async () => {
+    try {
+      const size = fs.statSync(tmp).size;
+      const destPath = BAIDU_APP_DIR + '/' + name;
+      const { fsId, path: bpath } = await uploadToBaidu(tmp, destPath);
+      try { fs.unlinkSync(tmp); } catch (e) {}
+      const meta = { id: crypto.randomUUID(), name, size, type: extOf(name), category, createdAt: new Date().toISOString(), fsId, path: bpath };
+      const list = loadMeta(); list.push(meta); saveMeta(list);
+      send(res, 200, { ok: true, file: meta });
+    } catch (e) {
+      try { fs.unlinkSync(tmp); } catch (_) {}
+      console.error('[upload] 失败:', e.message);
+      send(res, 500, { error: e.message });
+    }
+  });
+}
+
 /* ===================== 访问密码门 ===================== */
 function authed(req) {
   if (!ACCESS_PWD) return true;
@@ -993,6 +1159,7 @@ function send(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 function handleApi(req, res) {
+  if (req.url.split('?')[0] === '/api/files/upload') { handleFileUpload(req, res); return; }
   if (req.method === 'POST' || req.method === 'PUT') {
     const chunks = [];
     req.on('data', c => chunks.push(c));
@@ -1032,9 +1199,37 @@ async function route(method, url, body, res, req) {
         port: PORT, node: process.version
       });
     }
+    // —— 百度网盘 OAuth 握手（授权页/回调无需工作台密码）——
+    if (url.split('?')[0] === '/api/baidu/auth') {
+      if (!BAIDU_APP_KEY || !BAIDU_SECRET) return send(res, 500, { error: '服务端未配置百度网盘凭证（BAIDU_APP_KEY/BAIDU_SECRET）' });
+      const authUrl = `https://openapi.baidu.com/oauth/2.0/authorize?response_type=code&client_id=${BAIDU_APP_KEY}&redirect_uri=${encodeURIComponent(BAIDU_REDIRECT)}&scope=netdisk&display=popup`;
+      res.writeHead(302, { Location: authUrl }); res.end(); return;
+    }
+    if (url.split('?')[0] === '/api/baidu/callback') {
+      const code = new URL(req.url, 'http://localhost').searchParams.get('code');
+      if (!code) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end('<h2>授权失败：百度未回传 code</h2>'); return; }
+      try {
+        await exchangeBaiduCode(code);
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end('<h2>✅ 百度网盘授权成功</h2><p>返回工作台「文件库」即可上传 / 下载文件。本页可关闭。</p><script>setTimeout(function(){window.close();},3000)</script>');
+      } catch (e) {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end('<h2>授权失败</h2><pre>' + JSON.stringify(e.message) + '</pre>');
+      }
+      return;
+    }
+    if (url.split('?')[0] === '/api/baidu/status') {
+      const t = loadBaiduToken();
+      const ok = !!(t && t.access_token && t.expires_at && Date.now() < t.expires_at - 60000);
+      return send(res, 200, { authorized: ok, appDir: BAIDU_APP_DIR, hasConfig: !!(BAIDU_APP_KEY && BAIDU_SECRET) });
+    }
     if (!authed(req)) return send(res, 401, { error: 'unauthorized' });
 
     let m;
+    // —— 文件库（字节存百度网盘，元数据存服务端；需工作台密码）——
+    if (method === 'GET' && url.split('?')[0] === '/api/files') return send(res, 200, { files: loadMeta() });
+    if (method === 'GET' && (m = (url.split('?')[0]).match(/^\/api\/files\/([\w-]+)\/download$/))) return await downloadFile(m[1], req, res);
+    if (method === 'DELETE' && (m = (url.split('?')[0]).match(/^\/api\/files\/([\w-]+)$/))) return send(res, 200, await deleteFile(m[1]));
     if (method === 'GET' && url === '/api/dashboard') return send(res, 200, await getDashboard());
     if (method === 'GET' && url === '/api/input-pending') {
       // 录入表待处理条数（文章录入后、被 skill 写入人生灵感库前）。count=-1 表示查询失败。

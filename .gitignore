@@ -24,3 +24,9 @@ Thumbs.db
 
 # ===== 运行时：创建幂等去重映射（自动生成，勿入库）=====
 __cid_map.json
+
+# ===== 百度网盘文件库：本地凭证 / 运行时数据（绝不入库）=====
+baidu-config.json
+token.json
+files-meta.json
+data/

@@ -6,6 +6,9 @@ services:
     ports:
       # 保留 IP:3000 直连（HTTP 明文，习惯保留）；80/443 交由宿主机 nginx 做 HTTPS 反代（见 nginx/fufu.lwai.work.conf）
       - "3000:3000"
+    volumes:
+      # 持久化百度网盘文件库的运行时数据（OAuth token / 文件元数据），容器重建不丢失
+      - ./data:/app/data
     env_file:
       - .env
     environment:

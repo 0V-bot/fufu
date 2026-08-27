@@ -1109,6 +1109,7 @@ const escNl = s => esc(s).replace(/\r?\n/g,'<br>');
 /* ---------- nav config ---------- */
 const NAV = [
   {id:'dashboard', label:'首页', icon:'🏠'},
+  {id:'files', label:'文件库', icon:'📁'},
   {id:'strategy', label:'人生战略', icon:'🎯', children:[
     {id:'annual2', label:'年度计划'},
     {id:'monthplan2', label:'月度计划'},
@@ -1366,6 +1367,7 @@ function setHeader(id){
   document.getElementById('crumb').innerHTML = cr.map((c,i)=> i===cr.length-1?`<b>${c}</b>`:`<span>${c}</span> / `).join('');
   let title='', hint='', accent='#4f46e5';
   if(id==='dashboard'){ title='工作台首页'; hint='你的个人运营中枢 · 一屏掌握全局'; }
+  else if(id==='files'){ title='文件库'; hint='简历 / 视频 / 重要文档，安全存到百度网盘'; accent='#0ea5e9'; }
   else { const s=SECTIONS[id]; title=s.name; hint=s.hint; accent=s.accent; }
   document.getElementById('pageTitle').innerHTML = title + (id!=='dashboard'?`<span class="tag" style="background:${accent}">${id.toUpperCase().slice(0,4)}</span>`:'');
   document.getElementById('pageHint').textContent = hint;
@@ -3977,6 +3979,7 @@ async function render(){
   view.innerHTML = '<div class="empty">⏳ 加载中…</div>';
   try{
     if(current==='dashboard') return await renderDashboard();
+    if(current==='files') return await renderFiles();
     const s = SECTIONS[current];
     if(!s) return;
     const kind = s.kind;
@@ -4000,6 +4003,85 @@ async function render(){
     view.innerHTML = `<div class="empty">⚠️ 出错了：${esc(e.message||e)}</div>`;
   }
 }
+
+/* ---------- 文件库（字节存百度网盘） ---------- */
+async function renderFiles(){
+  let status = { authorized:false, hasConfig:false, appDir:'' };
+  try { const r = await fetch(API+'/baidu/status'); if(r.ok) status = await r.json(); } catch(e){}
+  const authBtn = status.authorized ? '' : `<button class="btn primary" onclick="baiduAuth()">授权百度网盘</button>`;
+  const authTip = !status.authorized
+    ? `<div class="empty" style="margin-bottom:12px">${status.hasConfig ? '尚未授权百度网盘，上传 / 下载前请先点"授权百度网盘"。' : '⚠️ 服务端未配置百度网盘凭证，请联系管理员。'}${authBtn}</div>`
+    : '';
+  const html = `<div class="card">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <input type="file" id="filePick" style="flex:1;min-width:200px" />
+      <select id="fileCat" class="inp">
+        <option value="简历">简历</option><option value="视频">视频</option>
+        <option value="文档">文档</option><option value="其他">其他</option>
+      </select>
+      <button class="btn primary" id="fileUpBtn" onclick="uploadFile()">上传</button>
+    </div>
+    <div id="fileProg" style="display:none;margin-bottom:12px">
+      <div style="height:8px;background:#eee;border-radius:4px;overflow:hidden"><div id="fileBar" style="height:100%;width:0%;background:#0ea5e9;transition:width .2s"></div></div>
+      <div id="fileProgTxt" class="muted" style="font-size:12px;margin-top:4px">上传中 0%</div>
+    </div>
+    ${authTip}
+    <div id="fileList"></div>
+  </div>`;
+  setView(html, 'files');
+  if(status.authorized) loadFileList();
+}
+async function loadFileList(){
+  const box = document.getElementById('fileList'); if(!box) return;
+  try{
+    const r = await fetch(API+'/files'); const j = await r.json();
+    const files = j.files || [];
+    if(!files.length){ box.innerHTML = '<div class="empty">还没有文件，上传你的简历 / 视频 / 重要文档吧。</div>'; return; }
+    let h = '<table class="tbl"><thead><tr><th>名称</th><th>类型</th><th>分类</th><th>大小</th><th>上传时间</th><th></th></tr></thead><tbody>';
+    files.forEach(f=>{
+      h += `<tr>
+        <td>${esc(f.name)}</td>
+        <td>${esc(f.type||'-')}</td>
+        <td>${esc(f.category||'其他')}</td>
+        <td>${fileSize(f.size)}</td>
+        <td>${fileDate(f.createdAt)}</td>
+        <td style="white-space:nowrap">
+          <a class="btn" href="${API}/files/${f.id}/download">下载</a>
+          <button class="btn danger" onclick="delFile('${f.id}')">删除</button>
+        </td></tr>`;
+    });
+    h += '</tbody></table>';
+    box.innerHTML = h;
+  }catch(e){ box.innerHTML = '<div class="empty">加载失败：'+esc(e.message||e)+'</div>'; }
+}
+function uploadFile(){
+  const inp = document.getElementById('filePick');
+  const btn = document.getElementById('fileUpBtn');
+  if(!inp || !inp.files || !inp.files.length){ alert('请先选择文件'); return; }
+  const file = inp.files[0];
+  const category = document.getElementById('fileCat').value;
+  const prog = document.getElementById('fileProg'), bar = document.getElementById('fileBar'), txt = document.getElementById('fileProgTxt');
+  btn.disabled = true;
+  prog.style.display = 'block'; bar.style.width = '0%'; txt.textContent = '上传中 0%';
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', API+'/files/upload?name='+encodeURIComponent(file.name)+'&category='+encodeURIComponent(category)+'&size='+file.size);
+  xhr.upload.onprogress = e => { if(e.lengthComputable){ const p = Math.round(e.loaded/e.total*100); bar.style.width = p+'%'; txt.textContent = '上传中 '+p+'%'; } };
+  xhr.onload = () => {
+    btn.disabled = false;
+    if(xhr.status>=200 && xhr.status<300){ try{ const j = JSON.parse(xhr.responseText); if(j.ok){ inp.value=''; txt.textContent='上传完成 ✓'; loadFileList(); return; } }catch(_){} }
+    txt.textContent = '上传失败：' + (xhr.responseText||xhr.status); alert('上传失败：' + (xhr.responseText||xhr.status));
+  };
+  xhr.onerror = () => { btn.disabled=false; txt.textContent='网络错误'; alert('网络错误'); };
+  xhr.send(file);
+}
+async function delFile(id){
+  if(!confirm('确定删除该文件？百度网盘中的文件也会一并删除。')) return;
+  try{ const r = await fetch(API+'/files/'+id, { method:'DELETE' }); if(r.ok) loadFileList(); else alert('删除失败'); }
+  catch(e){ alert('删除失败：'+(e.message||e)); }
+}
+function baiduAuth(){ window.open(API+'/baidu/auth', 'baidu', 'width=600,height=720'); }
+function fileSize(b){ if(!b && b!==0) return '-'; const u=['B','KB','MB','GB']; let i=0,n=b; while(n>=1024&&i<u.length-1){ n/=1024; i++; } return (i? n.toFixed(1):n)+u[i]; }
+function fileDate(s){ if(!s) return '-'; const d = new Date(s); if(isNaN(d)) return s; const p=x=>(''+x).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); }
 
 /* ---------- 访问密码门 ---------- */
 function showGate(){ const g=document.getElementById('gate'); if(g) g.classList.add('show'); }
