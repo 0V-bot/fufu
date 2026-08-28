@@ -706,32 +706,39 @@
     .a2-arrange{display:none;}   /* 手机强制单列，每行分组数(2/3/4)控制无意义，隐藏避免误导 */
   }
 
-  /* 文件库：响应式列表（桌面定宽列、列距加大；手机两行堆叠：文件名一行 + 元信息/操作一行） */
+  /* 文件库：响应式列表（表头与数据行共用同一套定宽列 → 严格对齐；手机两行紧凑堆叠） */
   .file-list{margin-top:6px;border:1px solid var(--line);border-radius:12px;overflow:hidden;}
-  .file-head, .filerow{display:flex;align-items:center;gap:16px;padding:13px 16px;}
+  /* 外层两列：名称(自适应剩余) | 其余(固定总宽，故每行列位置必然一致) */
+  .file-head, .filerow{
+    display:grid; grid-template-columns:minmax(160px,1fr) auto;
+    align-items:center; gap:16px; padding:13px 16px;
+  }
   .file-head{background:#fafbff;color:var(--muted);font-size:12.5px;font-weight:600;border-bottom:1px solid var(--line);}
   .filerow{border-bottom:1px solid var(--line2);font-size:14px;transition:.15s;}
   .filerow:hover{background:#fafbff;}
   .filerow:last-child{border-bottom:none;}
-  .f-name{flex:2.4 1 220px;min-width:0;font-weight:600;color:var(--ink);word-break:break-all;}
-  .f-rest{flex:1 1 auto;display:flex;align-items:center;gap:18px;min-width:0;}
-  .f-rest .c{flex:0 0 auto;color:var(--muted);font-size:13px;white-space:nowrap;}
-  .f-rest .c.type{min-width:74px;}
-  .f-rest .c.size{min-width:92px;}
-  .f-rest .c.date{min-width:138px;}
+  /* 名称列：单行省略，行高统一不跳动 */
+  .f-name{min-width:0;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* 其余列：固定像素宽（80/92/92/140/76 + 4×16 间距 = 544px），表头与数据行逐列严格对齐 */
+  .f-rest{min-width:0;display:grid;grid-template-columns:80px 92px 92px 140px 76px;gap:16px;align-items:center;}
+  .f-rest .c{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:13px;}
+  .file-head .f-rest .c{font-size:12.5px;font-weight:600;}
   .f-cat{display:inline-block;padding:2px 9px;border-radius:999px;background:var(--brand-soft);color:var(--brand);font-size:12px;font-weight:600;}
-  .f-acts{display:flex;gap:8px;margin-left:auto;}
+  .f-acts{display:flex;align-items:center;gap:8px;justify-self:end;}
   .f-ico{width:34px;height:34px;border:none;border-radius:9px;cursor:pointer;display:grid;place-items:center;background:#f1f3f9;color:#475069;transition:.15s;text-decoration:none;}
   .f-ico:hover{background:var(--brand-soft);color:var(--brand);}
   .f-ico.del:hover{background:#fee2e2;color:#dc2626;}
   .f-ico svg{width:17px;height:17px;display:block;}
+  /* 手机：文件名一行 + 元信息/操作一行，间距收紧。
+     ⚠️ 必须把 flex 项重置为 flex:0 0 auto——否则 column 方向下 flex-basis 作用于高度，
+     .f-name 的 220px basis 会把两行撑开成"不像一个文件"。 */
   @media (max-width:760px){
     .file-head{display:none;}
-    .filerow{flex-direction:column;align-items:stretch;gap:8px;padding:14px;}
-    .f-name{font-size:15px;font-weight:700;}
-    .f-rest{flex-wrap:wrap;gap:8px 18px;}
+    .filerow{display:flex;flex-direction:column;align-items:stretch;gap:5px;padding:12px 14px;}
+    .f-name{flex:0 0 auto;font-size:15px;font-weight:700;white-space:normal;word-break:break-all;}
+    .f-rest{flex:0 0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;}
     .f-rest .c{font-size:12.5px;}
-    .f-acts{margin-left:0;}
+    .f-acts{margin-left:auto;justify-self:auto;}
   }
 </style>
 </head>
@@ -4072,7 +4079,7 @@ async function loadFileList(){
         <div class="c">分类</div>
         <div class="c size">大小</div>
         <div class="c date">上传时间</div>
-        <div class="f-acts"><span style="color:var(--muted);font-size:12.5px">操作</span></div>
+        <div class="f-acts">操作</div>
       </div>
     </div>`;
     let rows = '';
