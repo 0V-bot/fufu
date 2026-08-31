@@ -434,6 +434,8 @@
   .wisdom-toolbar .inp:focus{border-color:#a5b4fc;box-shadow:0 0 0 3px rgba(99,102,241,.08);}
   .wisdom-toolbar select{padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:13px;font-family:inherit;color:#475069;outline:none;max-width:160px;cursor:pointer;}
   .wisdom-toolbar select:focus{border-color:#a5b4fc;}
+  .wisdom-toolbar .btn.toggle{cursor:pointer;white-space:nowrap;}
+  .wisdom-toolbar .btn.toggle.active{background:var(--brand);color:#fff;border-color:var(--brand);}
   /* 搜索框 + 搜索按钮并排；输入不打断，点击/回车才筛选 */
   .wisdom-toolbar .search-wrap{display:flex;gap:8px;flex:1;min-width:260px;}
   .wisdom-toolbar .search-wrap .inp{flex:1;min-width:0;}
@@ -1665,9 +1667,8 @@ function inspToolbar(sectionId){
     </div>
     <select onchange="inspSet('${sectionId}','cat1',this.value)">${opt('cat1',st.cat1)}</select>
     <select onchange="inspSet('${sectionId}','cat2',this.value)">${opt('cat2',st.cat2)}</select>
-    <select onchange="inspSet('${sectionId}','tag',this.value)">${opt('tag',st.tag)}</select>
     <select onchange="inspSet('${sectionId}','ctype',this.value)">${opt('ctype',st.ctype)}</select>
-    ${sectionId==='inspiration' ? `<select onchange="inspSet('${sectionId}','status',this.value)"><option value="">是否整理：全部</option><option value="未整理" ${st.status==='未整理'?'selected':''}>未整理</option><option value="已整理" ${st.status==='已整理'?'selected':''}>已整理</option></select>` : ''}
+    ${sectionId==='inspiration' ? `<button class="btn soft mini toggle${st.status?' active':''}" onclick="inspToggleStatus('${sectionId}')">整理状态：${st.status==='已整理'?'整理':(st.status==='未整理'?'未整理':'全部')}</button>` : ''}
     <button class="btn soft mini" onclick="inspReset('${sectionId}')">重置</button>
   </div>`;
 }
@@ -1725,6 +1726,13 @@ function setupInspScroll(sectionId){
 function inspSearch(sectionId, v){ const st=pgGet(sectionId); st.q=(v||'').trim(); renderInspirationSection(sectionId); }
 function inspSet(sectionId, k, v){ const st=pgGet(sectionId); st[k]=v; renderInspirationSection(sectionId); }
 function inspReset(sectionId){ const st=pgGet(sectionId); st.q='';st.cat1='';st.cat2='';st.tag='';st.ctype='';st.status=''; renderInspirationSection(sectionId); }
+function inspToggleStatus(sectionId){   // 点击循环切换：全部 → 整理(已整理) → 未整理 → 全部
+  const st = pgGet(sectionId);
+  const order = ['', '已整理', '未整理'];
+  const i = order.indexOf(st.status);
+  st.status = order[(i+1) % order.length];
+  renderInspirationSection(sectionId);
+}
 function addKb(sectionId){
   openModal('添加 · '+SECTIONS[sectionId].name, SCHEMA['kbcat'], {tags: SECTIONS[sectionId].name}, async v=>{
     try{ await apiCreate(sectionId,v); await render(); }catch(e){ alert('保存失败：'+(e.message||e)); }
