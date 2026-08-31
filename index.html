@@ -1172,16 +1172,7 @@ const NAV = [
     {id:'topics', label:'选题库'},
     {id:'publish', label:'发布草稿'},
   ]},
-  {id:'knowledge', label:'知识管理库', icon:'📚', children:[
-    {id:'articleInput', label:'文章录入'},
-    {id:'work', label:'职场'},
-    {id:'women', label:'女性成长'},
-    {id:'human', label:'人性'},
-    {id:'health', label:'健康'},
-    {id:'psychology', label:'心理学'},
-    {id:'emotion', label:'情绪管理'},
-    {id:'growth', label:'个人成长感悟'},
-  ]},
+  {id:'knowledge', label:'知识管理库', icon:'📚'},
 ];
 
 const SECTIONS = {
@@ -1200,7 +1191,7 @@ const SECTIONS = {
   diary:{name:'写日记',kind:'diary',accent:'#f43f5e',hint:'每天一篇私人日记：记录天气、心情与当日所思所想。提交后不可修改，日历中绿色日期可点开回看。'},
   habitChecks:{name:'习惯打卡',kind:'habitCheck',accent:'#10b981'},
   calendar:{name:'日历',kind:'calendar',accent:'#0ea5e9',hint:'按月查看日程与提醒：左侧小日历切换月份，右侧当月格子每格右上角「＋」可添加当天日程（标题 / 时间 / 备注 / 是否提醒）。'},
-  inspiration:{name:'人生灵感库',kind:'wisdom',accent:'#f97316',hint:'来自「人生灵感库」的完整文案资产（在飞书中维护；可删除，也可点「详情」手动编辑补充）。',readonly:true,allowDelete:true,allowEdit:true},
+  inspiration:{name:'知识库',kind:'wisdom',accent:'#f97316',hint:'来自「人生灵感库」的完整文案资产（在飞书中维护；可删除，也可点「详情」手动编辑补充）。',readonly:true,allowDelete:true,allowEdit:true},
   topics:{name:'选题库',kind:'topics',accent:'#3b82f6',hint:'把灵感打磨成可发布的选题。'},
   publish:{name:'发布草稿',kind:'publish',accent:'#22c55e',hint:'记录待发布与已发布的草稿：计划发布时间、标题、文案、备注。'},
   work:{name:'职场',kind:'kbcat',accent:'#d97706',hint:'职场进阶、沟通协作与职业发展的沉淀。'},
@@ -1356,7 +1347,7 @@ function toggleMobileSub(id, target){
   if(panel.dataset.for===id && panel.classList.contains('open')){ closeMobileSub(); return; }
   const g = NAV.find(x=>x.id===id);
   let items = '';
-  if(id==='knowledge'){ items += `<div class="ms-item" onclick="go('inspiration');closeMobileSub()">人生灵感库</div>`; }
+  if(id==='knowledge'){ items += `<div class="ms-item" onclick="go('inspiration');closeMobileSub()">知识库</div>`; }
   (g.children||[]).forEach(c=>{ items += `<div class="ms-item" onclick="go('${c.id}');closeMobileSub()">${c.label}</div>`; });
   panel.innerHTML = items;
   panel.dataset.for = id;
@@ -1369,16 +1360,17 @@ buildMobileNav();
 /* ---------- routing ---------- */
 let current = 'dashboard';
 function go(id){
+  if(id==='knowledge') id='inspiration';   // 知识管理库 → 直接进入「知识库」内容页（精简，不再展开子分类）
   if(current==='calendar' && calIntervalId){ clearInterval(calIntervalId); calIntervalId=null; }
   current = id;
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.id===id));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.id===id || (n.dataset.id==='knowledge' && (id==='inspiration' || id==='articleInput'))));
   // 进入「人生灵感库」时，高亮「知识管理库」整组标题
   document.querySelectorAll('.nav-head').forEach(n=>n.classList.toggle('active', (n.dataset.id==='knowledge' && id==='inspiration') || n.dataset.id===id));
   // 移动端：同步底部栏高亮 + 关闭子菜单弹出层
   const mn = document.getElementById('mobileNav');
   if(mn){
-    let activeId = null;
-    if(id==='inspiration') activeId='knowledge';
+  let activeId = null;
+  if(id==='inspiration' || id==='articleInput') activeId='knowledge';
     else { for(const g of NAV){ if(g.id===id){ activeId=g.id; break; } if(g.children && g.children.some(c=>c.id===id)){ activeId=g.id; break; } } }
     mn.querySelectorAll('.mb-tab').forEach(t=>t.classList.toggle('active', t.dataset.id===activeId));
     closeMobileSub();
@@ -1387,7 +1379,7 @@ function go(id){
 }
 function crumbPath(id){
   if(id==='dashboard') return ['首页'];
-  if(id==='inspiration') return ['知识管理库','人生灵感库'];
+  if(id==='inspiration') return ['知识库'];
   for(const g of NAV){
     if(g.id===id) return [g.label];
     if(g.children){
@@ -1649,7 +1641,8 @@ async function renderInspirationSection(sectionId){
   const s = SECTIONS[sectionId];
   const readonly = !s.allowEdit;   // 人生灵感库 readonly（无添加）；分类页 allowEdit 可添加
   let html = `<div class="card"><div class="h"><div class="t" id="inspTitle">${s.name}</div>`;
-  if(!readonly) html += `<button class="btn" onclick="addKb('${sectionId}')">+ 添加</button>`;
+  if(sectionId==='inspiration') html += `<button class="btn" onclick="go('articleInput')">📝 文章录入</button>`;
+  else if(!readonly) html += `<button class="btn" onclick="addKb('${sectionId}')">+ 添加</button>`;
   html += `</div>`;
   html += `<div id="inspToolbarWrap"></div>`;
   html += `<div class="muted" id="inspCount" style="font-size:12.5px;margin:2px 2px 12px"></div>`;
@@ -1978,7 +1971,6 @@ async function renderArticle(){
         ${sel('aiCat1','一级分类',cat.cat1,'')}
         ${sel('aiCat2','二级分类',[],'')}
         ${sel('aiCat3','三级分类',[],'')}
-        ${sel('aiTag','标签',WISDOM_TAGS,'')}
       </div>
       ${sel('aiCtype','内容类型',['金句','观点','故事','案例','长文'],'')}
       <label>核心关键点 / AI 总结（可选，留空则交由 AI 分析）</label>
@@ -2011,7 +2003,7 @@ async function submitArticle(){
   const cat1 = document.getElementById('aiCat1').value.trim();
   const cat2 = document.getElementById('aiCat2').value.trim();
   const cat3 = document.getElementById('aiCat3').value.trim();
-  const tag = document.getElementById('aiTag').value.trim();
+  const tag = document.getElementById('aiTag') ? document.getElementById('aiTag').value.trim() : '';
   const ctype = document.getElementById('aiCtype').value.trim();
   const summary = document.getElementById('aiSummary').value.trim();
   if(!content){ alert('原始文案不能为空'); return; }
@@ -2034,7 +2026,7 @@ async function submitArticleDirect(){
   const cat1 = document.getElementById('aiCat1').value.trim();
   const cat2 = document.getElementById('aiCat2').value.trim();
   const cat3 = document.getElementById('aiCat3').value.trim();
-  const tag = document.getElementById('aiTag').value.trim();
+  const tag = document.getElementById('aiTag') ? document.getElementById('aiTag').value.trim() : '';
   const ctype = document.getElementById('aiCtype').value.trim();
   const summary = document.getElementById('aiSummary').value.trim();
   if(!content){ alert('原始文案不能为空'); return; }
@@ -2057,7 +2049,7 @@ function resetArticleForm(){
   document.getElementById('aiCat1').value='';
   document.getElementById('aiCat2').innerHTML=optList([],'');
   document.getElementById('aiCat3').innerHTML=optList([],'');
-  document.getElementById('aiTag').value='';
+  const aiTagReset = document.getElementById('aiTag'); if(aiTagReset) aiTagReset.value='';
   document.getElementById('aiCtype').value='';
   document.getElementById('aiSummary').value='';
 }
