@@ -461,7 +461,11 @@
   .cm-sec-title{font-weight:700;font-size:13px;color:var(--ink);margin:14px 0 6px;}
   .cm-sec-title:first-child{margin-top:0;}
   .cm-branch{margin:1px 0;}
+  .cm-branch.collapsed > .cm-children{display:none;}
   .cm-children{margin-left:14px;border-left:2px solid var(--line);padding-left:6px;}
+  .cm-caret{border:none;background:transparent;cursor:pointer;font-size:11px;line-height:1;padding:5px 3px;border-radius:6px;color:var(--muted);flex:0 0 auto;width:20px;text-align:center;user-select:none;}
+  .cm-caret:hover{background:rgba(15,23,42,.08);color:var(--ink);}
+  .cm-caret-spacer{width:20px;flex:0 0 auto;}
   .cm-node{display:flex;align-items:center;gap:6px;padding:3px 5px;border-radius:8px;}
   .cm-node:hover{background:rgba(15,23,42,.04);}
   .cm-node.lvl1,.cm-node.lvlctype{font-weight:600;}
@@ -1767,16 +1771,22 @@ async function getCategory(){
   return _catCache;
 }
 /* ---------- 分类管理：自定义一级/二级/三级/内容类型，改名即时同步、删除重定向未分类 ---------- */
+// 分类树展开状态（跨重渲染保留，避免每次改名/删除后视图重置）
+let cmExpanded = new Set();
 async function openCategoryManager(){
   let cat;
   try{ cat = await apiJson('/category'); }catch(e){ cat = {cat1:[],tree:{},ctypes:[],registry:{nodes:[]}}; }
   const nodes = (cat.registry && cat.registry.nodes) || [];
   const byLevel = l => nodes.filter(n=>n.level===l);
-  function nodeRow(n, lvl){
+  function nodeRow(n, lvl, toggleId){
+    const caret = toggleId
+      ? `<button class="cm-caret" onclick="cmToggle('${toggleId}')" aria-label="展开/收起">${cmExpanded.has(toggleId)?'▾':'▸'}</button>`
+      : `<span class="cm-caret-spacer"></span>`;
     const del = n.active===false
       ? `<span class="cm-ic deled">已删除</span>`
       : `<button class="cm-ic danger" title="删除" onclick="cmDelete('${n.id}')">🗑</button>`;
     return `<div class="cm-node lvl${lvl}">
+      ${caret}
       <input class="cm-name" id="cm-rename-${n.id}" value="${esc(n.name)}" onkeydown="if(event.key==='Enter')cmRename('${n.id}')" />
       <span class="cm-acts">
         <button class="cm-ic" title="改名" onclick="cmRename('${n.id}')">✎</button>
@@ -1796,14 +1806,16 @@ async function openCategoryManager(){
   const l1 = byLevel('1');
   if(l1.length){
     l1.forEach(l1n=>{
-      treeHtml += `<div class="cm-branch">${nodeRow(l1n,1)}<div class="cm-children">`;
+      const bid = 'cm-branch-'+l1n.id;
+      treeHtml += `<div class="${cmExpanded.has(bid)?'cm-branch':'cm-branch collapsed'}" id="${bid}">${nodeRow(l1n,1,bid)}<div class="cm-children">`;
       const l2 = byLevel('2').filter(n=>n.parentId===l1n.id);
       if(!l2.length) treeHtml += `<div class="cm-empty">（暂无二级）</div>`;
       l2.forEach(l2n=>{
-        treeHtml += `<div class="cm-branch">${nodeRow(l2n,2)}<div class="cm-children">`;
+        const bid2 = 'cm-branch-'+l2n.id;
+        treeHtml += `<div class="${cmExpanded.has(bid2)?'cm-branch':'cm-branch collapsed'}" id="${bid2}">${nodeRow(l2n,2,bid2)}<div class="cm-children">`;
         const l3 = byLevel('3').filter(n=>n.parentId===l2n.id);
         if(!l3.length) treeHtml += `<div class="cm-empty">（暂无三级）</div>`;
-        l3.forEach(l3n=>{ treeHtml += nodeRow(l3n,3); });
+        l3.forEach(l3n=>{ treeHtml += nodeRow(l3n,3,null); });
         treeHtml += addRow('3', l2n.id, '三级');
         treeHtml += `</div></div>`;
       });
@@ -1822,7 +1834,7 @@ async function openCategoryManager(){
   ctypeHtml += addRow('ctype','', '内容类型');
 
   modal.innerHTML = `<h3>管理分类</h3>
-    <p class="muted" style="margin:0 0 10px;font-size:12.5px">树形展示从属关系；改名即时生效、历史记录自动同步；删除重定向到“未分类”。</p>
+    <p class="muted" style="margin:0 0 10px;font-size:12.5px">树形展示从属关系（默认收起，点 ▸ 展开对应分支）；改名即时生效、历史记录自动同步；删除重定向到“未分类”。</p>
     <div class="cat-mgr">${treeHtml}${ctypeHtml}</div>
     <div class="modal-ops"><button class="btn soft" onclick="cmClose()">关闭</button></div>`;
   overlay.classList.add('show');
@@ -1852,6 +1864,14 @@ async function cmDelete(id){
   _catCache=null; await openCategoryManager();
 }
 function cmClose(){ closeModal(); if(current==='inspiration') renderInspirationSection('inspiration'); }
+function cmToggle(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  if(el.classList.contains('collapsed')){ el.classList.remove('collapsed'); cmExpanded.add(id); }
+  else { el.classList.add('collapsed'); cmExpanded.delete(id); }
+  const caret = el.querySelector('.cm-caret');
+  if(caret) caret.textContent = el.classList.contains('collapsed') ? '▸' : '▾';
+}
 // 生成下拉选项；cur 不在列表里时也补上（保留旧数据里不在分类表中的值）
 function optList(list, cur){
   const opts = (list||[]).slice();
