@@ -1,0 +1,187 @@
+#!/usr/bin/env node
+// 一次性回填脚本：为「人生灵感库」文章记录新增分类 ID 字段，并建立「分类注册表」。
+// 用法（在已具备飞书凭证的环境，如 VPS）：
+//   cd ~/fufu/workbench
+//   node tools/backfill-category-ids.js
+// 幂等：已回填的记录、已存在的注册表节点都会跳过，可重复运行。
+//
+// 设计对应方案：文章记录新增 一级分类ID/二级分类ID/三级分类ID/内容类型ID（稳定引用），
+// 指向「分类注册表」节点；后续改名/删除只动注册表，旧记录靠 ID 自动同步显示，零改写旧数据。
+
+const fs = require('fs');
+const path = require('path');
+
+const FEISHU_API = 'https://open.feishu.cn/open-apis';
+const APP_ID = process.env.FEISHU_APP_ID || '';
+const APP_SECRET = process.env.FEISHU_APP_SECRET || '';
+const INSPIRE_BASE = process.env.INSPIRE_BASE_TOKEN || 'ARCcbggiUaFqESsV7pRcin8CnUb';
+const INSPIRE_TABLE = process.env.INSPIRE_TABLE || 'tblpI6WqsvA5z0CL';
+const INPUT_TABLE = process.env.INPUT_TABLE || 'tblxVYnQ8P49qc6Y';
+const REGISTRY_ENV = process.env.CATEGORY_REGISTRY_TABLE_TOKEN || '';
+
+const WORKBENCH = path.join(__dirname, '..');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const NET_RE = /network|EOF|transport|timeout|500|502|503|504/i;
+
+let _tok = '', _exp = 0;
+async function tenantToken() {
+  const now = Date.now();
+  if (_tok && now < _exp - 60000) return _tok;
+  const r = await fetch(FEISHU_API + '/auth/v3/tenant_access_token/internal', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ app_id: APP_ID, app_secret: APP_SECRET })
+  });
+  const j = await r.json();
+  const tok = (j.data && j.data.tenant_access_token) || j.tenant_access_token;
+  if (!tok) throw new Error('获取 tenant_access_token 失败: ' + JSON.stringify(j).slice(0, 200));
+  _tok = tok; _exp = now + ((j.data && j.data.expire) || j.expire || 7200) * 1000;
+  return _tok;
+}
+async function fReq(method, p, body) {
+  const tok = await tenantToken();
+  for (let i = 0; i < 5; i++) {
+    try {
+      const res = await fetch(FEISHU_API + p, {
+        method, headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      const j = await res.json();
+      if (j.code === 0) return j;
+      const m = JSON.stringify(j).slice(0, 400);
+      if ((j.code === 99991663 || NET_RE.test(m)) && i < 4) { await sleep(500 * (i + 1)); continue; }
+      throw new Error('飞书错误 code=' + j.code + ': ' + m);
+    } catch (e) {
+      if (NET_RE.test(e.message || '') && i < 4) { await sleep(500 * (i + 1)); continue; }
+      throw e;
+    }
+  }
+  throw new Error('fReq 重试耗尽');
+}
+const _prefix = {};
+async function basePrefix(baseToken) {
+  if (_prefix[baseToken]) return _prefix[baseToken];
+  for (const p of [`/bitable/v3/bases/${baseToken}`, `/bitable/v1/apps/${baseToken}`]) {
+    try { const j = await fReq('GET', p + '/tables?page_size=1'); if (j.code === 0) { _prefix[baseToken] = p; return p; } } catch (e) {}
+  }
+  _prefix[baseToken] = `/bitable/v1/apps/${baseToken}`; return _prefix[baseToken];
+}
+async function tableId(name, baseToken) {
+  const pre = await basePrefix(baseToken);
+  const j = await fReq('GET', `${pre}/tables?page_size=200`);
+  const m = {}; (j.data.items || []).forEach(t => { m[t.name] = t.table_id; });
+  return m[name] || name;
+}
+async function listAll(tableToken, baseToken) {
+  const pre = await basePrefix(baseToken);
+  const id = await tableId(tableToken, baseToken);
+  const out = []; let pageToken = '';
+  do {
+    const url = `${pre}/tables/${encodeURIComponent(id)}/records?page_size=100${pageToken ? '&page_token=' + encodeURIComponent(pageToken) : ''}`;
+    const j = await fReq('GET', url);
+    (j.data.items || []).forEach(it => out.push(Object.assign({ record_id: it.record_id }, it.fields || {})));
+    pageToken = j.data.has_more ? j.data.page_token : '';
+  } while (pageToken);
+  return out;
+}
+async function addField(tableToken, fieldName, type, baseToken) {
+  const pre = await basePrefix(baseToken);
+  try { await fReq('POST', `${pre}/tables/${encodeURIComponent(tableToken)}/fields`, { field_name: fieldName, type }); }
+  catch (e) { /* 已存在或不支持则忽略 */ }
+}
+async function ensureRegistry() {
+  if (REGISTRY_ENV) { try { await listAll(REGISTRY_ENV, INSPIRE_BASE); return REGISTRY_ENV; } catch (e) {} }
+  const pre = await basePrefix(INSPIRE_BASE);
+  const j = await fReq('POST', `${pre}/tables`, { table: { name: '分类注册表' } });
+  const tid = j.data.table_id;
+  for (const f of [{ name: 'name', type: 1 }, { name: 'parentId', type: 1 }, { name: 'level', type: 1 }, { name: 'active', type: 7 }, { name: 'aliases', type: 1 }, { name: 'id', type: 1 }]) {
+    await addField(tid, f.name, f.type, INSPIRE_BASE);
+  }
+  try { fs.writeFileSync(path.join(WORKBENCH, 'cat-registry.json'), JSON.stringify({ token: tid })); } catch (e) {}
+  console.log('✅ 已创建分类注册表，token =', tid);
+  return tid;
+}
+
+async function main() {
+  if (!APP_ID || !APP_SECRET) { console.error('❌ 缺少 FEISHU_APP_ID / FEISHU_APP_SECRET 环境变量'); process.exit(1); }
+  const regTable = await ensureRegistry();
+  console.log('➡️ 为文章表新增分类 ID 字段…');
+  for (const t of [INSPIRE_TABLE, INPUT_TABLE]) {
+    await addField(t, '一级分类ID', 1, INSPIRE_BASE);
+    await addField(t, '二级分类ID', 1, INSPIRE_BASE);
+    await addField(t, '三级分类ID', 1, INSPIRE_BASE);
+    await addField(t, '内容类型ID', 1, INSPIRE_BASE);
+  }
+
+  console.log('➡️ 读取人生灵感库全量记录…');
+  const rows = await listAll(INSPIRE_TABLE, INSPIRE_BASE);
+  console.log('   共', rows.length, '条');
+
+  const regPre = await basePrefix(INSPIRE_BASE);
+  const regId = await tableId(regTable, INSPIRE_BASE);
+  const regRows = await listAll(regTable, INSPIRE_BASE);
+  const regKey = {};
+  regRows.forEach(r => {
+    const id = r.record_id;
+    const lvl = (r['level'] || '').toString();
+    const pid = (r['parentId'] || '').toString();
+    const nm = (r['name'] || '').toString().trim();
+    if (!nm) return;
+    regKey[lvl + '::' + pid + '::' + nm] = id;
+  });
+  async function ensure(level, key, name, parentId) {
+    if (regKey[key]) return regKey[key];
+    const j = await fReq('POST', `${regPre}/tables/${encodeURIComponent(regId)}/records`, { fields: { name, parentId: parentId || '', level: String(level), active: true, id: '' } });
+    const id = j.data.record.record_id;
+    regKey[key] = id;
+    return id;
+  }
+
+  // —— 第一遍：建立/复用注册表节点（父级先于子级）——
+  const l1Map = {}, l2Map = {}, l3Map = {}, ctypeMap = {};
+  const l1set = new Set(), l2set = new Map(), l3set = new Map(), cset = new Set();
+  const norm = v => (v == null ? '' : String(v)).toString().trim();
+  for (const r of rows) {
+    const c1 = norm(r['一级分类']), c2 = norm(r['二级分类']), c3 = norm(r['三级分类']), ct = norm(r['内容类型']);
+    if (c1) l1set.add(c1);
+    if (c1 && c2) l2set.set(c1 + '::' + c2, c2);
+    if (c1 && c2 && c3) l3set.set(c1 + '::' + c2 + '::' + c3, c3);
+    if (ct) cset.add(ct);
+  }
+  for (const n of l1set) l1Map[n] = await ensure('1', '1::' + n, n, '');
+  for (const [k, n] of l2set) { const pid = l1Map[k.split('::')[0]]; l2Map[k] = await ensure('2', '2::' + k, n, pid); }
+  for (const [k, n] of l3set) { const [a, b] = k.split('::'); const pid = l2Map[a + '::' + b]; l3Map[k] = await ensure('3', '3::' + k, n, pid); }
+  for (const n of cset) ctypeMap[n] = await ensure('ctype', 'ctype::' + n, n, '');
+  console.log(`   注册表节点：一级 ${l1set.size} / 二级 ${l2set.size} / 三级 ${l3set.size} / 内容类型 ${cset.size}`);
+
+  // —— 第二遍：回填文章记录（并发池）——
+  const artPre = await basePrefix(INSPIRE_BASE);
+  const artId = await tableId(INSPIRE_TABLE, INSPIRE_BASE);
+  let updated = 0, skipped = 0;
+  async function updateOne(r) {
+    const c1 = norm(r['一级分类']), c2 = norm(r['二级分类']), c3 = norm(r['三级分类']), ct = norm(r['内容类型']);
+    const id1 = c1 ? (l1Map[c1] || '') : '';
+    const id2 = (c1 && c2) ? (l2Map[c1 + '::' + c2] || '') : '';
+    const id3 = (c1 && c2 && c3) ? (l3Map[c1 + '::' + c2 + '::' + c3] || '') : '';
+    const idc = ct ? (ctypeMap[ct] || '') : '';
+    const need = (c1 && !norm(r['一级分类ID'])) || (c2 && !norm(r['二级分类ID'])) || (c3 && !norm(r['三级分类ID'])) || (ct && !norm(r['内容类型ID']));
+    if (!need) return 'skip';
+    const fields = {};
+    if (c1) fields['一级分类ID'] = id1;
+    if (c2) fields['二级分类ID'] = id2;
+    if (c3) fields['三级分类ID'] = id3;
+    if (ct) fields['内容类型ID'] = idc;
+    await fReq('PUT', `${artPre}/tables/${encodeURIComponent(artId)}/records/${r.record_id}`, { fields });
+    return 'upd';
+  }
+  // 简单并发池（5 路）
+  const POOL = 5;
+  for (let i = 0; i < rows.length; i += POOL) {
+    const batch = rows.slice(i, i + POOL);
+    const res = await Promise.all(batch.map(updateOne));
+    res.forEach(x => { if (x === 'upd') updated++; else skipped++; });
+    if ((i + POOL) % 100 < POOL || i + POOL >= rows.length) console.log(`   进度 ${Math.min(i + POOL, rows.length)}/${rows.length}  已更新 ${updated} / 跳过 ${skipped}`);
+  }
+  console.log(`✅ 回填完成：更新 ${updated} 条，跳过(已回填) ${skipped} 条`);
+}
+
+main().then(() => process.exit(0)).catch(e => { console.error('❌ 回填失败：', e.message || e); process.exit(1); });

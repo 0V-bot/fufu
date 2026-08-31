@@ -456,6 +456,16 @@
   .field textarea{min-height:84px;resize:vertical;}
   /* 灵感库详情：原始文案上移并加宽一倍（弹窗整体加宽） */
   .modal.wide{width:min(720px,100%);}
+  /* 分类管理弹窗 */
+  .cat-mgr{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:8px;}
+  .cat-mgr-group{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fbfcfe;}
+  .cat-mgr-gtitle{font-weight:700;margin-bottom:8px;color:var(--ink);font-size:14px;}
+  .cat-mgr-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .cat-mgr-name{flex:0 0 84px;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cat-mgr-input{flex:1;min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;}
+  .cat-mgr-add{display:flex;gap:6px;margin-top:6px;}
+  .cat-mgr-add select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;background:#fff;}
+  .cat-mgr-deled{font-size:12px;color:var(--muted);}
   .field.fullw textarea{min-height:220px;font-size:14px;line-height:1.7;}
   /* 每日日记：4 个分类/标签下拉 2×2 布局 */
   .cat-row{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;margin:6px 0 2px;}
@@ -1643,7 +1653,7 @@ async function renderInspirationSection(sectionId){
   const s = SECTIONS[sectionId];
   const readonly = !s.allowEdit;   // 人生灵感库 readonly（无添加）；分类页 allowEdit 可添加
   let html = `<div class="card"><div class="h"><div class="t" id="inspTitle">${s.name}</div>`;
-  if(sectionId==='inspiration') html += `<button class="btn" onclick="go('articleInput')">📝 文章录入</button>`;
+  if(sectionId==='inspiration'){ html += `<button class="btn" onclick="go('articleInput')">📝 文章录入</button>`; html += `<button class="btn soft" onclick="openCategoryManager()">🗂 管理分类</button>`; }
   else if(!readonly) html += `<button class="btn" onclick="addKb('${sectionId}')">+ 添加</button>`;
   html += `</div>`;
   html += `<div id="inspToolbarWrap"></div>`;
@@ -1746,6 +1756,65 @@ async function getCategory(){
   try{ _catCache = await apiJson('/category'); }catch(e){ _catCache = {cat1:[], tree:{}}; }
   return _catCache;
 }
+/* ---------- 分类管理：自定义一级/二级/三级/内容类型，改名即时同步、删除重定向未分类 ---------- */
+async function openCategoryManager(){
+  let cat;
+  try{ cat = await apiJson('/category'); }catch(e){ cat = {cat1:[],tree:{},ctypes:[],registry:{nodes:[]}}; }
+  const nodes = (cat.registry && cat.registry.nodes) || [];
+  const byLevel = l => nodes.filter(n=>n.level===l);
+  const lvlLabel = { '1':'一级分类','2':'二级分类','3':'三级分类','ctype':'内容类型' };
+  function group(level){
+    const list = byLevel(level);
+    const rows = list.map(n=>`
+      <div class="cat-mgr-row">
+        <span class="cat-mgr-name">${esc(n.name)}</span>
+        <input class="cat-mgr-input" id="cm-rename-${n.id}" value="${esc(n.name)}" />
+        <button class="btn soft mini" onclick="cmRename('${n.id}')">改名</button>
+        ${n.active===false?`<span class="cat-mgr-deled">已删除</span>`:`<button class="btn danger mini" onclick="cmDelete('${n.id}')">删除</button>`}
+      </div>`).join('') || '<div class="muted" style="font-size:12px;margin-bottom:8px">（暂无）</div>';
+    let parentOpts = '';
+    if(level==='2') parentOpts = byLevel('1').map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+    if(level==='3') parentOpts = byLevel('2').map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+    const addForm = `
+      <div class="cat-mgr-add">
+        <input class="cat-mgr-input" id="cm-add-${level}" placeholder="新${lvlLabel[level]}名称" />
+        ${parentOpts?`<select id="cm-addparent-${level}">${parentOpts}</select>`:''}
+        <button class="btn mini" onclick="cmAdd('${level}')">+ 添加</button>
+      </div>`;
+    return `<div class="cat-mgr-group"><div class="cat-mgr-gtitle">${lvlLabel[level]}</div>${rows}${addForm}</div>`;
+  }
+  modal.innerHTML = `<h3>管理分类</h3>
+    <p class="muted" style="margin:0 0 12px;font-size:12.5px">改名即时生效、历史记录自动同步显示新名；删除将把相关记录重定向到“未分类”。</p>
+    <div class="cat-mgr">${group('1')}${group('2')}${group('3')}${group('ctype')}</div>
+    <div class="modal-ops"><button class="btn soft" onclick="cmClose()">关闭</button></div>`;
+  overlay.classList.add('show');
+  modal.classList.add('wide');
+}
+async function cmAdd(level){
+  const el = document.getElementById('cm-add-'+level);
+  const name = (el&&el.value||'').trim();
+  if(!name){ alert('请输入名称'); return; }
+  const pidEl = document.getElementById('cm-addparent-'+level);
+  const pid = (level==='2'||level==='3') && pidEl ? pidEl.value : '';
+  try{ await apiJson('/category',{method:'POST',body:JSON.stringify({level,name,parentId:pid})}); }
+  catch(e){ alert('添加失败：'+(e.message||e)); return; }
+  _catCache=null; await openCategoryManager();
+}
+async function cmRename(id){
+  const el = document.getElementById('cm-rename-'+id);
+  const name = (el&&el.value||'').trim();
+  if(!name){ alert('请输入名称'); return; }
+  try{ await apiJson('/category',{method:'PUT',body:JSON.stringify({id,name})}); }
+  catch(e){ alert('改名失败：'+(e.message||e)); return; }
+  _catCache=null; await openCategoryManager();
+}
+async function cmDelete(id){
+  if(!confirm('确定删除该分类？相关记录将重定向到“未分类”。')) return;
+  try{ await apiJson('/category',{method:'DELETE',body:JSON.stringify({id})}); }
+  catch(e){ alert('删除失败：'+(e.message||e)); return; }
+  _catCache=null; await openCategoryManager();
+}
+function cmClose(){ closeModal(); if(current==='inspiration') renderInspirationSection('inspiration'); }
 // 生成下拉选项；cur 不在列表里时也补上（保留旧数据里不在分类表中的值）
 function optList(list, cur){
   const opts = (list||[]).slice();
@@ -1779,7 +1848,7 @@ async function editWisdom(recId, sectionId){
     ${sel('cat2','二级分类',list2,cur2)}
     ${sel('cat3','三级分类',list3,cur3)}
     <input type="hidden" data-k="tag" value="${esc(it.tag||'')}">
-    ${sel('ctype','内容类型',['金句','观点','故事','案例','长文'],it.ctype)}
+    ${sel('ctype','内容类型',(cat.ctypes&&cat.ctypes.length)?cat.ctypes:['金句','观点','故事','案例','长文'],it.ctype)}
     ${F('keywords','关键词',it.keywords)}
     ${sel('status','是否整理',['未整理','已整理'],it.status)}
     ${F('date','收藏日期',it.date)}
@@ -1979,7 +2048,7 @@ async function renderArticle(){
         ${sel('aiCat1','一级分类',cat.cat1,'')}
         ${sel('aiCat2','二级分类',[],'')}
         ${sel('aiCat3','三级分类',[],'')}
-        ${sel('aiCtype','内容类型',['金句','观点','故事','案例','长文'],'')}
+        ${sel('aiCtype','内容类型',(cat.ctypes&&cat.ctypes.length)?cat.ctypes:['金句','观点','故事','案例','长文'],'')}
       </div>
       <label>核心关键点 / AI 总结（可选，留空则交由 AI 分析）</label>
       <textarea id="aiSummary" rows="3" placeholder="一句话提炼这篇文章的核心观点或关键点…"></textarea>

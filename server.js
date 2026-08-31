@@ -433,7 +433,7 @@ function readRec(kind, r) {
     case 'habits':    return { id: r.record_id, name: r['名称'] || '' };
     case 'habitCheck': return { id: r.record_id, habit: linkId(r['习惯']), date: dateOnly(r['打卡日期']), checked: !!r['打卡'] };
     // —— 录入表（文章录入）：读取「人生灵感库」Base 的「录入表」——
-    case 'article':   return { id: r.record_id, title: r['文案标题'] || '', content: r['原始文案'] || '', source: r['来源'] || '', sourceLink: r['来源链接'] || '', reflection: r['个人感悟'] || '', cat1: sel(r['一级分类']) || '', cat2: sel(r['二级分类']) || '', cat3: sel(r['三级分类']) || '', tag: sel(r['标签']) || '', ctype: sel(r['内容类型']) || '', summary: r['AI总结'] || '', date: Number(r['录入日期']) || 0, multi: !!r['是否多篇'] };
+    case 'article':   return { id: r.record_id, title: r['文案标题'] || '', content: r['原始文案'] || '', source: r['来源'] || '', sourceLink: r['来源链接'] || '', reflection: r['个人感悟'] || '', cat1: resolveCatSync(1, r['一级分类ID'], sel(r['一级分类'])), cat2: resolveCatSync(2, r['二级分类ID'], sel(r['二级分类'])), cat3: resolveCatSync(3, r['三级分类ID'], sel(r['三级分类'])), tag: sel(r['标签']) || '', ctype: resolveCatSync('ctype', r['内容类型ID'], sel(r['内容类型'])), cat1Id: (r['一级分类ID']||'').toString().trim(), cat2Id: (r['二级分类ID']||'').toString().trim(), cat3Id: (r['三级分类ID']||'').toString().trim(), ctypeId: (r['内容类型ID']||'').toString().trim(), summary: r['AI总结'] || '', date: Number(r['录入日期']) || 0, multi: !!r['是否多篇'] };
   }
   return { id: r.record_id };
 }
@@ -756,6 +756,14 @@ async function createPendingArticle({ title, content, source, sourceLink, reflec
   // 飞书会忽略表中不存在的字段名（不报错），故即便录入表尚未加这两个字段也不会写失败。
   if (ctype && ctype.trim()) fields['内容类型'] = ctype.trim();
   if (summary && summary.trim()) fields['AI总结'] = summary.trim();
+  const c1Id = await catIdFor(1, cat1, '');
+  const c2Id = await catIdFor(2, cat2, c1Id || '');
+  const c3Id = await catIdFor(3, cat3, c2Id || '');
+  const ctId = await catIdFor('ctype', ctype, '');
+  if (c1Id) fields['一级分类ID'] = c1Id;
+  if (c2Id) fields['二级分类ID'] = c2Id;
+  if (c3Id) fields['三级分类ID'] = c3Id;
+  if (ctId) fields['内容类型ID'] = ctId;
   const id = await createRecord(INPUT_TABLE, fields, INSPIRE_BASE);
   return id;
 }
@@ -778,6 +786,14 @@ async function createDirectArticle({ title, content, source, sourceLink, reflect
   if (tag && tag.trim()) fields['标签'] = tag.trim();
   if (ctype && ctype.trim()) fields['内容类型'] = ctype.trim();
   if (summary && summary.trim()) fields['AI总结'] = summary.trim();
+  const c1Id = await catIdFor(1, cat1, '');
+  const c2Id = await catIdFor(2, cat2, c1Id || '');
+  const c3Id = await catIdFor(3, cat3, c2Id || '');
+  const ctId = await catIdFor('ctype', ctype, '');
+  if (c1Id) fields['一级分类ID'] = c1Id;
+  if (c2Id) fields['二级分类ID'] = c2Id;
+  if (c3Id) fields['三级分类ID'] = c3Id;
+  if (ctId) fields['内容类型ID'] = ctId;
   const id = await createRecord(INSPIRE_TABLE, fields, INSPIRE_BASE);
   return id;
 }
@@ -962,6 +978,133 @@ async function getCategory() {
   }
   _catCache = result; _catTime = now;
   return result;
+}
+
+/* ===================== 分类注册表（稳定 ID + 改名/删除重定向，不影响旧数据） =====================
+ * 设计：新增一张飞书表「分类注册表」(REGISTRY_BASE=人生研究学院 Base) 作为分类的“唯一真相”。
+ *   每条分类 = 节点：{ id(=record_id), name(规范名), parentId, level('1'|'2'|'3'|'ctype'), active, aliases(旧名,逗号分隔) }
+ * 文章记录新增 4 个 ID 字段（一级分类ID/二级分类ID/三级分类ID/内容类型ID），写入时“ID 优先、旧名回退”。
+ * 改名：只改节点 name，旧名进 aliases（旧记录按旧名仍能解析到同一 id → 显示新名，零改写旧数据）。
+ * 删除：节点 active=false，解析时归到“未分类”；其下子节点一并 deactivate。
+ * 未回填前（注册表/ID 字段尚不存在）整体优雅回退：分类名原样透传，不影响任何现有功能。
+ */
+const REGISTRY_BASE = INSPIRE_BASE;
+let _registryTableToken = process.env.CATEGORY_REGISTRY_TABLE_TOKEN || '';
+try { const _rj = JSON.parse(fs.readFileSync(path.join(__dirname, 'cat-registry.json'), 'utf8')); if (_rj && _rj.token) _registryTableToken = _rj.token; } catch (e) {}
+let _registry = null, _registryTime = 0;
+const _REG_CACHE_MS = 3600 * 1000;
+
+async function createTableBase(name, fields, baseToken) {
+  const pre = await basePrefix(baseToken);
+  const j = await feishuRequest('POST', `${pre}/tables`, { table: { name } });
+  const tid = j.data.table_id;
+  for (const f of fields) {
+    try { await feishuRequest('POST', `${pre}/tables/${encodeURIComponent(tid)}/fields`, { field_name: f.name, type: f.type }); }
+    catch (e) { /* 字段可能已存在，忽略 */ }
+  }
+  return tid;
+}
+async function addFieldToTable(tableToken, fieldName, type, baseToken) {
+  const pre = await basePrefix(baseToken);
+  try { await feishuRequest('POST', `${pre}/tables/${encodeURIComponent(tableToken)}/fields`, { field_name: fieldName, type }); }
+  catch (e) { /* 已存在则忽略 */ }
+}
+async function ensureRegistryTable() {
+  if (_registryTableToken) { try { await listTableOpen(_registryTableToken, REGISTRY_BASE); return _registryTableToken; } catch (e) { /* token 失效则重建 */ } }
+  const tid = await createTableBase('分类注册表', [
+    { name: 'name', type: 1 }, { name: 'parentId', type: 1 }, { name: 'level', type: 1 },
+    { name: 'active', type: 7 }, { name: 'aliases', type: 1 }, { name: 'id', type: 1 }
+  ], REGISTRY_BASE);
+  _registryTableToken = tid;
+  try { fs.writeFileSync(path.join(__dirname, 'cat-registry.json'), JSON.stringify({ token: tid })); } catch (e) {}
+  return tid;
+}
+function _regKey(level, name) { return String(level) + '::' + (name || ''); }
+function _indexRegistry(rows) {
+  const nodes = (rows || []).map(r => ({
+    id: r.record_id,
+    name: (sel(r['name']) || '').trim(),
+    parentId: (sel(r['parentId']) || '').trim(),
+    level: (r['level'] || '').toString().trim(),
+    active: r['active'] !== false && r['active'] !== '否',
+    aliases: (sel(r['aliases']) || '').split(',').map(s => s.trim()).filter(Boolean)
+  })).filter(n => n.name);
+  const byId = {}, byNameLevel = {}, byAlias = {};
+  for (const n of nodes) {
+    byId[n.id] = n;
+    byNameLevel[_regKey(n.level, n.name)] = n;
+    for (const a of n.aliases) byAlias[_regKey(n.level, a)] = n;
+  }
+  return { nodes, byId, byNameLevel, byAlias };
+}
+async function refreshRegistry() {
+  if (_registry && Date.now() - _registryTime < _REG_CACHE_MS) return _registry;
+  if (!_registryTableToken) { _registry = null; return null; }
+  try {
+    const rows = await listTableOpen(_registryTableToken, REGISTRY_BASE);
+    _registry = _indexRegistry(rows); _registryTime = Date.now();
+  } catch (e) { if (!_registry) _registry = null; }
+  return _registry;
+}
+function resolveCatSync(level, id, name) {
+  const reg = _registry;
+  if (!reg) return (name || '').toString().trim();
+  if (id && reg.byId[id]) { const n = reg.byId[id]; return n.active ? n.name : '未分类'; }
+  if (name) {
+    const kn = _regKey(level, name);
+    if (reg.byNameLevel[kn]) { const n = reg.byNameLevel[kn]; return n.active ? n.name : '未分类'; }
+    if (reg.byAlias[kn]) { const n = reg.byAlias[kn]; return n.active ? n.name : '未分类'; }
+  }
+  return (name || '').toString().trim();
+}
+// 写文章时：把分类名解析为稳定 id（注册表存在且命中时返回，否则 null，由回填脚本后续补齐）
+async function catIdFor(level, name, parentId) {
+  name = (name || '').toString().trim(); if (!name || !_registryTableToken) return null;
+  await refreshRegistry(); const reg = _registry; if (!reg) return null;
+  const hit = reg.byNameLevel[_regKey(level, name)]; if (hit) return hit.id;
+  // 不在注册表中（理论上不应发生，因分类来自下拉）：补建一个节点
+  try {
+    const tid = await ensureRegistryTable();
+    const rid = await createRecordOpen(tid, { name, parentId: parentId || '', level: String(level), active: true, id: '' }, REGISTRY_BASE);
+    await refreshRegistry();
+    return rid;
+  } catch (e) { return null; }
+}
+async function addCategory(level, name, parentId) {
+  await ensureRegistryTable();
+  const tid = _registryTableToken;
+  const rid = await createRecordOpen(tid, { name, parentId: parentId || '', level: String(level), active: true, id: '' }, REGISTRY_BASE);
+  await refreshRegistry();
+  return _registry ? _registry.byId[rid] : { id: rid, name, parentId: parentId || '', level: String(level), active: true };
+}
+async function renameCategory(id, newName) {
+  await refreshRegistry(); if (!_registry || !_registry.byId[id]) throw new Error('分类不存在');
+  const node = _registry.byId[id];
+  const aliases = node.aliases.includes(node.name) ? node.aliases : [...node.aliases, node.name];
+  await updateRecordOpen(_registryTableToken, id, { name: newName, aliases: aliases.join(',') }, REGISTRY_BASE);
+  await refreshRegistry();
+  return _registry.byId[id];
+}
+async function deleteCategory(id) {
+  await refreshRegistry(); if (!_registry || !_registry.byId[id]) throw new Error('分类不存在');
+  const toOff = new Set(); const stack = [id];
+  while (stack.length) { const cur = stack.pop(); toOff.add(cur); for (const n of _registry.nodes) if (n.parentId === cur && !toOff.has(n.id)) stack.push(n.id); }
+  for (const rid of toOff) { try { await updateRecordOpen(_registryTableToken, rid, { active: false }, REGISTRY_BASE); } catch (e) {} }
+  await refreshRegistry();
+  return true;
+}
+// 聚合接口：返回前端需要的 cat1/tree/ctypes/registry（注册表可用时由注册表派生，否则回退原 name-tree）
+async function buildCategoryResponse() {
+  await refreshRegistry();
+  const reg = _registry;
+  if (!reg) return await getCategory();
+  const lvl = l => reg.nodes.filter(n => n.level === l && n.active);
+  const nameOf = id => { const n = reg.byId[id]; return n ? n.name : ''; };
+  const cat1 = lvl('1').map(n => n.name);
+  const tree = {}; const ctypes = lvl('ctype').map(n => n.name);
+  for (const n of lvl('2')) { const p = nameOf(n.parentId); if (!p) continue; tree[p] = tree[p] || {}; tree[p][n.name] = tree[p][n.name] || []; }
+  for (const n of lvl('3')) { const p = nameOf(n.parentId); if (!p) continue; for (const a of Object.keys(tree)) { if (tree[a][p]) { if (!tree[a][p].includes(n.name)) tree[a][p].push(n.name); } } }
+  return { cat1, tree, ctypes, registry: { base: REGISTRY_BASE, table: _registryTableToken, nodes: reg.nodes.map(n => ({ id: n.id, name: n.name, parentId: n.parentId, level: n.level, active: n.active })) } };
 }
 
 /* ===================== 灵感类型（飞书表维护，可自由新增） ===================== */
@@ -1332,7 +1475,29 @@ async function route(method, url, body, res, req) {
         return send(res, 200, { count });
       } catch (e) { return send(res, 200, { count: -1, error: e.message }); }
     }
-    if (method === 'GET' && url === '/api/category') return send(res, 200, await getCategory());
+    if (method === 'GET' && url === '/api/category') return send(res, 200, await buildCategoryResponse());
+    // 分类管理：增 / 改名 / 删除（删除即重定向到“未分类”）。须通过访问密码门。
+    if (method === 'POST' && url === '/api/category') {
+      if (!authed(req)) return send(res, 401, { error: '未授权' });
+      const { level, name, parentId } = body || {};
+      if (!name || !name.toString().trim()) return send(res, 400, { error: '名称不能为空' });
+      try { return send(res, 200, { ok: true, node: await addCategory((level || '1').toString(), name.toString().trim(), (parentId || '').toString().trim()) }); }
+      catch (e) { return send(res, 500, { error: e.message || '添加失败' }); }
+    }
+    if (method === 'PUT' && url === '/api/category') {
+      if (!authed(req)) return send(res, 401, { error: '未授权' });
+      const { id, name } = body || {};
+      if (!id || !name || !name.toString().trim()) return send(res, 400, { error: '参数缺失' });
+      try { return send(res, 200, { ok: true, node: await renameCategory(id, name.toString().trim()) }); }
+      catch (e) { return send(res, 500, { error: e.message || '改名失败' }); }
+    }
+    if (method === 'DELETE' && url === '/api/category') {
+      if (!authed(req)) return send(res, 401, { error: '未授权' });
+      const { id } = body || {};
+      if (!id) return send(res, 400, { error: '参数缺失' });
+      try { await deleteCategory(id); return send(res, 200, { ok: true }); }
+      catch (e) { return send(res, 500, { error: e.message || '删除失败' }); }
+    }
     if (method === 'GET' && url === '/api/insp-types') return send(res, 200, { types: await getInspTypes() });
     if (method === 'POST' && url === '/api/insp-types') {
       const t = (body && body.type || '').toString().trim();
@@ -1405,4 +1570,6 @@ server.listen(PORT, async () => {
     if (USE_OPENAPI) { await tenantToken(); console.log('✅ 飞书应用鉴权成功'); }
     else if (LARK_CLI) { await ensureProjects(); console.log('✅ 飞书连接正常，项目映射已加载'); }
   } catch (e) { console.warn('⚠️ 飞书预热失败（首次请求时会重试）: ' + e.message); }
+  // 预热分类注册表缓存（不存在则静默跳过，旧功能不受影响）
+  refreshRegistry().catch(() => {});
 });
