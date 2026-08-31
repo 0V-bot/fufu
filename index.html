@@ -373,6 +373,27 @@
     .tm-main{order:4;flex:1 0 100%;}   /* 整块文字（含备注内容）落到第二行并铺满宽度 */
   }
 
+  /* 成果输出（按周：本周/下周/上周/上上周；窄屏仅显示一周 + 左右切换） */
+  .output-panel{margin-bottom:16px;border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;background:var(--panel);box-shadow:var(--shadow);}
+  .output-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .output-title{font-weight:700;font-size:15px;color:var(--ink);}
+  .output-nav{display:none;gap:6px;}
+  .ow-arrow{border:1px solid var(--line);background:#fff;border-radius:8px;padding:4px 12px;cursor:pointer;font-size:13px;color:var(--muted);line-height:1;}
+  .ow-arrow:hover{background:rgba(15,23,42,.06);color:var(--ink);}
+  .ow-arrow:disabled{opacity:.35;cursor:not-allowed;}
+  .output-weeks{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  .ow{border:1px solid var(--line);border-radius:10px;padding:8px 10px 10px;background:#fff;display:flex;flex-direction:column;min-height:120px;}
+  .ow-h{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:7px;display:flex;justify-content:space-between;align-items:baseline;gap:6px;}
+  .ow-range{font-size:11px;font-weight:400;color:var(--muted);}
+  .ow-ta{flex:1;min-height:84px;resize:vertical;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;line-height:1.6;box-sizing:border-box;color:var(--ink);}
+  .ow-ta:focus{border-color:var(--brand);outline:none;}
+  @media(max-width:680px){
+    .output-nav{display:flex;}
+    .output-weeks{grid-template-columns:1fr;gap:0;}
+    .output-weeks .ow{display:none;min-height:0;}
+    .output-weeks .ow.active{display:flex;}
+  }
+
   /* habits */
   .streak{font-size:12px;color:var(--muted);}
   .streak b{color:#10b981;}
@@ -2210,6 +2231,60 @@ function niceDate(d){
   return `${p[0]}年${p[1]}月${p[2]}日 周${WK[new Date(p[0],p[1]-1,p[2]).getDay()]}`;
 }
 function todoBucket(t, td){ return datePart(t.deadline) || td; }   // 截止日期（无则按今日）
+
+// ===== 成果输出（按周：本周/下周/上周/上上周；本地优先存储 IndexedDB）=====
+let outWeekIdx = 2;                 // 周序：0=上上周 1=上周 2=本周 3=下周（窄屏默认显示本周）
+const outCache = {};                // weekKey -> 文本（内存缓存，防重渲染丢字）
+const outSaveT = {};                // weekKey -> 防抖定时器
+// 取相对本周一的北京时间点（offset: -2/-1/0/1）
+function outMonday(offset){
+  const d = new Date(Date.now() + 8*3600*1000); d.setUTCHours(0,0,0,0);
+  const wd = d.getUTCDay(); const diff = (wd===0? -6 : 1-wd);
+  return new Date(d.getTime() + (diff + offset*7)*86400000);
+}
+function outWeekKey(offset){ const m=outMonday(offset), p=n=>(n<10?'0'+n:String(n)); return `${m.getUTCFullYear()}-${p(m.getUTCMonth()+1)}-${p(m.getUTCDate())}`; }
+function outWeekLabel(offset){ return ['上上周','上周','本周','下周'][offset+2]; }
+function outWeekRange(offset){ const m=outMonday(offset), p=n=>(n<10?'0'+n:String(n)); const s=new Date(m.getTime()+6*86400000); return `${m.getUTCMonth()+1}/${m.getUTCDate()} - ${s.getUTCMonth()+1}/${s.getUTCDate()}`; }
+async function loadOutput(weekKey){ try{ const doc=await idbGet('output::'+weekKey); return doc?(doc.text||''):''; }catch(e){ return ''; } }
+async function persistOutput(weekKey, text){ try{ await idbPut({ key:'output::'+weekKey, text }); }catch(e){} }
+function onOutputInput(key, val){
+  outCache[key]=val;
+  clearTimeout(outSaveT[key]);
+  outSaveT[key]=setTimeout(()=>{ persistOutput(key, val); }, 400);   // 防抖自动保存到本地
+}
+function outShift(dir){
+  outWeekIdx = Math.max(0, Math.min(3, outWeekIdx + dir));
+  document.querySelectorAll('#outputWeeks .ow').forEach(el=> el.classList.toggle('active', Number(el.dataset.idx)===outWeekIdx));
+  const left=document.getElementById('owLeft'), right=document.getElementById('owRight');
+  if(left) left.disabled = outWeekIdx<=0;
+  if(right) right.disabled = outWeekIdx>=3;
+}
+async function renderOutput(){
+  const offsets=[-2,-1,0,1];
+  let blocks='';
+  for(const off of offsets){
+    const key=outWeekKey(off);
+    const text = (outCache[key]!=null) ? outCache[key] : (await loadOutput(key));
+    outCache[key]=text;
+    const active = (off+2)===outWeekIdx ? ' active' : '';
+    blocks += `<div class="ow${active}" data-idx="${off+2}">
+      <div class="ow-h"><span>${outWeekLabel(off)}</span><span class="ow-range">${outWeekRange(off)}</span></div>
+      <textarea class="ow-ta" data-wk="${key}" placeholder="本周成果产出、关键进展、复盘要点…" oninput="onOutputInput('${key}',this.value)">${esc(text)}</textarea>
+    </div>`;
+  }
+  const leftDis = outWeekIdx<=0 ? ' disabled' : '';
+  const rightDis = outWeekIdx>=3 ? ' disabled' : '';
+  return `<div class="output-panel">
+    <div class="output-head">
+      <div class="output-title">📤 成果输出</div>
+      <div class="output-nav">
+        <button class="ow-arrow" id="owLeft" onclick="outShift(-1)"${leftDis}>◀ 上周</button>
+        <button class="ow-arrow" id="owRight" onclick="outShift(1)"${rightDis}>下周 ▶</button>
+      </div>
+    </div>
+    <div class="output-weeks" id="outputWeeks">${blocks}</div>
+  </div>`;
+}
 async function renderTodos(){
   let arr;
   try{ arr = await apiList('todos'); }
@@ -2220,7 +2295,8 @@ async function renderTodos(){
   const overdue = arr.filter(t => !t.done && todoBucket(t, td) < td);  // 左：未完成项（逾期）
   const mid     = arr.filter(t => todoBucket(t, td) >= td);            // 中：今日待办（含今日+未来，已完成同列划线）
   const future  = arr.filter(t => !t.done && todoBucket(t, td) > td);  // 右：明日计划（未来未完成，是 mid 的子集，自动同步）
-  let html = `<div class="todos-3col">`;
+  const outHtml = await renderOutput();
+  let html = outHtml + `<div class="todos-3col">`;
   // —— 板块一：左侧未完成项 ——
   html += `<div class="tcol side">
     <div class="tcol-h"><div class="th-t">未完成项</div><div class="th-n warn">${overdue.length}</div></div>
