@@ -504,6 +504,8 @@
   .cm-ic:hover{background:rgba(15,23,42,.08);}
   .cm-ic.danger:hover{background:rgba(220,38,38,.12);color:#dc2626;}
   .cm-ic.deled{font-size:12px;color:var(--muted);cursor:default;}
+  .cm-ic.save{color:#0d9488;}
+  .cm-ic.save:hover{background:rgba(13,148,136,.12);color:#0d9488;}
   .cm-add{display:flex;gap:6px;margin:3px 0 3px;}
   .cm-add input{flex:1;min-width:0;padding:5px 7px;border:1px dashed var(--line);border-radius:7px;font-size:13px;font-family:inherit;background:#fff;box-sizing:border-box;}
   .cm-add button{padding:5px 10px;border-radius:7px;font-size:12.5px;}
@@ -1816,9 +1818,9 @@ async function openCategoryManager(){
       : `<button class="cm-ic danger" title="删除" onclick="cmDelete('${n.id}')">🗑</button>`;
     return `<div class="cm-node lvl${lvl}">
       ${caret}
-      <input class="cm-name" id="cm-rename-${n.id}" value="${esc(n.name)}" onkeydown="if(event.key==='Enter')cmRename('${n.id}')" />
+      <input class="cm-name" id="cm-rename-${n.id}" data-orig="${esc(n.name)}" value="${esc(n.name)}" oninput="cmOnInput('${n.id}')" onkeydown="if(event.key==='Enter')cmSave('${n.id}')" />
       <span class="cm-acts">
-        <button class="cm-ic" title="改名" onclick="cmRename('${n.id}')">✎</button>
+        <button class="cm-ic save" id="cm-save-${n.id}" style="display:none" title="保存改名" onclick="cmSave('${n.id}')">💾</button>
         ${del}
       </span>
     </div>`;
@@ -1878,13 +1880,22 @@ async function cmAdd(level, parentId){
   catch(e){ alert('添加失败：'+(e.message||e)); return; }
   _catCache=null; await openCategoryManager();
 }
-async function cmRename(id){
+async function cmSave(id){
   const el = document.getElementById('cm-rename-'+id);
-  const name = (el&&el.value||'').trim();
+  if(!el) return;
+  const orig = el.getAttribute('data-orig')||'';
+  const name = (el.value||'').trim();
   if(!name){ alert('请输入名称'); return; }
+  if(name===orig){ el.value=orig; return; }
   try{ await apiJson('/category',{method:'PUT',body:JSON.stringify({id,name})}); }
   catch(e){ alert('改名失败：'+(e.message||e)); return; }
   _catCache=null; await openCategoryManager();
+}
+function cmOnInput(id){
+  const el = document.getElementById('cm-rename-'+id);
+  const save = document.getElementById('cm-save-'+id);
+  if(!el||!save) return;
+  save.style.display = (el.value.trim() !== (el.getAttribute('data-orig')||'')) ? '' : 'none';
 }
 async function cmDelete(id){
   if(!confirm('确定删除该分类？相关记录将重定向到“未分类”。')) return;
