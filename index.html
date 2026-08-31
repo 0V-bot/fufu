@@ -1668,7 +1668,7 @@ function inspToolbar(sectionId){
     <select onchange="inspSet('${sectionId}','cat1',this.value)">${opt('cat1',st.cat1)}</select>
     <select onchange="inspSet('${sectionId}','cat2',this.value)">${opt('cat2',st.cat2)}</select>
     <select onchange="inspSet('${sectionId}','ctype',this.value)">${opt('ctype',st.ctype)}</select>
-    ${sectionId==='inspiration' ? `<button class="btn soft mini toggle${st.status?' active':''}" onclick="inspToggleStatus('${sectionId}')">整理状态：${st.status==='已整理'?'整理':(st.status==='未整理'?'未整理':'全部')}</button>` : ''}
+    ${sectionId==='inspiration' ? `<button class="btn soft mini toggle${st.status?' active':''}" onclick="inspToggleStatus('${sectionId}')">${st.status==='已整理'?'整理':(st.status==='未整理'?'未整理':'全部')}</button>` : ''}
     <button class="btn soft mini" onclick="inspReset('${sectionId}')">重置</button>
   </div>`;
 }
