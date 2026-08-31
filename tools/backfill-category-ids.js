@@ -116,6 +116,20 @@ async function listAll(tableToken, baseToken) {
 }
 async function addField(tableToken, fieldName, type, baseToken) {
   const pre = await basePrefix(baseToken);
+  const id = await tableId(tableToken, baseToken);
+  // 关键：先单次探测字段是否已存在（不进入 fReq 重试循环，避免重复建字段触发重试风暴），
+  // 存在则直接跳过。探测失败也不阻塞，走下面的 POST 兜底。
+  try {
+    const tok = await tenantToken();
+    const res = await fetch(FEISHU_API + `${pre}/tables/${encodeURIComponent(id)}/fields?page_size=200`, {
+      headers: { Authorization: 'Bearer ' + tok }
+    });
+    const j = await res.json();
+    if (j.code === 0) {
+      const names = (j.data.items || []).map(f => (f.field_name || '').toString());
+      if (names.includes(fieldName)) return;
+    }
+  } catch (e) { /* 查失败不阻塞 */ }
   try { await fReq('POST', `${pre}/tables/${encodeURIComponent(tableToken)}/fields`, { field_name: fieldName, type }); }
   catch (e) { /* 已存在或不支持则忽略 */ }
 }
@@ -171,15 +185,28 @@ async function main() {
   const regPre = await basePrefix(INSPIRE_BASE);
   const regId = await tableId(regTable, INSPIRE_BASE);
   const regRows = await listAll(regTable, INSPIRE_BASE);
+  // 第一遍：构建 id -> 节点 反查表（parentId 在飞书里存的是父节点 record_id）
+  const idMap = {};
+  regRows.forEach(r => {
+    idMap[r.record_id] = {
+      level: (r['level'] || '').toString(),
+      name: (r['name'] || '').toString().trim(),
+      parentId: (r['parentId'] || '').toString()
+    };
+  });
+  // 第二遍：按 ensure() 写入时的同款 key 重建索引（从 parentId 反查父名，保证与创建时一致）
+  // ensure 写入 key：L1='1::名'  L2='2::父名::名'  L3='3::祖父名::父名::名'  ctype='ctype::名'
   const regKey = {};
   regRows.forEach(r => {
-    const id = r.record_id;
-    const lvl = (r['level'] || '').toString();
-    const pid = (r['parentId'] || '').toString();
-    const nm = (r['name'] || '').toString().trim();
-    if (!nm) return;
-    regKey[lvl + '::' + pid + '::' + nm] = id;
+    const node = idMap[r.record_id];
+    if (!node || !node.name) return;
+    const lvl = node.level;
+    if (lvl === '1') regKey['1::' + node.name] = r.record_id;
+    else if (lvl === '2') { const p = idMap[node.parentId]; if (p) regKey['2::' + p.name + '::' + node.name] = r.record_id; }
+    else if (lvl === '3') { const p = idMap[node.parentId]; const gp = p ? idMap[p.parentId] : null; if (p && gp) regKey['3::' + gp.name + '::' + p.name + '::' + node.name] = r.record_id; }
+    else if (lvl === 'ctype') regKey['ctype::' + node.name] = r.record_id;
   });
+  console.log('   已读取注册表节点', regRows.length, '条，复用索引', Object.keys(regKey).length, '条');
   async function ensure(level, key, name, parentId) {
     if (regKey[key]) return regKey[key];
     try {
