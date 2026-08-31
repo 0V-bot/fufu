@@ -9,6 +9,8 @@ services:
     volumes:
       # 持久化百度网盘文件库的运行时数据（OAuth token / 文件元数据），容器重建不丢失
       - ./data:/app/data
+      # 分类注册表 token 映射：回填脚本在容器内生成后落盘宿主，server 运行时直接读（无需宿主机装 node）
+      - ./cat-registry.json:/app/cat-registry.json
     env_file:
       - .env
     environment:
