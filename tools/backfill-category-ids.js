@@ -1,15 +1,37 @@
 #!/usr/bin/env node
 // 一次性回填脚本：为「人生灵感库」文章记录新增分类 ID 字段，并建立「分类注册表」。
 // 用法（在已具备飞书凭证的环境，如 VPS）：
-//   cd ~/fufu/workbench
+//   cd ~/fufu
 //   node tools/backfill-category-ids.js
 // 幂等：已回填的记录、已存在的注册表节点都会跳过，可重复运行。
+// 会自动加载同目录 .env（docker env_file 那份）中的飞书凭证，无需手动 export。
 //
 // 设计对应方案：文章记录新增 一级分类ID/二级分类ID/三级分类ID/内容类型ID（稳定引用），
 // 指向「分类注册表」节点；后续改名/删除只动注册表，旧记录靠 ID 自动同步显示，零改写旧数据。
 
 const fs = require('fs');
 const path = require('path');
+
+const WORKBENCH = path.join(__dirname, '..');
+
+// 轻量 .env 加载（0 依赖）：docker 用 env_file 注入，但本脚本在宿主shell直跑，
+// 需要自己读 /root/fufu/.env 把飞书凭证塞进 process.env。
+function loadEnv() {
+  const f = path.join(WORKBENCH, '.env');
+  if (!fs.existsSync(f)) return;
+  const txt = fs.readFileSync(f, 'utf8');
+  for (const line of txt.split(/\r?\n/)) {
+    const s = line.trim();
+    if (!s || s.startsWith('#')) continue;
+    const i = s.indexOf('=');
+    if (i < 0) continue;
+    const k = s.slice(0, i).trim();
+    let v = s.slice(i + 1).trim();
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+    if (process.env[k] === undefined) process.env[k] = v;
+  }
+}
+loadEnv();
 
 const FEISHU_API = 'https://open.feishu.cn/open-apis';
 const APP_ID = process.env.FEISHU_APP_ID || '';
@@ -19,7 +41,6 @@ const INSPIRE_TABLE = process.env.INSPIRE_TABLE || 'tblpI6WqsvA5z0CL';
 const INPUT_TABLE = process.env.INPUT_TABLE || 'tblxVYnQ8P49qc6Y';
 const REGISTRY_ENV = process.env.CATEGORY_REGISTRY_TABLE_TOKEN || '';
 
-const WORKBENCH = path.join(__dirname, '..');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const NET_RE = /network|EOF|transport|timeout|500|502|503|504/i;
 
@@ -89,14 +110,35 @@ async function addField(tableToken, fieldName, type, baseToken) {
   catch (e) { /* 已存在或不支持则忽略 */ }
 }
 async function ensureRegistry() {
+  const localF = path.join(WORKBENCH, 'cat-registry.json');
+  // 1) 优先用环境变量指定
   if (REGISTRY_ENV) { try { await listAll(REGISTRY_ENV, INSPIRE_BASE); return REGISTRY_ENV; } catch (e) {} }
+  // 2) 读本地已记录的 token（避免重跑重复建表）
+  if (fs.existsSync(localF)) {
+    try {
+      const tok = JSON.parse(fs.readFileSync(localF, 'utf8')).token;
+      if (tok) { await listAll(tok, INSPIRE_BASE); return tok; }
+    } catch (e) {}
+  }
+  // 3) 查是否已存在「分类注册表」表（名字匹配）
+  try {
+    const pre = await basePrefix(INSPIRE_BASE);
+    const j = await fReq('GET', `${pre}/tables?page_size=200`);
+    const found = (j.data.items || []).find(t => t.name === '分类注册表');
+    if (found) {
+      try { fs.writeFileSync(localF, JSON.stringify({ token: found.table_id })); } catch (e) {}
+      console.log('✅ 复用已存在的分类注册表，token =', found.table_id);
+      return found.table_id;
+    }
+  } catch (e) {}
+  // 4) 最后才新建
   const pre = await basePrefix(INSPIRE_BASE);
   const j = await fReq('POST', `${pre}/tables`, { table: { name: '分类注册表' } });
   const tid = j.data.table_id;
   for (const f of [{ name: 'name', type: 1 }, { name: 'parentId', type: 1 }, { name: 'level', type: 1 }, { name: 'active', type: 7 }, { name: 'aliases', type: 1 }, { name: 'id', type: 1 }]) {
     await addField(tid, f.name, f.type, INSPIRE_BASE);
   }
-  try { fs.writeFileSync(path.join(WORKBENCH, 'cat-registry.json'), JSON.stringify({ token: tid })); } catch (e) {}
+  try { fs.writeFileSync(localF, JSON.stringify({ token: tid })); } catch (e) {}
   console.log('✅ 已创建分类注册表，token =', tid);
   return tid;
 }
