@@ -370,6 +370,7 @@ const SECTIONS = {
   habitChecks: { table: '习惯打卡', kind: 'habitCheck' },
   menstrual:   { table: '姨妈记录', kind: 'menstrual' },
   articleInput:{ table: INPUT_TABLE, base: INSPIRE_BASE, kind: 'article' }, // 录入表：接入本地优先缓存（首页 inputPending 改为读本地缓存）
+  output:      { table: '成果输出', kind: 'output' }, // 成果输出：按周(周一日期=weekKey)记录，接本地优先缓存 + 首页同步按钮推送飞书
 };
 // 人生灵感库 / 知识库分类页 富字段映射（两者同源「人生灵感库」表，结构完全一致）
 function readInspireFields(r) {
@@ -434,6 +435,7 @@ function readRec(kind, r) {
     case 'habitCheck': return { id: r.record_id, habit: linkId(r['习惯']), date: dateOnly(r['打卡日期']), checked: !!r['打卡'] };
     // —— 录入表（文章录入）：读取「人生灵感库」Base 的「录入表」——
     case 'article':   return { id: r.record_id, title: r['文案标题'] || '', content: r['原始文案'] || '', source: r['来源'] || '', sourceLink: r['来源链接'] || '', reflection: r['个人感悟'] || '', cat1: resolveCatSync(1, r['一级分类ID'], sel(r['一级分类'])), cat2: resolveCatSync(2, r['二级分类ID'], sel(r['二级分类'])), cat3: resolveCatSync(3, r['三级分类ID'], sel(r['三级分类'])), tag: sel(r['标签']) || '', ctype: resolveCatSync('ctype', r['内容类型ID'], sel(r['内容类型'])), cat1Id: (r['一级分类ID']||'').toString().trim(), cat2Id: (r['二级分类ID']||'').toString().trim(), cat3Id: (r['三级分类ID']||'').toString().trim(), ctypeId: (r['内容类型ID']||'').toString().trim(), summary: r['AI总结'] || '', date: Number(r['录入日期']) || 0, multi: !!r['是否多篇'] };
+    case 'output':    return { id: r.record_id, weekKey: (r['周标识'] || '').toString().trim(), weekLabel: (r['周标签'] || '').toString().trim(), text: r['内容'] || '' };
   }
   return { id: r.record_id };
 }
@@ -468,6 +470,7 @@ async function writeRec(kind, o, fix) {
     case 'menstrual': return { '日期': toFeishuDate(o.date), '流量': o.flow ? o.flow : null, '备注': o.note || '' };
     // 金句摘抄：分类为纯文本字段（允许自由新增分类），记录时间写本地 created(ms)
     case 'quotes':    return { '内容': o.content || '', '分类': o.category || '', '记录时间': o.created ? Number(o.created) : null };
+    case 'output':    return { '周标识': o.weekKey || '', '周标签': o.weekLabel || '', '内容': o.text || '' };
     case 'knowledge': return { '文案标题': o.title, '标签': o.tags || '', '来源': o.source || '', 'AI总结': o.content || '' };
     case 'ptask': {
       const proj = PROJ_MAP[fix];
@@ -571,6 +574,7 @@ async function sectionList(id, opts) {
   opts = opts || {};
   const cfg = SECTIONS[id];
   const base = cfg.base || BASE_TOKEN;
+  if (cfg.kind === 'output') await ensureOutputTable();
   if (cfg.kind === 'ptask') await ensureProjects();
   // 全量完整字段：供前端本地缓存种子与双向同步拉取（不做 slim/分页/facets）
   if (opts.full) {
@@ -636,6 +640,7 @@ function recordCid(cid, rid) { if (!cid) return; _cidMap[cid] = { rid, ts: Date.
 async function sectionCreate(id, o) {
   const cfg = SECTIONS[id];
   const base = cfg.base || BASE_TOKEN;
+  if (cfg.kind === 'output') await ensureOutputTable();
   const cid = o && o._cid; if (o && cid) delete o._cid; // _cid 仅用于幂等去重，不写入飞书
   if (cfg.kind === 'ptask') {
     await ensureProjects();
@@ -654,6 +659,7 @@ async function sectionCreate(id, o) {
 async function sectionUpdate(id, rec, o) {
   const cfg = SECTIONS[id];
   const base = cfg.base || BASE_TOKEN;
+  if (cfg.kind === 'output') await ensureOutputTable();
   if (cfg.kind === 'ptask') {
     await ensureProjects();
     // 读回现有记录，把未提供的字段用现有值补齐，避免「部分更新」（如改标题/状态/每日）
@@ -680,6 +686,7 @@ async function sectionUpdate(id, rec, o) {
 async function sectionDelete(id, rec) {
   const cfg = SECTIONS[id];
   const base = cfg.base || BASE_TOKEN;
+  if (cfg.kind === 'output') await ensureOutputTable();
   if (cfg.kind === 'events') {
     // 重大事项删除：同步清理其对应的「项目」记录与全部任务，避免留下孤儿数据
     // （任务仅能经由此重大事项的展开入口访问，删事项即应一并清理）。
@@ -1017,6 +1024,21 @@ async function ensureRegistryTable() {
   ], REGISTRY_BASE);
   _registryTableToken = tid;
   try { fs.writeFileSync(path.join(__dirname, 'cat-registry.json'), JSON.stringify({ token: tid })); } catch (e) {}
+  return tid;
+}
+// 成果输出表：首次写入/读取时若飞书中尚无「成果输出」表，则自动创建（字段：周标识/周标签/内容）。
+let _outputTableToken = '';
+async function ensureOutputTable() {
+  if (_outputTableToken) return _outputTableToken;
+  try { const id = await tableId('成果输出', BASE_TOKEN); if (id && id !== '成果输出') { _outputTableToken = id; return id; } } catch (e) {}
+  const tid = await createTableBase('成果输出', [
+    { name: '周标识', type: 1 },   // 周一日期，如 2026-08-31（= weekKey / 记录 id）
+    { name: '周标签', type: 1 },   // 本周 / 上周 / 上上周 / 下周
+    { name: '内容', type: 1 }      // 成果输出文本（多行）
+  ], BASE_TOKEN);
+  _outputTableToken = tid;
+  _tableCache[BASE_TOKEN] = _tableCache[BASE_TOKEN] || {};
+  _tableCache[BASE_TOKEN]['成果输出'] = tid; // 写入缓存，避免 listTable/createRecord 再次按名查找
   return tid;
 }
 function _regKey(level, name) { return String(level) + '::' + (name || ''); }

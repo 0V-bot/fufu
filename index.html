@@ -383,10 +383,13 @@
   .ow-arrow:disabled{opacity:.35;cursor:not-allowed;}
   .output-weeks{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
   .ow{border:1px solid var(--line);border-radius:10px;padding:8px 10px 10px;background:#fff;display:flex;flex-direction:column;min-height:120px;}
+  .ow.this-week{background:#eef4ff;border-color:#bcd3ff;}                 /* 本周浅色高亮，便于区分 */
+  .ow.this-week .ow-h{color:#1d4ed8;}
   .ow-h{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:7px;display:flex;justify-content:space-between;align-items:baseline;gap:6px;}
   .ow-range{font-size:11px;font-weight:400;color:var(--muted);}
-  .ow-ta{flex:1;min-height:84px;resize:vertical;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;line-height:1.6;box-sizing:border-box;color:var(--ink);}
+  .ow-ta{flex:1;min-height:84px;resize:none;overflow:hidden;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;line-height:1.6;box-sizing:border-box;color:var(--ink);}
   .ow-ta:focus{border-color:var(--brand);outline:none;}
+  .ow.this-week .ow-ta{border-color:#9dc0ff;background:#f7faff;}
   @media(max-width:680px){
     .output-nav{display:flex;}
     .output-weeks{grid-template-columns:1fr;gap:0;}
@@ -938,7 +941,7 @@ function lkey(sec, id){ return sec + '::' + id; }
 // 项目(ptask 思维导图) 已纳入本地优先缓存 + 双向同步（与年/月计划等一致）；
 // 父子关联靠 tid：离线时本地分配 L 前缀临时 tid 建树，同步后回写真实 tid 并修正子任务指向。
 function localExcluded(id){ return false; }
-const BACKED_KINDS = ['events','todos','wisdom','knowledge','kbcat','topics','publish','books','wishes','insprec','quotes','calendar','annual2','monthplan2','review','diary','habits','habitCheck','menstrual','project','ptask','article'];
+const BACKED_KINDS = ['events','todos','wisdom','knowledge','kbcat','topics','publish','books','wishes','insprec','quotes','calendar','annual2','monthplan2','review','diary','habits','habitCheck','menstrual','project','ptask','article','output'];
 function sectionBacked(id){ const s = SECTIONS[id]; return s && BACKED_KINDS.includes(s.kind); }
 // ptask 类（project / ptask）通用判断与 tid 工具
 function isPtaskKind(k){ return k==='project' || k==='ptask'; }
@@ -1252,6 +1255,7 @@ const SECTIONS = {
   wishes:{name:'100个愿望清单',kind:'wishes',accent:'#2563eb',hint:'把想去的地方、想做的事写下来；实现了就打勾，并记录圆梦时刻。'},
   insprec:{name:'灵感记录',kind:'insprec',accent:'#f97316',hint:'随手记下灵光一现，选择灵感类型（9 种可选，也可自由新增），积累你的灵感库。'},
   quotes:{name:'金句摘抄',kind:'quotes',accent:'#f59e0b',hint:'收藏打动你的句子，按记录时间倒序，可分类、搜索、筛选。'},
+  output:{name:'成果输出',kind:'output',accent:'#0ea5e9',hint:'按周记录成果产出与复盘要点；本地优先存储，点击首页「立即同步」推送到飞书「成果输出」表，多设备可读。'},
 };
 
 /* 人生灵感库「标签」可选分类（与飞书「人生灵感库」表的「标签」单选字段保持一致） */
@@ -2245,12 +2249,30 @@ function outMonday(offset){
 function outWeekKey(offset){ const m=outMonday(offset), p=n=>(n<10?'0'+n:String(n)); return `${m.getUTCFullYear()}-${p(m.getUTCMonth()+1)}-${p(m.getUTCDate())}`; }
 function outWeekLabel(offset){ return ['上上周','上周','本周','下周'][offset+2]; }
 function outWeekRange(offset){ const m=outMonday(offset), p=n=>(n<10?'0'+n:String(n)); const s=new Date(m.getTime()+6*86400000); return `${m.getUTCMonth()+1}/${m.getUTCDate()} - ${s.getUTCMonth()+1}/${s.getUTCDate()}`; }
-async function loadOutput(weekKey){ try{ const doc=await idbGet('output::'+weekKey); return doc?(doc.text||''):''; }catch(e){ return ''; } }
-async function persistOutput(weekKey, text){ try{ await idbPut({ key:'output::'+weekKey, text }); }catch(e){} }
-function onOutputInput(key, val){
-  outCache[key]=val;
+// —— 本地优先：每「周」是 section 'output' 的一条记录，id = 周一日期(weekKey) ——
+// 只读本地缓存（首次会种子化飞书「成果输出」表），避免每次渲染都请求网络
+async function outputLoadAll(){
+  try{ const arr = await localList('output'); const m={}; arr.forEach(r=>{ if(r && r.weekKey) m[r.weekKey] = (r.text||''); }); return m; }
+  catch(e){ return {}; }
+}
+// 编辑即写入本地缓存并标脏（首页「立即同步」会推送到飞书「成果输出」表，实现多设备同步）
+async function outputSave(key, label, val){
+  outCache[key] = val;
+  try{
+    const sec = 'output';
+    const docs = (await idbAll()).filter(d=> d.sectionId===sec && d.data && d.data.weekKey===key);
+    const ex = docs[0];
+    if(ex){ await localUpdate('output', ex.id, { weekKey:key, weekLabel:label, text:val }); }
+    else  { await localCreate('output', { weekKey:key, weekLabel:label, text:val }); }
+    updateSyncBadge();
+  }catch(e){}
+}
+function onOutputInput(ta){
+  const key = ta.dataset.wk, label = ta.dataset.label, val = ta.value;
+  outCache[key] = val;
   clearTimeout(outSaveT[key]);
-  outSaveT[key]=setTimeout(()=>{ persistOutput(key, val); }, 400);   // 防抖自动保存到本地
+  outSaveT[key] = setTimeout(()=>{ outputSave(key, label, val); }, 400);   // 防抖自动保存（本地优先 + 待同步）
+  autoGrowOutputs();
 }
 function outShift(dir){
   outWeekIdx = Math.max(0, Math.min(3, outWeekIdx + dir));
@@ -2258,18 +2280,41 @@ function outShift(dir){
   const left=document.getElementById('owLeft'), right=document.getElementById('owRight');
   if(left) left.disabled = outWeekIdx<=0;
   if(right) right.disabled = outWeekIdx>=3;
+  autoGrowOutputs();
 }
+// 文本框高度自适应：桌面四框等高(取最大内容高)；窄屏只按当前周内容自适应（其余已隐藏）
+function autoGrowOutputs(){
+  const tas = Array.from(document.querySelectorAll('#outputWeeks .ow-ta'));
+  if(!tas.length) return;
+  const narrow = window.matchMedia && window.matchMedia('(max-width:680px)').matches;
+  if(narrow){
+    tas.forEach(ta=>{
+      const ow = ta.closest('.ow');
+      if(ow && ow.classList.contains('active')){ ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; }
+      else { ta.style.height='auto'; }
+    });
+  } else {
+    tas.forEach(ta=> ta.style.height='auto');
+    let max=0; tas.forEach(ta=>{ if(ta.scrollHeight>max) max=ta.scrollHeight; });
+    if(max>0) tas.forEach(ta=> ta.style.height=max+'px');
+  }
+}
+window.addEventListener('resize', autoGrowOutputs);
 async function renderOutput(){
+  let saved = {};
+  try{ saved = await outputLoadAll(); }catch(e){}
   const offsets=[-2,-1,0,1];
   let blocks='';
   for(const off of offsets){
     const key=outWeekKey(off);
-    const text = (outCache[key]!=null) ? outCache[key] : (await loadOutput(key));
+    const text = (outCache[key]!=null) ? outCache[key] : (saved[key] || '');
     outCache[key]=text;
     const active = (off+2)===outWeekIdx ? ' active' : '';
-    blocks += `<div class="ow${active}" data-idx="${off+2}">
-      <div class="ow-h"><span>${outWeekLabel(off)}</span><span class="ow-range">${outWeekRange(off)}</span></div>
-      <textarea class="ow-ta" data-wk="${key}" placeholder="本周成果产出、关键进展、复盘要点…" oninput="onOutputInput('${key}',this.value)">${esc(text)}</textarea>
+    const thisWeek = off===0 ? ' this-week' : '';   // 本周浅色高亮，便于区分
+    const label = outWeekLabel(off);
+    blocks += `<div class="ow${active}${thisWeek}" data-idx="${off+2}">
+      <div class="ow-h"><span>${label}</span><span class="ow-range">${outWeekRange(off)}</span></div>
+      <textarea class="ow-ta" data-wk="${key}" data-label="${label}" placeholder="本周成果产出、关键进展、复盘要点…" oninput="onOutputInput(this)">${esc(text)}</textarea>
     </div>`;
   }
   const leftDis = outWeekIdx<=0 ? ' disabled' : '';
@@ -2324,7 +2369,9 @@ async function renderTodos(){
   future.forEach(t => html += tsRow(t, true));
   html += `</div></div>`;
   html += `</div>`;
-  setView(html, 'todos')
+  setView(html, 'todos');
+  // 渲染后调整成果输出文本框高度（桌面四框等高 / 窄屏适配当前周）
+  setTimeout(autoGrowOutputs, 0);
 }
 // 侧栏行：内容 + 截止时间 + 备注(下) + 删除（ro 时无删除）
 function tsRow(t, ro){
