@@ -60,7 +60,8 @@ async function tenantToken() {
 }
 async function fReq(method, p, body) {
   const tok = await tenantToken();
-  for (let i = 0; i < 5; i++) {
+  let lastMsg = '';
+  for (let i = 0; i < 6; i++) {
     try {
       const res = await fetch(FEISHU_API + p, {
         method, headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
@@ -68,15 +69,17 @@ async function fReq(method, p, body) {
       });
       const j = await res.json();
       if (j.code === 0) return j;
-      const m = JSON.stringify(j).slice(0, 400);
-      if ((j.code === 99991663 || NET_RE.test(m)) && i < 4) { await sleep(500 * (i + 1)); continue; }
-      throw new Error('飞书错误 code=' + j.code + ': ' + m);
+      lastMsg = '飞书错误 code=' + j.code + ': ' + JSON.stringify(j).slice(0, 400);
+      // 任何非 0 返回都退避重试（含频率限制 99991400/99991301 等），最多 6 次
+      await sleep(600 * Math.pow(2, i));
+      continue;
     } catch (e) {
-      if (NET_RE.test(e.message || '') && i < 4) { await sleep(500 * (i + 1)); continue; }
+      lastMsg = e.message || String(e);
+      if (NET_RE.test(lastMsg)) { await sleep(600 * Math.pow(2, i)); continue; }
       throw e;
     }
   }
-  throw new Error('fReq 重试耗尽');
+  throw new Error('fReq 重试耗尽: ' + lastMsg);
 }
 const _prefix = {};
 async function basePrefix(baseToken) {
@@ -172,10 +175,15 @@ async function main() {
   });
   async function ensure(level, key, name, parentId) {
     if (regKey[key]) return regKey[key];
-    const j = await fReq('POST', `${regPre}/tables/${encodeURIComponent(regId)}/records`, { fields: { name, parentId: parentId || '', level: String(level), active: true, id: '' } });
-    const id = j.data.record.record_id;
-    regKey[key] = id;
-    return id;
+    try {
+      const j = await fReq('POST', `${regPre}/tables/${encodeURIComponent(regId)}/records`, { fields: { name, parentId: parentId || '', level: String(level), active: true, id: '' } });
+      const id = j.data.record.record_id;
+      regKey[key] = id;
+      return id;
+    } catch (e) {
+      console.error('   ⚠️ 建节点失败 [' + level + '] ' + name + '：' + e.message);
+      return '';
+    }
   }
 
   // —— 第一遍：建立/复用注册表节点（父级先于子级）——
@@ -189,41 +197,49 @@ async function main() {
     if (c1 && c2 && c3) l3set.set(c1 + '::' + c2 + '::' + c3, c3);
     if (ct) cset.add(ct);
   }
-  for (const n of l1set) l1Map[n] = await ensure('1', '1::' + n, n, '');
-  for (const [k, n] of l2set) { const pid = l1Map[k.split('::')[0]]; l2Map[k] = await ensure('2', '2::' + k, n, pid); }
-  for (const [k, n] of l3set) { const [a, b] = k.split('::'); const pid = l2Map[a + '::' + b]; l3Map[k] = await ensure('3', '3::' + k, n, pid); }
-  for (const n of cset) ctypeMap[n] = await ensure('ctype', 'ctype::' + n, n, '');
+  const nodeTot = l1set.size + l2set.size + l3set.size + cset.size;
+  let nodeDone = 0;
+  const tick = () => { nodeDone++; if (nodeDone % 10 === 0 || nodeDone === nodeTot) console.log(`   建节点进度 ${nodeDone}/${nodeTot}`); };
+  for (const n of l1set) { l1Map[n] = await ensure('1', '1::' + n, n, ''); tick(); }
+  for (const [k, n] of l2set) { const pid = l1Map[k.split('::')[0]]; l2Map[k] = await ensure('2', '2::' + k, n, pid); tick(); }
+  for (const [k, n] of l3set) { const [a, b] = k.split('::'); const pid = l2Map[a + '::' + b]; l3Map[k] = await ensure('3', '3::' + k, n, pid); tick(); }
+  for (const n of cset) { ctypeMap[n] = await ensure('ctype', 'ctype::' + n, n, ''); tick(); }
   console.log(`   注册表节点：一级 ${l1set.size} / 二级 ${l2set.size} / 三级 ${l3set.size} / 内容类型 ${cset.size}`);
 
   // —— 第二遍：回填文章记录（并发池）——
   const artPre = await basePrefix(INSPIRE_BASE);
   const artId = await tableId(INSPIRE_TABLE, INSPIRE_BASE);
-  let updated = 0, skipped = 0;
+  let updated = 0, skipped = 0, errored = 0;
   async function updateOne(r) {
-    const c1 = norm(r['一级分类']), c2 = norm(r['二级分类']), c3 = norm(r['三级分类']), ct = norm(r['内容类型']);
-    const id1 = c1 ? (l1Map[c1] || '') : '';
-    const id2 = (c1 && c2) ? (l2Map[c1 + '::' + c2] || '') : '';
-    const id3 = (c1 && c2 && c3) ? (l3Map[c1 + '::' + c2 + '::' + c3] || '') : '';
-    const idc = ct ? (ctypeMap[ct] || '') : '';
-    const need = (c1 && !norm(r['一级分类ID'])) || (c2 && !norm(r['二级分类ID'])) || (c3 && !norm(r['三级分类ID'])) || (ct && !norm(r['内容类型ID']));
-    if (!need) return 'skip';
-    const fields = {};
-    if (c1) fields['一级分类ID'] = id1;
-    if (c2) fields['二级分类ID'] = id2;
-    if (c3) fields['三级分类ID'] = id3;
-    if (ct) fields['内容类型ID'] = idc;
-    await fReq('PUT', `${artPre}/tables/${encodeURIComponent(artId)}/records/${r.record_id}`, { fields });
-    return 'upd';
+    try {
+      const c1 = norm(r['一级分类']), c2 = norm(r['二级分类']), c3 = norm(r['三级分类']), ct = norm(r['内容类型']);
+      const id1 = c1 ? (l1Map[c1] || '') : '';
+      const id2 = (c1 && c2) ? (l2Map[c1 + '::' + c2] || '') : '';
+      const id3 = (c1 && c2 && c3) ? (l3Map[c1 + '::' + c2 + '::' + c3] || '') : '';
+      const idc = ct ? (ctypeMap[ct] || '') : '';
+      const need = (c1 && !norm(r['一级分类ID'])) || (c2 && !norm(r['二级分类ID'])) || (c3 && !norm(r['三级分类ID'])) || (ct && !norm(r['内容类型ID']));
+      if (!need) return 'skip';
+      const fields = {};
+      if (c1) fields['一级分类ID'] = id1;
+      if (c2) fields['二级分类ID'] = id2;
+      if (c3) fields['三级分类ID'] = id3;
+      if (ct) fields['内容类型ID'] = idc;
+      await fReq('PUT', `${artPre}/tables/${encodeURIComponent(artId)}/records/${r.record_id}`, { fields });
+      return 'upd';
+    } catch (e) {
+      console.error('   ⚠️ 回填失败 ' + (r.record_id || '') + '：' + e.message);
+      return 'err';
+    }
   }
   // 简单并发池（5 路）
   const POOL = 5;
   for (let i = 0; i < rows.length; i += POOL) {
     const batch = rows.slice(i, i + POOL);
     const res = await Promise.all(batch.map(updateOne));
-    res.forEach(x => { if (x === 'upd') updated++; else skipped++; });
-    if ((i + POOL) % 100 < POOL || i + POOL >= rows.length) console.log(`   进度 ${Math.min(i + POOL, rows.length)}/${rows.length}  已更新 ${updated} / 跳过 ${skipped}`);
+    res.forEach(x => { if (x === 'upd') updated++; else if (x === 'err') errored++; else skipped++; });
+    if ((i + POOL) % 100 < POOL || i + POOL >= rows.length) console.log(`   进度 ${Math.min(i + POOL, rows.length)}/${rows.length}  已更新 ${updated} / 跳过 ${skipped} / 失败 ${errored}`);
   }
-  console.log(`✅ 回填完成：更新 ${updated} 条，跳过(已回填) ${skipped} 条`);
+  console.log(`✅ 回填完成：更新 ${updated} 条，跳过(已回填) ${skipped} 条，失败 ${errored} 条`);
 }
 
 main().then(() => process.exit(0)).catch(e => { console.error('❌ 回填失败：', e.message || e); process.exit(1); });
