@@ -364,6 +364,10 @@
   .empty.sm{color:#94a3b8;font-size:12.5px;text-align:center;padding:14px 0;}
   @media(max-width:780px){
     .todos-3col{grid-template-columns:1fr;}
+    /* 窄屏：把「待办事项」(中列) 排到最前，未完成项其次，明日计划最后 */
+    .todos-3col > .tcol:nth-child(1){order:2;}
+    .todos-3col > .tcol:nth-child(2){order:1;}
+    .todos-3col > .tcol:nth-child(3){order:3;}
     /* 今日待办：手机端把「完成框 / 日期选择 / 备注·删除按钮」置于上方，文字内容置于下方 */
     .tm-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
     .tcheck{order:1;}
