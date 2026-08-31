@@ -1770,8 +1770,8 @@ async function editWisdom(recId, sectionId){
     ${sel('cat1','一级分类',cat.cat1,cur1)}
     ${sel('cat2','二级分类',list2,cur2)}
     ${sel('cat3','三级分类',list3,cur3)}
-    ${sel('tag','标签',WISDOM_TAGS,it.tag)}
-    ${F('ctype','内容类型',it.ctype)}
+    <input type="hidden" data-k="tag" value="${esc(it.tag||'')}">
+    ${sel('ctype','内容类型',['金句','观点','故事','案例','长文'],it.ctype)}
     ${F('keywords','关键词',it.keywords)}
     ${sel('status','是否整理',['未整理','已整理'],it.status)}
     ${F('date','收藏日期',it.date)}
@@ -1971,8 +1971,8 @@ async function renderArticle(){
         ${sel('aiCat1','一级分类',cat.cat1,'')}
         ${sel('aiCat2','二级分类',[],'')}
         ${sel('aiCat3','三级分类',[],'')}
+        ${sel('aiCtype','内容类型',['金句','观点','故事','案例','长文'],'')}
       </div>
-      ${sel('aiCtype','内容类型',['金句','观点','故事','案例','长文'],'')}
       <label>核心关键点 / AI 总结（可选，留空则交由 AI 分析）</label>
       <textarea id="aiSummary" rows="3" placeholder="一句话提炼这篇文章的核心观点或关键点…"></textarea>
       <div class="form-actions">
