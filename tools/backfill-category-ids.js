@@ -44,6 +44,13 @@ const REGISTRY_ENV = process.env.CATEGORY_REGISTRY_TABLE_TOKEN || '';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const NET_RE = /network|EOF|transport|timeout|500|502|503|504/i;
 
+// 简单并发池：items 分给 size 个 worker 协程，按序取任务
+async function runPool(items, size, worker) {
+  let idx = 0;
+  const next = async () => { while (idx < items.length) { const cur = idx++; await worker(items[cur], cur); } };
+  await Promise.all(Array.from({ length: Math.min(size, items.length) }, next));
+}
+
 let _tok = '', _exp = 0;
 async function tenantToken() {
   const now = Date.now();
@@ -70,8 +77,8 @@ async function fReq(method, p, body) {
       const j = await res.json();
       if (j.code === 0) return j;
       lastMsg = '飞书错误 code=' + j.code + ': ' + JSON.stringify(j).slice(0, 400);
-      // 任何非 0 返回都退避重试（含频率限制 99991400/99991301 等），最多 6 次
-      await sleep(600 * Math.pow(2, i));
+      // 任何非 0 返回都退避重试（含频率限制 99991400/99991301 等），短而固定，避免指数膨胀拖垮总时长
+      await sleep(Math.min(2000, 400 * (i + 1)));
       continue;
     } catch (e) {
       lastMsg = e.message || String(e);
@@ -197,13 +204,15 @@ async function main() {
     if (c1 && c2 && c3) l3set.set(c1 + '::' + c2 + '::' + c3, c3);
     if (ct) cset.add(ct);
   }
-  const nodeTot = l1set.size + l2set.size + l3set.size + cset.size;
+  const l1arr = [...l1set], l2arr = [...l2set], l3arr = [...l3set], carr = [...cset];
+  const nodeTot = l1arr.length + l2arr.length + l3arr.length + carr.length;
   let nodeDone = 0;
   const tick = () => { nodeDone++; if (nodeDone % 10 === 0 || nodeDone === nodeTot) console.log(`   建节点进度 ${nodeDone}/${nodeTot}`); };
-  for (const n of l1set) { l1Map[n] = await ensure('1', '1::' + n, n, ''); tick(); }
-  for (const [k, n] of l2set) { const pid = l1Map[k.split('::')[0]]; l2Map[k] = await ensure('2', '2::' + k, n, pid); tick(); }
-  for (const [k, n] of l3set) { const [a, b] = k.split('::'); const pid = l2Map[a + '::' + b]; l3Map[k] = await ensure('3', '3::' + k, n, pid); tick(); }
-  for (const n of cset) { ctypeMap[n] = await ensure('ctype', 'ctype::' + n, n, ''); tick(); }
+  // 按层级并发（每级 8 路），父级整体先于子级，保证 parentId 从属关系正确
+  await runPool(l1arr, 8, async (n) => { l1Map[n] = await ensure('1', '1::' + n, n, ''); tick(); });
+  await runPool(l2arr, 8, async ([k, n]) => { const pid = l1Map[k.split('::')[0]]; l2Map[k] = await ensure('2', '2::' + k, n, pid); tick(); });
+  await runPool(l3arr, 8, async ([k, n]) => { const [a, b] = k.split('::'); const pid = l2Map[a + '::' + b]; l3Map[k] = await ensure('3', '3::' + k, n, pid); tick(); });
+  await runPool(carr, 8, async (n) => { ctypeMap[n] = await ensure('ctype', 'ctype::' + n, n, ''); tick(); });
   console.log(`   注册表节点：一级 ${l1set.size} / 二级 ${l2set.size} / 三级 ${l3set.size} / 内容类型 ${cset.size}`);
 
   // —— 第二遍：回填文章记录（并发池）——
@@ -231,8 +240,8 @@ async function main() {
       return 'err';
     }
   }
-  // 简单并发池（5 路）
-  const POOL = 5;
+  // 简单并发池（8 路）
+  const POOL = 8;
   for (let i = 0; i < rows.length; i += POOL) {
     const batch = rows.slice(i, i + POOL);
     const res = await Promise.all(batch.map(updateOne));
