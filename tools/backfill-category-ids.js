@@ -40,6 +40,7 @@ const INSPIRE_BASE = process.env.INSPIRE_BASE_TOKEN || 'ARCcbggiUaFqESsV7pRcin8C
 const INSPIRE_TABLE = process.env.INSPIRE_TABLE || 'tblpI6WqsvA5z0CL';
 const INPUT_TABLE = process.env.INPUT_TABLE || 'tblxVYnQ8P49qc6Y';
 const REGISTRY_ENV = process.env.CATEGORY_REGISTRY_TABLE_TOKEN || '';
+const FORCE = process.env.FORCE === '1';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const NET_RE = /network|EOF|transport|timeout|500|502|503|504/i;
@@ -207,6 +208,15 @@ async function main() {
     else if (lvl === 'ctype') regKey['ctype::' + node.name] = r.record_id;
   });
   console.log('   已读取注册表节点', regRows.length, '条，复用索引', Object.keys(regKey).length, '条');
+  // 去重：regKey 已按"分类唯一 key"聚合（同 key 只留最后一条）。其余飞书记录是历史 bug 跑出的
+  // 重复/孤儿节点，会从「管理分类」里显示成重复项。这里把不在 regKey 内的记录删掉，只留规范节点。
+  const canonIds = new Set(Object.values(regKey));
+  let dupDel = 0;
+  await runPool(regRows.filter(r => !canonIds.has(r.record_id)), 5, async (r) => {
+    try { await fReq('DELETE', `${regPre}/tables/${encodeURIComponent(regId)}/records/${r.record_id}`); dupDel++; }
+    catch (e) { console.error('   ⚠️ 删重复节点失败 ' + (r.record_id || '') + '：' + e.message); }
+  });
+  if (dupDel) console.log('   已清理重复/孤儿节点', dupDel, '条，规范节点剩', canonIds.size, '条');
   async function ensure(level, key, name, parentId) {
     if (regKey[key]) return regKey[key];
     try {
@@ -253,7 +263,7 @@ async function main() {
       const id2 = (c1 && c2) ? (l2Map[c1 + '::' + c2] || '') : '';
       const id3 = (c1 && c2 && c3) ? (l3Map[c1 + '::' + c2 + '::' + c3] || '') : '';
       const idc = ct ? (ctypeMap[ct] || '') : '';
-      const need = (c1 && !norm(r['一级分类ID'])) || (c2 && !norm(r['二级分类ID'])) || (c3 && !norm(r['三级分类ID'])) || (ct && !norm(r['内容类型ID']));
+      const need = FORCE || (c1 && !norm(r['一级分类ID'])) || (c2 && !norm(r['二级分类ID'])) || (c3 && !norm(r['三级分类ID'])) || (ct && !norm(r['内容类型ID']));
       if (!need) return 'skip';
       const fields = {};
       if (c1) fields['一级分类ID'] = id1;
