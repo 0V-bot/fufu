@@ -1059,8 +1059,8 @@ function _indexRegistry(rows) {
   }
   return { nodes, byId, byNameLevel, byAlias };
 }
-async function refreshRegistry() {
-  if (_registry && Date.now() - _registryTime < _REG_CACHE_MS) return _registry;
+async function refreshRegistry(force) {
+  if (!force && _registry && Date.now() - _registryTime < _REG_CACHE_MS) return _registry;
   if (!_registryTableToken) { _registry = null; return null; }
   try {
     const rows = await listTableOpen(_registryTableToken, REGISTRY_BASE);
@@ -1096,7 +1096,7 @@ async function addCategory(level, name, parentId) {
   await ensureRegistryTable();
   const tid = _registryTableToken;
   const rid = await createRecordOpen(tid, { name, parentId: parentId || '', level: String(level), active: true, id: '' }, REGISTRY_BASE);
-  await refreshRegistry();
+  await refreshRegistry(true);
   return _registry ? _registry.byId[rid] : { id: rid, name, parentId: parentId || '', level: String(level), active: true };
 }
 async function renameCategory(id, newName) {
@@ -1104,7 +1104,7 @@ async function renameCategory(id, newName) {
   const node = _registry.byId[id];
   const aliases = node.aliases.includes(node.name) ? node.aliases : [...node.aliases, node.name];
   await updateRecordOpen(_registryTableToken, id, { name: newName, aliases: aliases.join(',') }, REGISTRY_BASE);
-  await refreshRegistry();
+  await refreshRegistry(true);
   return _registry.byId[id];
 }
 async function deleteCategory(id) {
@@ -1112,7 +1112,7 @@ async function deleteCategory(id) {
   const toOff = new Set(); const stack = [id];
   while (stack.length) { const cur = stack.pop(); toOff.add(cur); for (const n of _registry.nodes) if (n.parentId === cur && !toOff.has(n.id)) stack.push(n.id); }
   for (const rid of toOff) { try { await updateRecordOpen(_registryTableToken, rid, { active: false }, REGISTRY_BASE); } catch (e) {} }
-  await refreshRegistry();
+  await refreshRegistry(true);
   return true;
 }
 // 聚合接口：返回前端需要的 cat1/tree/ctypes/registry（注册表可用时由注册表派生，否则回退原 name-tree）
