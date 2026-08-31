@@ -457,15 +457,25 @@
   /* 灵感库详情：原始文案上移并加宽一倍（弹窗整体加宽） */
   .modal.wide{width:min(720px,100%);}
   /* 分类管理弹窗 */
-  .cat-mgr{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:8px;}
-  .cat-mgr-group{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fbfcfe;}
-  .cat-mgr-gtitle{font-weight:700;margin-bottom:8px;color:var(--ink);font-size:14px;}
-  .cat-mgr-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-  .cat-mgr-name{flex:0 0 84px;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .cat-mgr-input{flex:1;min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;}
-  .cat-mgr-add{display:flex;gap:6px;margin-top:6px;}
-  .cat-mgr-add select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;background:#fff;}
-  .cat-mgr-deled{font-size:12px;color:var(--muted);}
+  .cat-mgr{max-height:62vh;overflow:auto;padding-right:4px;-webkit-overflow-scrolling:touch;}
+  .cm-sec-title{font-weight:700;font-size:13px;color:var(--ink);margin:14px 0 6px;}
+  .cm-sec-title:first-child{margin-top:0;}
+  .cm-branch{margin:1px 0;}
+  .cm-children{margin-left:14px;border-left:2px solid var(--line);padding-left:6px;}
+  .cm-node{display:flex;align-items:center;gap:6px;padding:3px 5px;border-radius:8px;}
+  .cm-node:hover{background:rgba(15,23,42,.04);}
+  .cm-node.lvl1,.cm-node.lvlctype{font-weight:600;}
+  .cm-name{flex:1;min-width:0;padding:5px 7px;border:1px solid transparent;border-radius:7px;font-size:13px;font-family:inherit;background:transparent;color:var(--ink);}
+  .cm-name:focus{border-color:var(--accent);background:#fff;outline:none;}
+  .cm-acts{display:flex;gap:2px;flex:0 0 auto;}
+  .cm-ic{border:none;background:transparent;cursor:pointer;font-size:14px;line-height:1;padding:4px 6px;border-radius:6px;color:var(--muted);}
+  .cm-ic:hover{background:rgba(15,23,42,.08);}
+  .cm-ic.danger:hover{background:rgba(220,38,38,.12);color:#dc2626;}
+  .cm-ic.deled{font-size:12px;color:var(--muted);cursor:default;}
+  .cm-add{display:flex;gap:6px;margin:3px 0 3px;}
+  .cm-add input{flex:1;min-width:0;padding:5px 7px;border:1px dashed var(--line);border-radius:7px;font-size:13px;font-family:inherit;background:#fff;box-sizing:border-box;}
+  .cm-add button{padding:5px 10px;border-radius:7px;font-size:12.5px;}
+  .cm-empty{font-size:12px;color:var(--muted);margin:2px 0 2px 4px;}
   .field.fullw textarea{min-height:220px;font-size:14px;line-height:1.7;}
   /* 每日日记：4 个分类/标签下拉 2×2 布局 */
   .cat-row{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;margin:6px 0 2px;}
@@ -1762,41 +1772,68 @@ async function openCategoryManager(){
   try{ cat = await apiJson('/category'); }catch(e){ cat = {cat1:[],tree:{},ctypes:[],registry:{nodes:[]}}; }
   const nodes = (cat.registry && cat.registry.nodes) || [];
   const byLevel = l => nodes.filter(n=>n.level===l);
-  const lvlLabel = { '1':'一级分类','2':'二级分类','3':'三级分类','ctype':'内容类型' };
-  function group(level){
-    const list = byLevel(level);
-    const rows = list.map(n=>`
-      <div class="cat-mgr-row">
-        <span class="cat-mgr-name">${esc(n.name)}</span>
-        <input class="cat-mgr-input" id="cm-rename-${n.id}" value="${esc(n.name)}" />
-        <button class="btn soft mini" onclick="cmRename('${n.id}')">改名</button>
-        ${n.active===false?`<span class="cat-mgr-deled">已删除</span>`:`<button class="btn danger mini" onclick="cmDelete('${n.id}')">删除</button>`}
-      </div>`).join('') || '<div class="muted" style="font-size:12px;margin-bottom:8px">（暂无）</div>';
-    let parentOpts = '';
-    if(level==='2') parentOpts = byLevel('1').map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
-    if(level==='3') parentOpts = byLevel('2').map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
-    const addForm = `
-      <div class="cat-mgr-add">
-        <input class="cat-mgr-input" id="cm-add-${level}" placeholder="新${lvlLabel[level]}名称" />
-        ${parentOpts?`<select id="cm-addparent-${level}">${parentOpts}</select>`:''}
-        <button class="btn mini" onclick="cmAdd('${level}')">+ 添加</button>
-      </div>`;
-    return `<div class="cat-mgr-group"><div class="cat-mgr-gtitle">${lvlLabel[level]}</div>${rows}${addForm}</div>`;
+  function nodeRow(n, lvl){
+    const del = n.active===false
+      ? `<span class="cm-ic deled">已删除</span>`
+      : `<button class="cm-ic danger" title="删除" onclick="cmDelete('${n.id}')">🗑</button>`;
+    return `<div class="cm-node lvl${lvl}">
+      <input class="cm-name" id="cm-rename-${n.id}" value="${esc(n.name)}" onkeydown="if(event.key==='Enter')cmRename('${n.id}')" />
+      <span class="cm-acts">
+        <button class="cm-ic" title="改名" onclick="cmRename('${n.id}')">✎</button>
+        ${del}
+      </span>
+    </div>`;
   }
+  function addRow(level, parentId, label){
+    const key = level + (parentId?('-'+parentId):'');
+    return `<div class="cm-add lvl${level}">
+      <input id="cm-add-${key}" placeholder="新${label}名称" onkeydown="if(event.key==='Enter')cmAdd('${level}','${parentId||''}')" />
+      <button class="btn mini" onclick="cmAdd('${level}','${parentId||''}')">+ 添加</button>
+    </div>`;
+  }
+  // —— 树形：一级 → 二级 → 三级（缩进 + 连接线展示从属）——
+  let treeHtml = `<div class="cm-sec-title">分类树（一级 / 二级 / 三级）</div>`;
+  const l1 = byLevel('1');
+  if(l1.length){
+    l1.forEach(l1n=>{
+      treeHtml += `<div class="cm-branch">${nodeRow(l1n,1)}<div class="cm-children">`;
+      const l2 = byLevel('2').filter(n=>n.parentId===l1n.id);
+      if(!l2.length) treeHtml += `<div class="cm-empty">（暂无二级）</div>`;
+      l2.forEach(l2n=>{
+        treeHtml += `<div class="cm-branch">${nodeRow(l2n,2)}<div class="cm-children">`;
+        const l3 = byLevel('3').filter(n=>n.parentId===l2n.id);
+        if(!l3.length) treeHtml += `<div class="cm-empty">（暂无三级）</div>`;
+        l3.forEach(l3n=>{ treeHtml += nodeRow(l3n,3); });
+        treeHtml += addRow('3', l2n.id, '三级');
+        treeHtml += `</div></div>`;
+      });
+      treeHtml += addRow('2', l1n.id, '二级');
+      treeHtml += `</div></div>`;
+    });
+    treeHtml += addRow('1', '', '一级');
+  } else {
+    treeHtml += `<div class="cm-empty">（暂无分类，先添加一级）</div>` + addRow('1', '', '一级');
+  }
+  // —— 内容类型（独立平铺，无上下级）——
+  let ctypeHtml = `<div class="cm-sec-title">内容类型</div>`;
+  const ct = byLevel('ctype');
+  if(ct.length) ct.forEach(c=>{ ctypeHtml += nodeRow(c,'ctype'); });
+  else ctypeHtml += `<div class="cm-empty">（暂无）</div>`;
+  ctypeHtml += addRow('ctype','', '内容类型');
+
   modal.innerHTML = `<h3>管理分类</h3>
-    <p class="muted" style="margin:0 0 12px;font-size:12.5px">改名即时生效、历史记录自动同步显示新名；删除将把相关记录重定向到“未分类”。</p>
-    <div class="cat-mgr">${group('1')}${group('2')}${group('3')}${group('ctype')}</div>
+    <p class="muted" style="margin:0 0 10px;font-size:12.5px">树形展示从属关系；改名即时生效、历史记录自动同步；删除重定向到“未分类”。</p>
+    <div class="cat-mgr">${treeHtml}${ctypeHtml}</div>
     <div class="modal-ops"><button class="btn soft" onclick="cmClose()">关闭</button></div>`;
   overlay.classList.add('show');
   modal.classList.add('wide');
 }
-async function cmAdd(level){
-  const el = document.getElementById('cm-add-'+level);
+async function cmAdd(level, parentId){
+  const key = level + (parentId?('-'+parentId):'');
+  const el = document.getElementById('cm-add-'+key);
   const name = (el&&el.value||'').trim();
   if(!name){ alert('请输入名称'); return; }
-  const pidEl = document.getElementById('cm-addparent-'+level);
-  const pid = (level==='2'||level==='3') && pidEl ? pidEl.value : '';
-  try{ await apiJson('/category',{method:'POST',body:JSON.stringify({level,name,parentId:pid})}); }
+  try{ await apiJson('/category',{method:'POST',body:JSON.stringify({level,name,parentId:parentId||''})}); }
   catch(e){ alert('添加失败：'+(e.message||e)); return; }
   _catCache=null; await openCategoryManager();
 }
