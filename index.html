@@ -506,6 +506,8 @@
   .cm-ic.deled{font-size:12px;color:var(--muted);cursor:default;}
   .cm-ic.save{color:#0d9488;}
   .cm-ic.save:hover{background:rgba(13,148,136,.12);color:#0d9488;}
+  .cat-edit-ic{border:none;background:transparent;cursor:pointer;font-size:13px;line-height:1;padding:2px 5px;margin-left:2px;border-radius:6px;color:var(--muted);vertical-align:middle;}
+  .cat-edit-ic:hover{background:rgba(15,23,42,.08);color:var(--ink);}
   .cm-add{display:flex;gap:6px;margin:3px 0 3px;}
   .cm-add input{flex:1;min-width:0;padding:5px 7px;border:1px dashed var(--line);border-radius:7px;font-size:13px;font-family:inherit;background:#fff;box-sizing:border-box;}
   .cm-add button{padding:5px 10px;border-radius:7px;font-size:12.5px;}
@@ -1912,6 +1914,113 @@ function cmToggle(id){
   const caret = el.querySelector('.cm-caret');
   if(caret) caret.textContent = el.classList.contains('collapsed') ? '▸' : '▾';
 }
+/* ---------- 文章录入：分类编辑弹窗（按级别 / 父级过滤，增删改即时同步飞书） ---------- */
+let _articleCat = null;
+let _ceLevel = '', _ceParent = '', _ceAdding = false;
+const _CE_TITLES = { '1':'一级分类', '2':'二级分类', '3':'三级分类', 'ctype':'内容类型' };
+function catIdByName(level, name){
+  if(!_articleCat || !_articleCat.registry) return '';
+  const n = (_articleCat.registry.nodes||[]).find(x=> x.level===String(level) && x.name===name && x.active!==false);
+  return n ? n.id : '';
+}
+function catParentIdFor(level){
+  if(level==='2'){ const v=document.getElementById('aiCat1').value; return v?catIdByName('1',v):''; }
+  if(level==='3'){ const v=document.getElementById('aiCat2').value; return v?catIdByName('2',v):''; }
+  return '';
+}
+function catField(k,label,opts,level,parentCtrl){
+  const parentArg = parentCtrl ? `catParentIdFor('${level}')` : "''";
+  return `<div class="field"><label>${label}（可选）<button class="cat-edit-ic" title="编辑${label}" onclick="openCatEditor('${level}',${parentArg})">✎</button></label><select id="${k}">${optList(opts,'')}</select></div>`;
+}
+async function openCatEditor(level, parentId){
+  if((level==='2'||level==='3') && !parentId){
+    alert(level==='2' ? '请先在「一级分类」中选择一个分类，再编辑其二级分类' : '请先在「二级分类」中选择一个分类，再编辑其三级分类');
+    return;
+  }
+  _ceLevel = level; _ceParent = parentId || '';
+  if(!_articleCat){ try{ _articleCat = await apiJson('/category'); }catch(e){ _articleCat = {cat1:[],tree:{},ctypes:[],registry:{nodes:[]}}; } }
+  await ceRender();
+}
+async function ceRender(){
+  if(!_articleCat) _articleCat = await apiJson('/category');
+  const nodes = (_articleCat.registry && _articleCat.registry.nodes) || [];
+  const items = nodes.filter(n=> n.level===_ceLevel && (n.parentId||'')===_ceParent && n.active!==false).map(n=>({id:n.id,name:n.name}));
+  let rows = items.map(n=>`
+    <div class="cm-node lvl1">
+      <input class="cm-name" id="ce-rename-${n.id}" data-orig="${esc(n.name)}" value="${esc(n.name)}" oninput="ceOnInput('${n.id}')" onkeydown="if(event.key==='Enter')ceSave('${n.id}')" />
+      <span class="cm-acts">
+        <button class="cm-ic save" id="ce-save-${n.id}" style="display:none" title="保存改名" onclick="ceSave('${n.id}')">💾</button>
+        <button class="cm-ic danger" title="删除" onclick="ceDelete('${n.id}')">🗑</button>
+      </span>
+    </div>`).join('');
+  if(!rows) rows = `<div class="cm-empty">（暂无类目，在下方添加）</div>`;
+  modal.innerHTML = `<h3>编辑 · ${_CE_TITLES[_ceLevel]||'类目'}</h3>
+    <p class="muted" style="margin:0 0 10px;font-size:12.5px">修改类目名字（点 💾 保存）、添加新类目、删除类目，均会立即同步到飞书表格。</p>
+    <div class="cat-mgr">
+      <div class="cm-sec-title">${_CE_TITLES[_ceLevel]||'类目'}列表</div>
+      ${rows}
+      <div class="cm-add lvl1">
+        <input id="ce-add" placeholder="新类目名称" onkeydown="if(event.key==='Enter')ceAdd()" />
+        <button class="btn mini" id="ce-add-btn" onclick="ceAdd()">+ 添加</button>
+      </div>
+    </div>
+    <div class="modal-ops"><button class="btn soft" onclick="closeCatEditor()">完成</button></div>`;
+  overlay.classList.add('show');
+  modal.classList.add('wide');
+}
+function ceOnInput(id){
+  const el = document.getElementById('ce-rename-'+id);
+  const save = document.getElementById('ce-save-'+id);
+  if(!el||!save) return;
+  save.style.display = (el.value.trim() !== (el.getAttribute('data-orig')||'')) ? '' : 'none';
+}
+async function ceSave(id){
+  const el = document.getElementById('ce-rename-'+id);
+  if(!el) return;
+  const orig = el.getAttribute('data-orig')||'';
+  const name = (el.value||'').trim();
+  if(!name){ alert('请输入名称'); return; }
+  if(name===orig){ el.value=orig; return; }
+  try{ await apiJson('/category',{method:'PUT',body:JSON.stringify({id,name})}); }
+  catch(e){ alert('改名失败：'+(e.message||e)); return; }
+  await reloadAndRefresh(); await ceRender();
+}
+async function ceAdd(){
+  if(_ceAdding) return; // 防连点 / 防异步并发产生重复记录
+  const el = document.getElementById('ce-add');
+  const name = (el&&el.value||'').trim();
+  if(!name){ alert('请输入名称'); return; }
+  _ceAdding = true; if(el) el.value=''; // 立即清空，二次连点读到空值直接 return
+  try{ await apiJson('/category',{method:'POST',body:JSON.stringify({level:_ceLevel,name,parentId:_ceParent})}); }
+  catch(e){ alert('添加失败：'+(e.message||e)); _ceAdding=false; return; }
+  _ceAdding = false;
+  await reloadAndRefresh(); await ceRender();
+}
+async function ceDelete(id){
+  if(!confirm('确定删除该类目？相关文章将重定向到“未分类”。')) return;
+  try{ await apiJson('/category',{method:'DELETE',body:JSON.stringify({id})}); }
+  catch(e){ alert('删除失败：'+(e.message||e)); return; }
+  await reloadAndRefresh(); await ceRender();
+}
+function closeCatEditor(){ closeModal(); }
+async function reloadAndRefresh(){
+  try{ _articleCat = await apiJson('/category'); }catch(e){}
+  refreshArticleCatSelects();
+}
+function refreshArticleCatSelects(){
+  const c1 = document.getElementById('aiCat1'); if(!c1) return; // 当前不在文章录入界面则跳过
+  const cat = _articleCat || {cat1:[],tree:{},ctypes:[]};
+  const keep = (sel, opts)=> (opts&&opts.includes(sel.value)) ? sel.value : '';
+  c1.innerHTML = optList(cat.cat1||[], keep(c1, cat.cat1||[]));
+  const c2 = document.getElementById('aiCat2');
+  const l2 = (cat.tree && cat.tree[c1.value]) ? Object.keys(cat.tree[c1.value]) : [];
+  if(c2) c2.innerHTML = optList(l2, keep(c2, l2));
+  const c3 = document.getElementById('aiCat3');
+  const l3 = (cat.tree && cat.tree[c1.value] && cat.tree[c1.value][c2.value]) ? cat.tree[c1.value][c2.value] : [];
+  if(c3) c3.innerHTML = optList(l3, keep(c3, l3));
+  const ct = document.getElementById('aiCtype');
+  if(ct){ const cto = (cat.ctypes&&cat.ctypes.length)?cat.ctypes:['金句','观点','故事','案例','长文']; ct.innerHTML = optList(cto, keep(ct, cto)); }
+}
 // 生成下拉选项；cur 不在列表里时也补上（保留旧数据里不在分类表中的值）
 function optList(list, cur){
   const opts = (list||[]).slice();
@@ -2119,7 +2228,7 @@ function toggleMM(recId){
 
 /* ---------- article input ---------- */
 async function renderArticle(){
-  const cat = await getCategory();
+  const cat = await getCategory(); _articleCat = cat;
   const tree = cat.tree||{};
   const sel = (k,label,opts,cur)=> `<div class="field"><label>${label}（可选）</label><select id="${k}">${optList(opts,cur)}</select></div>`;
   setView(`<div class="card">
@@ -2142,10 +2251,10 @@ async function renderArticle(){
       <label>个人感悟（可选）</label>
       <textarea id="aiReflection" rows="3" placeholder="读完这段内容，你想到什么？"></textarea>
       <div class="cat-row">
-        ${sel('aiCat1','一级分类',cat.cat1,'')}
-        ${sel('aiCat2','二级分类',[],'')}
-        ${sel('aiCat3','三级分类',[],'')}
-        ${sel('aiCtype','内容类型',(cat.ctypes&&cat.ctypes.length)?cat.ctypes:['金句','观点','故事','案例','长文'],'')}
+        ${catField('aiCat1','一级分类',cat.cat1,'1','')}
+        ${catField('aiCat2','二级分类',[],'2','aiCat1')}
+        ${catField('aiCat3','三级分类',[],'3','aiCat2')}
+        ${catField('aiCtype','内容类型',(cat.ctypes&&cat.ctypes.length)?cat.ctypes:['金句','观点','故事','案例','长文'],'ctype','')}
       </div>
       <label>核心关键点 / AI 总结（可选，留空则交由 AI 分析）</label>
       <textarea id="aiSummary" rows="3" placeholder="一句话提炼这篇文章的核心观点或关键点…"></textarea>

@@ -1093,11 +1093,24 @@ async function catIdFor(level, name, parentId) {
   } catch (e) { return null; }
 }
 async function addCategory(level, name, parentId) {
+  level = String(level); name = (name || '').toString().trim(); parentId = (parentId || '').toString().trim();
+  if (!name) throw new Error('名称不能为空');
   await ensureRegistryTable();
   const tid = _registryTableToken;
-  const rid = await createRecordOpen(tid, { name, parentId: parentId || '', level: String(level), active: true, id: '' }, REGISTRY_BASE);
+  // 去重：同 level + 同 parentId + 同 name 已存在则直接返回，杜绝连点 / 重试 / 飞书抖动产生重复记录
   await refreshRegistry(true);
-  return _registry ? _registry.byId[rid] : { id: rid, name, parentId: parentId || '', level: String(level), active: true };
+  const reg = _registry;
+  if (reg) {
+    const ex = reg.nodes.find(n => n.level === level && (n.parentId || '') === parentId && n.name === name);
+    if (ex) {
+      if (!ex.active) { try { await updateRecordOpen(tid, ex.id, { active: true }, REGISTRY_BASE); } catch (_) {} }
+      await refreshRegistry(true);
+      return _registry ? _registry.byId[ex.id] : { id: ex.id, name, parentId, level, active: true };
+    }
+  }
+  const rid = await createRecordOpen(tid, { name, parentId, level, active: true, id: '' }, REGISTRY_BASE);
+  await refreshRegistry(true);
+  return _registry ? _registry.byId[rid] : { id: rid, name, parentId, level, active: true };
 }
 async function renameCategory(id, newName) {
   await refreshRegistry(); if (!_registry || !_registry.byId[id]) throw new Error('分类不存在');
