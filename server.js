@@ -1425,7 +1425,7 @@ function send(res, code, obj) {
 }
 function handleApi(req, res) {
   if (req.url.split('?')[0] === '/api/files/upload') { handleFileUpload(req, res); return; }
-  if (req.method === 'POST' || req.method === 'PUT') {
+  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE' || req.method === 'PATCH') {
     const chunks = [];
     req.on('data', c => chunks.push(c));
     req.on('end', () => {
