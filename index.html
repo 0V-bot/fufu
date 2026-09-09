@@ -255,13 +255,17 @@
 
   /* todo 卡片式 */
   .todo-grid{display:flex;flex-wrap:wrap;gap:13px;margin-top:12px;align-items:flex-start;}
-  .tcard{background:#fff;border:1px solid var(--line);border-radius:13px;padding:12px;display:flex;flex-direction:column;gap:9px;box-shadow:0 1px 2px rgba(15,23,42,.04);width:480px;flex:0 0 auto;min-width:200px;}
+  .tcard{background:#fff;border:1px solid var(--line);border-radius:13px;padding:12px;display:flex;flex-direction:column;gap:9px;box-shadow:0 1px 2px rgba(15,23,42,.04);width:100%;max-width:480px;min-width:0;box-sizing:border-box;}
   .tcard.done{opacity:.6;background:#f8fafc;}
   .tcard.done .tcontent{text-decoration:line-through;}
   .tcard-top{display:flex;align-items:center;gap:9px;}
   .tcheck{width:20px;height:20px;border-radius:6px;border:2px solid #cbd5e1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;flex:0 0 auto;transition:.15s;}
   .tcheck.on{background:#22c55e;border-color:#22c55e;}
   .tcontent{width:100%;border:none;resize:none;flex:0 0 auto;font-family:inherit;font-size:14px;line-height:1.55;min-height:44px;background:transparent;outline:none;color:#0f172a;height:120px;overflow:auto;}
+  .insp-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(min(100%, 260px), 1fr));gap:13px;margin-top:12px;align-items:start;}
+  .tcard.short .tcontent{height:auto;overflow:hidden;}
+  .tcard.short .ic-expand{display:none;}
+  .tcard.expanded .tcontent{height:auto;overflow:hidden;}
   .tcontent:focus{background:#f1f5f9;border-radius:8px;padding:6px 8px;}
   .tdeadline{display:flex;align-items:center;gap:7px;font-size:12px;color:#64748b;}
   .tdeadline input{font-family:inherit;border:1px solid var(--line);border-radius:8px;padding:4px 7px;font-size:12px;color:#334155;background:#f8fafc;}
@@ -2789,15 +2793,15 @@ async function renderInsp(){
       </select>
       ${inspFilterType?`<button class="ic-btn" title="清除筛选" onclick="inspSetFilter('')">✕</button>`:''}
     </div>
-    <div class="todo-grid">`;
-  if(!arr.length){ html += `<div class="empty" style="flex-basis:100%">${inspFilterType?'该类型下还没有灵感':'还没有灵感，随手记一条吧 💡'}</div>`; }
+    <div class="insp-grid">`;
+  if(!arr.length){ html += `<div class="empty" style="grid-column:1/-1">${inspFilterType?'该类型下还没有灵感':'还没有灵感，随手记一条吧 💡'}</div>`; }
   arr.forEach(t=>{
     const did=t.id;
     html += `<div class="tcard" id="icard-${did}">
       <div class="tcard-top">
         <select class="itype" onchange="saveInspField('${did}','type',this.value)">${inspOptions(t.type)}</select>
         <span style="margin-left:auto;display:flex;gap:4px">
-          <button class="ic-btn" title="展开" id="iexp-${did}" onclick="inspToggleExpand('${did}')">⤢</button>
+          <button class="ic-btn ic-expand" title="展开" id="iexp-${did}" onclick="inspToggleExpand('${did}')">⤢</button>
           <button class="ic-btn del" title="删除" onclick="delInsp('${did}')">🗑</button>
         </span>
       </div>
@@ -2807,8 +2811,20 @@ async function renderInsp(){
   });
   html += `</div></div>`;
   setView(html, 'insprec')
+  inspAutoSize();
 }
 function inspSetFilter(v){ inspFilterType = v||''; renderInsp(); }
+// 渲染后：根据正文自然高度判定「短文卡片」(隐藏展开按钮、高度贴合内容) 或「长文卡片」(折叠+滚动)
+function inspAutoSize(){
+  document.querySelectorAll('.tcard').forEach(c=>{
+    const ta=c.querySelector('.tcontent'); if(!ta) return;
+    if(c.classList.contains('expanded')){ ta.style.height=ta.scrollHeight+'px'; ta.style.overflow='hidden'; return; }
+    const prev=ta.style.height; ta.style.height='auto';
+    const nat=ta.scrollHeight; ta.style.height=prev;
+    if(nat<=140){ c.classList.add('short'); ta.style.height=nat+'px'; ta.style.overflow='hidden'; }
+    else { c.classList.remove('short'); ta.style.height='120px'; ta.style.overflow='auto'; }
+  });
+}
 // 一键展开/收缩：同一时刻仅一张卡片展开，点击其他卡片自动收缩上一张
 function inspToggleExpand(id){
   const el = document.getElementById('icard-'+id); if(!el) return;
@@ -2816,15 +2832,15 @@ function inspToggleExpand(id){
   const btn = document.getElementById('iexp-'+id);
   if(inspExpandedId && inspExpandedId!==id){
     const prev = document.getElementById('icard-'+inspExpandedId);
-    if(prev){ prev.classList.remove('expanded'); const pta=prev.querySelector('.tcontent'); if(pta){ pta.style.height=''; pta.style.overflow=''; } }
+    if(prev){ prev.classList.remove('expanded'); const pta=prev.querySelector('.tcontent'); if(pta){ pta.style.height='120px'; pta.style.overflow='auto'; } }
     const pb = document.getElementById('iexp-'+inspExpandedId); if(pb) pb.textContent='⤢';
   }
   if(el.classList.contains('expanded')){
     el.classList.remove('expanded'); inspExpandedId=null;
-    if(ta){ ta.style.height=''; ta.style.overflow=''; } if(btn) btn.textContent='⤢';
+    if(ta){ ta.style.height='120px'; ta.style.overflow='auto'; } if(btn) btn.textContent='⤢';
   } else {
     el.classList.add('expanded'); inspExpandedId=id;
-    if(ta){ ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; ta.style.overflow='hidden'; }
+    if(ta){ ta.style.height=ta.scrollHeight+'px'; ta.style.overflow='hidden'; }
     if(btn) btn.textContent='⤡';
   }
 }
@@ -2853,6 +2869,7 @@ async function saveInspField(id, field, value){
   }
   try{ await apiUpdate('insprec', id, t); }
   catch(e){ alert('保存失败：'+(e.message||e)); }
+  inspAutoSize();
 }
 async function addInsp(){
   const i=document.getElementById('inspInput'); const v=(i?i.value:'').trim();
