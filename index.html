@@ -255,13 +255,13 @@
 
   /* todo 卡片式 */
   .todo-grid{display:flex;flex-wrap:wrap;gap:13px;margin-top:12px;align-items:flex-start;}
-  .tcard{background:#fff;border:1px solid var(--line);border-radius:13px;padding:12px;display:flex;flex-direction:column;gap:9px;box-shadow:0 1px 2px rgba(15,23,42,.04);width:240px;flex:0 0 auto;resize:both;overflow:auto;min-width:200px;min-height:92px;}
+  .tcard{background:#fff;border:1px solid var(--line);border-radius:13px;padding:12px;display:flex;flex-direction:column;gap:9px;box-shadow:0 1px 2px rgba(15,23,42,.04);width:480px;flex:0 0 auto;min-width:200px;}
   .tcard.done{opacity:.6;background:#f8fafc;}
   .tcard.done .tcontent{text-decoration:line-through;}
   .tcard-top{display:flex;align-items:center;gap:9px;}
   .tcheck{width:20px;height:20px;border-radius:6px;border:2px solid #cbd5e1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;flex:0 0 auto;transition:.15s;}
   .tcheck.on{background:#22c55e;border-color:#22c55e;}
-  .tcontent{width:100%;border:none;resize:none;flex:1;font-family:inherit;font-size:14px;line-height:1.55;min-height:44px;background:transparent;outline:none;color:#0f172a;overflow:auto;}
+  .tcontent{width:100%;border:none;resize:none;flex:0 0 auto;font-family:inherit;font-size:14px;line-height:1.55;min-height:44px;background:transparent;outline:none;color:#0f172a;height:120px;overflow:auto;}
   .tcontent:focus{background:#f1f5f9;border-radius:8px;padding:6px 8px;}
   .tdeadline{display:flex;align-items:center;gap:7px;font-size:12px;color:#64748b;}
   .tdeadline input{font-family:inherit;border:1px solid var(--line);border-radius:8px;padding:4px 7px;font-size:12px;color:#334155;background:#f8fafc;}
@@ -269,6 +269,13 @@
   .tnote:focus{background:#fff;border-color:#93c5fd;}
   .itype{border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-family:inherit;font-size:12px;color:#334155;background:#f8fafc;max-width:175px;}
   .itype:focus{border-color:#93c5fd;background:#fff;}
+  /* 灵感记录：顶部类型筛选 + 卡片右上角图标按钮（展开/收缩/删除） */
+  .insp-filter{display:flex;align-items:center;gap:9px;margin-top:12px;flex-wrap:wrap;}
+  .insp-filter select{border:1px solid var(--line);border-radius:9px;padding:7px 11px;font-family:inherit;font-size:13px;color:#334155;background:#f8fafc;}
+  .insp-filter select:focus{border-color:#93c5fd;background:#fff;}
+  .ic-btn{width:30px;height:30px;border:none;background:transparent;border-radius:8px;cursor:pointer;font-size:15px;line-height:1;display:inline-flex;align-items:center;justify-content:center;color:#64748b;flex:0 0 auto;transition:.15s;}
+  .ic-btn:hover{background:#f1f5f9;color:#0f172a;}
+  .ic-btn.del:hover{background:rgba(239,68,68,.12);color:#ef4444;}
 
   /* 愿望清单（列表式：输入框 + 许愿按钮 + 每行愿望 + 勾选实现） */
   .wish-add{display:flex;gap:9px;margin-top:4px;}
@@ -2762,37 +2769,37 @@ async function delQuote(id){
 }
 
 /* ---------- 灵感记录 ---------- */
-let inspArr=[], inspTypes=[], inspResizeObserver=null, inspSizeSaveBound=false;
-// 卡片尺寸为纯本地私有字段：仅写本地 IndexedDB，不打 _dirty、不进 payload、不触发待同步
-async function saveInspSize(id, size){
-  console.log('[size-diag] saveInspSize 调用 id=', id, 'size=', size);
-  const sec = localSection('insprec');
-  const key = lkey(sec, id);
-  const docs = (await idbAll()).filter(d=> d.key===key);
-  const doc = docs[0];
-  console.log('[size-diag] saveInspSize doc存在?', !!doc, 'key=', key);
-  if(!doc) return;
-  doc.data = Object.assign({}, doc.data, { size });
-  await idbPut(doc);
-  console.log('[size-diag] saveInspSize 已写入');
-}
+let inspArr=[], inspTypes=[], inspFilterType='', inspExpandedId=null;
 async function renderInsp(){
   let arr, types;
   try{ arr = await apiList('insprec'); types = (await apiJson('/insp-types')).types || []; }
   catch(e){ setView(`<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`, 'insprec'); return; }
-  inspArr = arr; inspTypes = types;
+  inspTypes = types;
+  if(inspFilterType) arr = arr.filter(t=>(t.type||'')===inspFilterType);
+  inspArr = arr; inspExpandedId = null;
   let html = `<div class="card">
     <div class="h"><div class="t">灵感记录 <span class="muted" style="font-weight:500">· 共 ${arr.length} 条</span></div></div>
     <div class="inline-add"><input id="inspInput" placeholder="写下灵感，回车添加卡片…" onkeydown="if(event.key==='Enter')addInsp()"/>
       <button class="btn" onclick="addInsp()">+ 添加卡片</button></div>
+    <div class="insp-filter">
+      <span class="muted" style="font-size:13px">类型筛选：</span>
+      <select onchange="inspSetFilter(this.value)">
+        <option value="">全部类型</option>
+        ${(inspTypes||[]).map(tp=>`<option value="${esc(tp)}" ${inspFilterType===tp?'selected':''}>${esc(tp)}</option>`).join('')}
+      </select>
+      ${inspFilterType?`<button class="ic-btn" title="清除筛选" onclick="inspSetFilter('')">✕</button>`:''}
+    </div>
     <div class="todo-grid">`;
-  if(!arr.length){ html += `<div class="empty" style="flex-basis:100%">还没有灵感，随手记一条吧 💡</div>`; }
+  if(!arr.length){ html += `<div class="empty" style="flex-basis:100%">${inspFilterType?'该类型下还没有灵感':'还没有灵感，随手记一条吧 💡'}</div>`; }
   arr.forEach(t=>{
     const did=t.id;
     html += `<div class="tcard" id="icard-${did}">
       <div class="tcard-top">
         <select class="itype" onchange="saveInspField('${did}','type',this.value)">${inspOptions(t.type)}</select>
-        <button class="btn danger mini" style="margin-left:auto" onclick="delInsp('${did}')">删</button>
+        <span style="margin-left:auto;display:flex;gap:4px">
+          <button class="ic-btn" title="展开" id="iexp-${did}" onclick="inspToggleExpand('${did}')">⤢</button>
+          <button class="ic-btn del" title="删除" onclick="delInsp('${did}')">🗑</button>
+        </span>
       </div>
       <textarea class="tcontent" placeholder="灵光一现，随手记录…" onblur="saveInspField('${did}','content',this.value)">${esc(t.content||'')}</textarea>
       <div class="tdeadline"><span>📅</span><input type="date" value="${esc(t.date||'')}" onchange="saveInspField('${did}','date',this.value)"></div>
@@ -2800,44 +2807,26 @@ async function renderInsp(){
   });
   html += `</div></div>`;
   setView(html, 'insprec')
-  // 卡片尺寸：应用已存尺寸 + 监听用户拖拽（ResizeObserver），写入后持久保存
-  // 双保险：全局 mouseup/touchend 在拖拽手柄松手时保存当前尺寸，避免依赖 ResizeObserver 触发时机导致漏存
-  if(!inspSizeSaveBound){
-    inspSizeSaveBound = true;
-    const onUp = () => {
-      document.querySelectorAll('.tcard').forEach(c=>{
-        const id = c.id && c.id.indexOf('icard-')===0 ? c.id.slice(6) : null;
-        if(!id) return;
-        const now = Math.round(c.offsetWidth)+'x'+Math.round(c.offsetHeight);
-        if(now !== c._szBase){ c._szBase = now; console.log('[size-diag] mouseup 保存尺寸', id, now); saveInspSize(id, now); }
-      });
-    };
-    document.addEventListener('mouseup', onUp);
-    document.addEventListener('touchend', onUp);
+}
+function inspSetFilter(v){ inspFilterType = v||''; renderInsp(); }
+// 一键展开/收缩：同一时刻仅一张卡片展开，点击其他卡片自动收缩上一张
+function inspToggleExpand(id){
+  const el = document.getElementById('icard-'+id); if(!el) return;
+  const ta = el.querySelector('.tcontent');
+  const btn = document.getElementById('iexp-'+id);
+  if(inspExpandedId && inspExpandedId!==id){
+    const prev = document.getElementById('icard-'+inspExpandedId);
+    if(prev){ prev.classList.remove('expanded'); const pta=prev.querySelector('.tcontent'); if(pta){ pta.style.height=''; pta.style.overflow=''; } }
+    const pb = document.getElementById('iexp-'+inspExpandedId); if(pb) pb.textContent='⤢';
   }
-  if(inspResizeObserver) inspResizeObserver.disconnect();
-  inspResizeObserver = new ResizeObserver(entries=>{
-    for(const en of entries){
-      const el = en.target;
-      const id = el.id && el.id.indexOf('icard-')===0 ? el.id.slice(6) : null;
-      if(!id) continue;
-      const now = Math.round(el.offsetWidth)+'x'+Math.round(el.offsetHeight);
-      if(now === el._szBase) continue;
-      el._szBase = now;
-      clearTimeout(el._szT);
-      el._szT = setTimeout(()=>{ saveInspSize(id, now); }, 300);
-    }
-  });
-  document.querySelectorAll('.tcard').forEach(c=>{
-    const t = (inspArr||[]).find(x=>x.id===c.id.slice(6))||{};
-    console.log('[size-diag] 卡片渲染 id=', c.id, '匹配t.id=', t.id, 't.size=', t.size);
-    if(t.size && /^\d+x\d+$/.test(t.size)){
-      const p = t.size.split('x'); const w=+p[0], h=+p[1];
-      if(w>=160 && h>=70){ c.style.width=w+'px'; c.style.height=h+'px'; console.log('[size-diag] 已应用尺寸', w+'x'+h, '到', c.id); }
-    }
-    c._szBase = Math.round(c.offsetWidth)+'x'+Math.round(c.offsetHeight);
-    inspResizeObserver.observe(c);
-  });
+  if(el.classList.contains('expanded')){
+    el.classList.remove('expanded'); inspExpandedId=null;
+    if(ta){ ta.style.height=''; ta.style.overflow=''; } if(btn) btn.textContent='⤢';
+  } else {
+    el.classList.add('expanded'); inspExpandedId=id;
+    if(ta){ ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; ta.style.overflow='hidden'; }
+    if(btn) btn.textContent='⤡';
+  }
 }
 function inspOptions(sel){
   let opts = `<option value="">— 选择类型 —</option>`;
