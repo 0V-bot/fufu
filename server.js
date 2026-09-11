@@ -312,10 +312,151 @@ async function deleteRecordCli(name, rec, baseToken = BASE_TOKEN) {
   return true;
 }
 
+/* ===================== 后端 C：SQLite 本地数据库（替代飞书，毫秒级读写） =====================
+ * 存储模型：单表 records(base, tbl, rec, fields JSON, created_at, updated_at)。
+ * fields 保持与飞书记录相同的中文字段格式，因此上层 readRec/writeRec/passFilter 全部零改动。
+ * record_id 迁移时保留飞书原值；新建记录生成时间有序的本地 id（rec + base36 时间戳 + 随机后缀）。
+ * 开关：USE_SQLITE=1 强制开 / =0 强制关；缺省自动——库中已有记录即启用（迁移完成后自动切换）。
+ */
+const SQLITE_FILE = process.env.SQLITE_FILE || path.join(DATA_DIR, 'workbench.db');
+let _db = null, _sqliteTried = false, _sqliteFlag = null;
+function initDb() {
+  if (_db || _sqliteTried) return _db;
+  _sqliteTried = true;
+  try {
+    const Database = require('better-sqlite3');
+    _db = new Database(SQLITE_FILE);
+    _db.pragma('journal_mode = WAL');
+    _db.exec('CREATE TABLE IF NOT EXISTS records(' +
+      'base TEXT NOT NULL, tbl TEXT NOT NULL, rec TEXT NOT NULL,' +
+      'fields TEXT NOT NULL, cid TEXT, created_at INTEGER, updated_at INTEGER,' +
+      'PRIMARY KEY (base, tbl, rec))');
+    _db.exec('CREATE INDEX IF NOT EXISTS idx_records_cid ON records(base, tbl, cid)');
+  } catch (e) {
+    _db = null;
+    console.warn('[sqlite] 初始化失败（回退飞书后端）:', e.message);
+  }
+  return _db;
+}
+function usingSqlite() {
+  if (process.env.USE_SQLITE === '0') return false;
+  if (process.env.USE_SQLITE === '1') return !!initDb();
+  if (_sqliteFlag) return true;
+  const d = initDb(); if (!d) return false;
+  try {
+    if (d.prepare('SELECT COUNT(*) AS c FROM records').get().c > 0) {
+      _sqliteFlag = true;
+      console.log('✅ 检测到 SQLite 数据，存储后端 = SQLite（飞书已弃用）');
+    }
+  } catch (e) {}
+  return !!_sqliteFlag;
+}
+function newRecId() { return 'rec' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'); }
+async function sqlList(name, base = BASE_TOKEN) {
+  const d = initDb();
+  return d.prepare('SELECT rec, fields FROM records WHERE base = ? AND tbl = ?').all(base || BASE_TOKEN, name)
+    .map(r => Object.assign({ record_id: r.rec }, JSON.parse(r.fields)));
+}
+async function sqlGet(name, rec, base = BASE_TOKEN) {
+  const d = initDb();
+  const row = d.prepare('SELECT fields FROM records WHERE base = ? AND tbl = ? AND rec = ?').get(base || BASE_TOKEN, name, rec);
+  return row ? Object.assign({ record_id: rec }, JSON.parse(row.fields)) : null;
+}
+async function sqlCreate(name, fields, base = BASE_TOKEN) {
+  const d = initDb();
+  const rec = newRecId();
+  const now = Date.now();
+  d.prepare('INSERT INTO records(base, tbl, rec, fields, cid, created_at, updated_at) VALUES (?,?,?,?,NULL,?,?)')
+    .run(base || BASE_TOKEN, name, rec, JSON.stringify(fields || {}), now, now);
+  return rec;
+}
+async function sqlUpdate(name, rec, fields, base = BASE_TOKEN) {
+  // 与飞书 PUT 语义一致：只合并传入字段，未传字段保持原值
+  const d = initDb();
+  const b = base || BASE_TOKEN;
+  const row = d.prepare('SELECT fields FROM records WHERE base = ? AND tbl = ? AND rec = ?').get(b, name, rec);
+  const merged = Object.assign(row ? JSON.parse(row.fields) : {}, fields || {});
+  const now = Date.now();
+  if (row) {
+    d.prepare('UPDATE records SET fields = ?, updated_at = ? WHERE base = ? AND tbl = ? AND rec = ?')
+      .run(JSON.stringify(merged), now, b, name, rec);
+  } else {
+    d.prepare('INSERT INTO records(base, tbl, rec, fields, cid, created_at, updated_at) VALUES (?,?,?,?,NULL,?,?)')
+      .run(b, name, rec, JSON.stringify(merged), now, now);
+  }
+  return true;
+}
+async function sqlDelete(name, rec, base = BASE_TOKEN) {
+  const d = initDb();
+  d.prepare('DELETE FROM records WHERE base = ? AND tbl = ? AND rec = ?').run(base || BASE_TOKEN, name, rec);
+  return true;
+}
+
+/* ===================== 飞书 → SQLite 一次性迁移（后台异步，保留飞书 record_id） =====================
+ * POST /api/admin/migrate 启动；GET /api/admin/migrate 查进度。
+ * 迁移源始终直连飞书（绕过 usingSqlite 分发），因此迁移期间/之后重复执行都安全（INSERT OR REPLACE 幂等）。
+ */
+let _mig = { running: false, startedAt: 0, finishedAt: 0, tables: [], error: '' };
+function migStatus() {
+  return {
+    running: _mig.running, startedAt: _mig.startedAt, finishedAt: _mig.finishedAt,
+    records: _mig.tables.reduce((s, t) => s + (t.count || 0), 0),
+    tables: _mig.tables, error: _mig.error, sqlite: usingSqlite()
+  };
+}
+function migrationTargets() {
+  const seen = new Set(); const out = [];
+  const add = (base, table) => { const k = (base || BASE_TOKEN) + '::' + table; if (!seen.has(k)) { seen.add(k); out.push({ base: base || BASE_TOKEN, table }); } };
+  Object.keys(SECTIONS).forEach(id => { const c = SECTIONS[id]; add(c.base, c.table); });
+  add(BASE_TOKEN, '项目');                              // 项目映射（ptask「项目」关联字段指向它）
+  add(BASE_TOKEN, INSP_TYPE_TABLE);                     // 灵感类型
+  add(INSPIRE_BASE, CATEGORY_TABLE);                    // 分类级联表
+  add(INSPIRE_BASE, _registryTableToken || '分类注册表'); // 分类注册表
+  return out;
+}
+async function migrateListFeishu(name, base) {
+  return USE_OPENAPI ? await listTableOpen(name, base) : await listTableCli(name, base);
+}
+function startMigration() {
+  if (_mig.running) return;
+  const d = initDb();
+  if (!d) { _mig.error = 'SQLite 不可用（better-sqlite3 未安装）'; return; }
+  _mig = { running: true, startedAt: Date.now(), finishedAt: 0, tables: [], error: '' };
+  (async () => {
+    const ins = d.prepare('INSERT OR REPLACE INTO records(base, tbl, rec, fields, cid, created_at, updated_at) VALUES (?,?,?,?,NULL,?,?)');
+    for (const t of migrationTargets()) {
+      const entry = { base: t.base, table: t.table, count: 0, ok: false, error: '' };
+      _mig.tables.push(entry);
+      try {
+        const rows = await migrateListFeishu(t.table, t.base);
+        const now = Date.now();
+        d.transaction(list => {
+          for (const r of list) {
+            const f = Object.assign({}, r); const rec = f.record_id; delete f.record_id;
+            if (rec) ins.run(t.base, t.table, rec, JSON.stringify(f), now, now);
+          }
+        })(rows);
+        entry.count = rows.length; entry.ok = true;
+        console.log('[migrate]', t.table, '=>', rows.length, '条');
+      } catch (e) { entry.error = e.message; console.error('[migrate]', t.table, '失败:', e.message); }
+    }
+    _mig.running = false; _mig.finishedAt = Date.now();
+    _sqliteFlag = null;   // 触发 usingSqlite() 重新计数，迁移完成后自动切到 SQLite 后端
+    console.log('[migrate] 完成，共', migStatus().records, '条记录；SQLite 后端' + (usingSqlite() ? '已自动启用' : '未启用'));
+  })().catch(e => { _mig.running = false; _mig.error = e.message; });
+}
+
 /* ===================== 统一后端接口 ===================== */
-const F = USE_OPENAPI
+const feishuF = USE_OPENAPI
   ? { list: listTableOpen, create: createRecordOpen, update: updateRecordOpen, del: deleteRecordOpen }
   : { list: listTableCli, create: createRecordCli, update: updateRecordCli, del: deleteRecordCli };
+// 统一分发：SQLite 有数据（或 USE_SQLITE=1）后走本地库；否则保持飞书后端（迁移前/迁移期间）
+const F = {
+  list:   (n, b)    => usingSqlite() ? sqlList(n, b)       : feishuF.list(n, b),
+  create: (n, f, b) => usingSqlite() ? sqlCreate(n, f, b)  : feishuF.create(n, f, b),
+  update: (n, r, f, b) => usingSqlite() ? sqlUpdate(n, r, f, b) : feishuF.update(n, r, f, b),
+  del:    (n, r, b) => usingSqlite() ? sqlDelete(n, r, b)  : feishuF.del(n, r, b)
+};
 const listTable = F.list;
 // 写入「项目任务」后立即失效短缓存，避免新建/编辑/删除后 5s 内仍显示旧数据（创建不显示 BUG）
 function invalidateProjTasks() { _ptaskCache.ts = 0; _ptaskCache.data = null; }
@@ -529,7 +670,7 @@ async function getInspireRows(base, table) {
   const now = Date.now();
   if (_rawCache[key] && now - _rawCache[key].ts < 60000) return _rawCache[key].rows;
   let rows;
-  if (USE_OPENAPI) {
+  if (USE_OPENAPI && !usingSqlite()) {
     try {
       const pre = await basePrefix(base);
       const tid = await tableId(table, base);
@@ -606,6 +747,7 @@ async function sectionList(id, opts) {
 async function sectionRecord(id, rec) {
   const cfg = SECTIONS[id];
   const base = cfg.base || BASE_TOKEN;
+  if (usingSqlite()) { const r = await sqlGet(cfg.table, rec, base); return r ? readRec(cfg.kind, r) : null; }
   const pre = await basePrefix(base);
   const tid = await tableId(cfg.table, base);
   const j = await feishuRequest('GET', `${pre}/tables/${encodeURIComponent(tid)}/records/${rec}`);
@@ -617,7 +759,7 @@ function invalidateCache(cfg, base) { _rawCache[(cfg.base || base || BASE_TOKEN)
 // 年度计划写入前确保「类型」单选含「分组」选项；本会话只跑一次（幂等），避免逐条同步时反复 PUT。
 let _annual2GroupEnsured = false;
 async function ensureAnnual2GroupOptionOnce() {
-  if (_annual2GroupEnsured) return;
+  if (_annual2GroupEnsured || usingSqlite()) { _annual2GroupEnsured = true; return; }   // SQLite 无单选约束，无需补选项
   try { await ensureAnnual2GroupOption(); _annual2GroupEnsured = true; }
   catch (e) { console.warn('ensureAnnual2GroupOption 失败（重试于下次写入）:', e.message); _annual2GroupEnsured = false; }
 }
@@ -889,6 +1031,7 @@ async function getDashboard() {
 
 /* ===================== 计划表格（年计划/月计划 类 Excel 网格） ===================== */
 async function tableExists(name, baseToken = BASE_TOKEN) {
+  if (usingSqlite()) return name;   // SQLite 模式无表结构概念，视为已存在
   const pre = await basePrefix(baseToken);
   const j = await feishuRequest('GET', `${pre}/tables?page_size=200`);
   const items = (j.data && j.data.items) || [];
@@ -987,6 +1130,15 @@ async function getCategory() {
   return result;
 }
 
+// 精神角落「分类」选项：SQLite 模式无字段元数据，从现有记录去重派生（新分类随记录写入自然出现）
+async function bookCategoryOptions() {
+  if (!usingSqlite()) return await getSingleSelectOptions(BASE_TOKEN, '精神角落', '分类');
+  const rows = await listTable('精神角落');
+  const s = new Set();
+  rows.forEach(r => { const v = sel(r['分类']); if (v) s.add(v); });
+  return [...s];
+}
+
 /* ===================== 分类注册表（稳定 ID + 改名/删除重定向，不影响旧数据） =====================
  * 设计：新增一张飞书表「分类注册表」(REGISTRY_BASE=人生研究学院 Base) 作为分类的“唯一真相”。
  *   每条分类 = 节点：{ id(=record_id), name(规范名), parentId, level('1'|'2'|'3'|'ctype'), active, aliases(旧名,逗号分隔) }
@@ -1029,6 +1181,7 @@ async function ensureRegistryTable() {
 // 成果输出表：首次写入/读取时若飞书中尚无「成果输出」表，则自动创建（字段：周标识/周标签/内容）。
 let _outputTableToken = '';
 async function ensureOutputTable() {
+  if (usingSqlite()) { _outputTableToken = '成果输出'; return _outputTableToken; }   // SQLite 模式无需建表
   if (_outputTableToken) return _outputTableToken;
   try { const id = await tableId('成果输出', BASE_TOKEN); if (id && id !== '成果输出') { _outputTableToken = id; return id; } } catch (e) {}
   const tid = await createTableBase('成果输出', [
@@ -1061,9 +1214,11 @@ function _indexRegistry(rows) {
 }
 async function refreshRegistry(force) {
   if (!force && _registry && Date.now() - _registryTime < _REG_CACHE_MS) return _registry;
-  if (!_registryTableToken) { _registry = null; return null; }
+  if (!_registryTableToken) {
+    if (usingSqlite()) { _registryTableToken = '分类注册表'; } else { _registry = null; return null; }
+  }
   try {
-    const rows = await listTableOpen(_registryTableToken, REGISTRY_BASE);
+    const rows = await listTable(_registryTableToken, REGISTRY_BASE);
     _registry = _indexRegistry(rows); _registryTime = Date.now();
   } catch (e) { if (!_registry) _registry = null; }
   return _registry;
@@ -1103,12 +1258,12 @@ async function addCategory(level, name, parentId) {
   if (reg) {
     const ex = reg.nodes.find(n => n.level === level && (n.parentId || '') === parentId && n.name === name);
     if (ex) {
-      if (!ex.active) { try { await updateRecordOpen(tid, ex.id, { active: true }, REGISTRY_BASE); } catch (_) {} }
+      if (!ex.active) { try { await updateRecord(tid, ex.id, { active: true }, REGISTRY_BASE); } catch (_) {} }
       await refreshRegistry(true);
       return _registry ? _registry.byId[ex.id] : { id: ex.id, name, parentId, level, active: true };
     }
   }
-  const rid = await createRecordOpen(tid, { name, parentId, level, active: true, id: '' }, REGISTRY_BASE);
+  const rid = await createRecord(tid, { name, parentId, level, active: true, id: '' }, REGISTRY_BASE);
   await refreshRegistry(true);
   return _registry ? _registry.byId[rid] : { id: rid, name, parentId, level, active: true };
 }
@@ -1124,7 +1279,7 @@ async function deleteCategory(id) {
   await refreshRegistry(); if (!_registry || !_registry.byId[id]) throw new Error('分类不存在');
   const toOff = new Set(); const stack = [id];
   while (stack.length) { const cur = stack.pop(); toOff.add(cur); for (const n of _registry.nodes) if (n.parentId === cur && !toOff.has(n.id)) stack.push(n.id); }
-  for (const rid of toOff) { try { await updateRecordOpen(_registryTableToken, rid, { active: false }, REGISTRY_BASE); } catch (e) {} }
+  for (const rid of toOff) { try { await updateRecord(_registryTableToken, rid, { active: false }, REGISTRY_BASE); } catch (e) {} }
   await refreshRegistry(true);
   return true;
 }
@@ -1132,7 +1287,7 @@ async function deleteCategory(id) {
 async function buildCategoryResponse() {
   await refreshRegistry();
   const reg = _registry;
-  if (!reg) return await getCategory();
+  if (!reg || !reg.nodes.length) return await getCategory();   // 注册表为空（或未迁移）时回退原分类树
   const lvl = l => reg.nodes.filter(n => n.level === l && n.active);
   const nameOf = id => { const n = reg.byId[id]; return n ? n.name : ''; };
   const cat1 = lvl('1').map(n => n.name);
@@ -1146,7 +1301,7 @@ async function buildCategoryResponse() {
 let _inspTypeCache = null, _inspTypeTime = 0;
 async function ensureInspTypeTable() {
   // 仅 OpenAPI 模式自动建表；返回 true 表示本次刚建好并种入默认类型
-  if (!USE_OPENAPI) return false;
+  if (!USE_OPENAPI || usingSqlite()) return false;
   const exists = await tableExists(INSP_TYPE_TABLE, BASE_TOKEN);
   if (exists) return false;
   await createTableOpen(INSP_TYPE_TABLE, [{ name: '类型', type: 1 }]);
@@ -1490,6 +1645,10 @@ async function route(method, url, body, res, req) {
     }
     if (!authed(req)) return send(res, 401, { error: 'unauthorized' });
 
+    // —— 一次性数据迁移：飞书 → SQLite（鉴权后；后台异步，GET 查进度）——
+    if (method === 'POST' && url === '/api/admin/migrate') { startMigration(); return send(res, 202, { ok: true, status: migStatus() }); }
+    if (method === 'GET' && url === '/api/admin/migrate') return send(res, 200, migStatus());
+
     let m;
     // —— 文件库（字节存百度网盘，元数据存服务端；需工作台密码）——
     if (method === 'GET' && url.split('?')[0] === '/api/files') return send(res, 200, { files: loadMeta() });
@@ -1541,13 +1700,16 @@ async function route(method, url, body, res, req) {
     }
     // 精神角落「分类」单选：读取当前选项 / 追加自定义新分类（即时生效）
     if (method === 'GET' && url === '/api/book-categories') {
-      try { return send(res, 200, { options: await getSingleSelectOptions(BASE_TOKEN, '精神角落', '分类') }); }
+      try { return send(res, 200, { options: await bookCategoryOptions() }); }
       catch (e) { console.warn('[book-categories] 读取失败：', e.message || e); return send(res, 200, { options: [] }); }
     }
     if (method === 'POST' && url === '/api/book-categories') {
       const name = (body && body.name || '').toString().trim();
       if (!name) return send(res, 400, { error: '分类名称不能为空' });
-      try { return send(res, 200, { ok: true, options: await addSingleSelectOption(BASE_TOKEN, '精神角落', '分类', name) }); }
+      try {
+        if (usingSqlite()) { const opts = await bookCategoryOptions(); if (!opts.includes(name)) opts.push(name); return send(res, 200, { ok: true, options: opts }); }
+        return send(res, 200, { ok: true, options: await addSingleSelectOption(BASE_TOKEN, '精神角落', '分类', name) });
+      }
       catch (e) { return send(res, 500, { error: e.message || '添加分类失败' }); }
     }
     // —— 以下模块（微习惯/日复盘/日记/年度计划/月度计划）现已统一走 /api/section/:id 本地优先层，
@@ -1599,12 +1761,14 @@ async function route(method, url, body, res, req) {
 
 server.listen(PORT, async () => {
   console.log('✅ 傅傅的工作台已启动: http://localhost:' + PORT);
+  console.log('   存储后端: ' + (usingSqlite() ? ('SQLite (' + SQLITE_FILE + ')') : '飞书多维表格（尚未迁移）'));
   console.log('   后端模式: ' + (USE_OPENAPI ? '飞书 OpenAPI (app_id/secret)' : (LARK_CLI ? '本机 lark-cli (回退)' : '⚠️ 未配置任何飞书后端')));
   console.log('   访问密码: ' + (ACCESS_PWD ? '已启用' : '未启用（任何人都可直连）'));
   try {
-    if (USE_OPENAPI) { await tenantToken(); console.log('✅ 飞书应用鉴权成功'); }
+    if (usingSqlite()) { await ensureProjects(); console.log('✅ SQLite 就绪，项目映射已加载'); }
+    else if (USE_OPENAPI) { await tenantToken(); console.log('✅ 飞书应用鉴权成功'); }
     else if (LARK_CLI) { await ensureProjects(); console.log('✅ 飞书连接正常，项目映射已加载'); }
-  } catch (e) { console.warn('⚠️ 飞书预热失败（首次请求时会重试）: ' + e.message); }
+  } catch (e) { console.warn('⚠️ 预热失败（首次请求时会重试）: ' + e.message); }
   // 预热分类注册表缓存（不存在则静默跳过，旧功能不受影响）
   refreshRegistry().catch(() => {});
 });

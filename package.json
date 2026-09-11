@@ -1,13 +1,16 @@
 {
   "name": "fufu-workbench",
   "version": "1.0.0",
-  "description": "傅傅的工作台 - 网页工作台 + 飞书多维表格后端（纯 Node，无外部依赖）",
+  "description": "傅傅的工作台 - 网页工作台 + SQLite 本地数据库后端（原飞书多维表格已弃用）",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0"
   },
   "private": true
 }
