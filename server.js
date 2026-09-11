@@ -446,6 +446,19 @@ function startMigration() {
   })().catch(e => { _mig.running = false; _mig.error = e.message; });
 }
 
+/* ===================== SQLite 数据浏览器（/admin 只读页） ===================== */
+function dbTables() {
+  const d = initDb(); if (!d) return { tables: [] };
+  const rows = d.prepare('SELECT base, tbl, COUNT(*) AS count, MAX(updated_at) AS updated FROM records GROUP BY base, tbl ORDER BY base, tbl').all();
+  return { tables: rows };
+}
+function dbRows(base, tbl, limit) {
+  const d = initDb(); if (!d) return { rows: [] };
+  limit = Math.min(2000, Math.max(1, limit || 500));
+  const rows = d.prepare('SELECT rec, fields, updated_at FROM records WHERE base = ? AND tbl = ? ORDER BY rowid DESC LIMIT ?').all(base, tbl, limit);
+  return { rows: rows.map(r => ({ rec: r.rec, updated_at: r.updated_at, fields: JSON.parse(r.fields) })) };
+}
+
 /* ===================== 统一后端接口 ===================== */
 const feishuF = USE_OPENAPI
   ? { list: listTableOpen, create: createRecordOpen, update: updateRecordOpen, del: deleteRecordOpen }
@@ -1557,6 +1570,99 @@ function cookieFlag(req) {
 }
 
 /* ===================== HTTP ===================== */
+/* ===================== /admin SQLite 数据浏览页（自包含 HTML，只读） ===================== */
+const ADMIN_HTML = `<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>数据浏览器 · 傅傅的工作台</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f6f7f9;color:#1e293b;display:flex;height:100vh;overflow:hidden}
+#side{width:230px;min-width:230px;background:#fff;border-right:1px solid #e5e7eb;overflow-y:auto;padding:14px 10px}
+#side h1{font-size:15px;padding:0 8px 10px;border-bottom:1px solid #f1f5f9;margin-bottom:8px}
+#side h1 small{color:#94a3b8;font-weight:normal;font-size:11px;display:block}
+.titem{padding:8px 10px;border-radius:8px;cursor:pointer;margin-bottom:2px;word-break:break-all}
+.titem:hover{background:#f1f5f9}
+.titem.on{background:#eef2ff;color:#4338ca;font-weight:600}
+.titem .cnt{float:right;color:#94a3b8;font-size:12px}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#topbar{padding:10px 16px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#topbar .ttl{font-weight:700;font-size:15px}
+#q{flex:1;min-width:140px;max-width:320px;padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px}
+#wrap{flex:1;overflow:auto;padding:12px 16px}
+table{border-collapse:collapse;background:#fff;font-size:12.5px;min-width:100%}
+th,td{border:1px solid #e5e7eb;padding:5px 9px;text-align:left;vertical-align:top;max-width:340px}
+th{background:#f8fafc;position:sticky;top:0;white-space:nowrap;z-index:1}
+td{white-space:pre-wrap;word-break:break-word}
+td.dim{color:#94a3b8}
+tr.hide{display:none}
+#hint{color:#94a3b8;padding:40px;text-align:center}
+.badge{font-size:12px;color:#64748b}
+</style></head><body>
+<div id="side"><h1>数据浏览器<small>SQLite · 只读</small></h1><div id="tlist"></div></div>
+<div id="main">
+  <div id="topbar"><span class="ttl" id="ttl">请选择左侧的表</span><input id="q" placeholder="在当前表内搜索…"><span class="badge" id="badge"></span></div>
+  <div id="wrap"><div id="hint">← 选择一张表查看内容（与工作台实时数据一致，只读不可改）</div></div>
+</div>
+<script>
+var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};
+var fmtDate=function(ms){var d=new Date(Number(ms)+8*3600*1000);function p(n){return(n<10?'0':'')+n}
+  return d.getUTCFullYear()+'-'+p(d.getUTCMonth()+1)+'-'+p(d.getUTCDate())+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes())};
+var fmtVal=function(v){
+  if(v===null||v===undefined||v==='')return['','dim',''];
+  if(v===true)return['✓','','✓'];
+  if(v===false)return['✗','dim',''];
+  if(typeof v==='number'){
+    if(v>946684800000&&v<4102444800000)return[fmtDate(v),'',''+v];   // 2000~2100 的毫秒时间戳按日期显示
+    return[''+v,'',''+v];
+  }
+  if(typeof v==='object'){
+    try{var ids=[];var walk=function(x){if(Array.isArray(x))x.forEach(walk);else if(x&&typeof x==='object'){if(x.record_ids)ids.push.apply(ids,x.record_ids);else if(x.text!==undefined)ids.push(x.text);else if(x.id)ids.push(x.id)}else ids.push(x)};
+      walk(v);if(ids.length)return[ids.join(', '),'',''+ids.join(' ')]}catch(e){}
+    var j=JSON.stringify(v);return[j,'',j];
+  }
+  return[''+v,'',''+v];
+};
+var curRows=[],curCols=[];
+function loadTables(){
+  fetch('/api/admin/db/tables').then(function(r){return r.json()}).then(function(j){
+    var el=document.getElementById('tlist');
+    if(!j.tables||!j.tables.length){el.innerHTML='<div style="padding:12px;color:#94a3b8">数据库为空<br>（尚未从飞书迁移）</div>';return}
+    el.innerHTML=j.tables.map(function(t){
+      return'<div class="titem" data-b="'+esc(t.base)+'" data-t="'+esc(t.tbl)+'"><span class="cnt">'+t.count+'</span>'+esc(t.tbl)+'</div>'}).join('');
+    Array.prototype.forEach.call(el.querySelectorAll('.titem'),function(it){
+      it.onclick=function(){Array.prototype.forEach.call(el.querySelectorAll('.titem'),function(x){x.classList.remove('on')});it.classList.add('on');loadRows(it.getAttribute('data-b'),it.getAttribute('data-t'))};
+    });
+  });
+}
+function loadRows(base,tbl){
+  document.getElementById('ttl').textContent=tbl;
+  document.getElementById('wrap').innerHTML='<div id="hint">加载中…</div>';
+  fetch('/api/admin/db/table?base='+encodeURIComponent(base)+'&tbl='+encodeURIComponent(tbl)).then(function(r){return r.json()}).then(function(j){
+    var rows=j.rows||[];
+    var cols=[],seen={};
+    rows.forEach(function(r){Object.keys(r.fields).forEach(function(k){if(!seen[k]){seen[k]=1;cols.push(k)}})});
+    curRows=rows;curCols=cols;
+    document.getElementById('badge').textContent=rows.length+' 行';
+    if(!rows.length){document.getElementById('wrap').innerHTML='<div id="hint">空表</div>';return}
+    var h='<table><thead><tr><th>record_id</th><th>更新时间</th>'+cols.map(function(c){return'<th>'+esc(c)+'</th>'}).join('')+'</tr></thead><tbody>';
+    rows.forEach(function(r){
+      var cells=[],search=[r.rec];
+      cols.forEach(function(c){var f=fmtVal(r.fields[c]);cells.push('<td class="'+f[1]+'">'+esc(f[0])+'</td>');search.push(f[2])});
+      h+='<tr data-s="'+esc(search.join(' ').toLowerCase())+'"><td class="dim">'+esc(r.rec)+'</td><td class="dim" style="white-space:nowrap">'+fmtDate(r.updated_at)+'</td>'+cells.join('')+'</tr>';
+    });
+    document.getElementById('wrap').innerHTML=h+'</tbody></table>';
+  });
+}
+document.getElementById('q').oninput=function(e){
+  var v=e.target.value.toLowerCase();
+  Array.prototype.forEach.call(document.querySelectorAll('#wrap tbody tr'),function(tr){
+    tr.className=(!v||tr.getAttribute('data-s').indexOf(v)>=0)?'':'hide';
+  });
+};
+loadTables();
+</script></body></html>`;
+
 const server = http.createServer((req, res) => {
   if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
     fs.readFile(path.join(__dirname, 'index.html'), (err, data) => {
@@ -1564,6 +1670,17 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
       res.end(data);
     });
+    return;
+  }
+  // SQLite 数据浏览器（只读，密码门保护）：像飞书表格一样按「表 → 行列」查看数据库内容
+  if (req.method === 'GET' && (req.url === '/admin' || req.url === '/admin.html')) {
+    if (!authed(req)) {
+      res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end('<h3 style="font-family:sans-serif">未登录：请先打开 <a href="/">工作台</a> 登录，再访问本页</h3>');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+    res.end(ADMIN_HTML);
     return;
   }
   if (req.url.startsWith('/api/')) { handleApi(req, res); return; }
@@ -1648,6 +1765,12 @@ async function route(method, url, body, res, req) {
     // —— 一次性数据迁移：飞书 → SQLite（鉴权后；后台异步，GET 查进度）——
     if (method === 'POST' && url === '/api/admin/migrate') { startMigration(); return send(res, 202, { ok: true, status: migStatus() }); }
     if (method === 'GET' && url === '/api/admin/migrate') return send(res, 200, migStatus());
+    // —— SQLite 数据浏览器（/admin 页的数据源，只读）——
+    if (method === 'GET' && url.split('?')[0] === '/api/admin/db/tables') return send(res, 200, dbTables());
+    if (method === 'GET' && url.split('?')[0] === '/api/admin/db/table') {
+      const u = new URL(req.url, 'http://localhost');
+      return send(res, 200, dbRows(u.searchParams.get('base') || '', u.searchParams.get('tbl') || '', Number(u.searchParams.get('limit')) || 500));
+    }
 
     let m;
     // —— 文件库（字节存百度网盘，元数据存服务端；需工作台密码）——
