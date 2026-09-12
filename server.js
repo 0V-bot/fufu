@@ -712,11 +712,11 @@ function slimInsp(it) {
   keep.forEach(k => { o[k] = it[k]; });
   return o;
 }
-// 服务端搜索：只匹配能代表「文章是什么」的字段（与前端收窄范围一致），避免正文噪音
+// 服务端搜索：匹配标题/关键词/金句/AI总结/AI搜索摘要/标签/分类 + 原始文案/个人感悟（与前端 inspMatchLocal 保持一致）
 function inspMatch(it, q) {
   if (!q) return true;
   const ql = q.toLowerCase();
-  const hay = [it.title, it.keywords, it.quote, it.summary, it.tag, it.cat1, it.cat2, it.cat3].filter(Boolean).join(' ').toLowerCase();
+  const hay = [it.title, it.keywords, it.quote, it.summary, it.abstract, it.original, it.reflection, it.tag, it.cat1, it.cat2, it.cat3].filter(Boolean).join(' ').toLowerCase();
   return hay.includes(ql);
 }
 function inspFacet(list, key) {

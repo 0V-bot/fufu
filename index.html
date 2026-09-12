@@ -1085,7 +1085,7 @@ async function localDelete(sectionId, rec){
 
 /* ---- 灵感库类：本地搜索/筛选/分页（复刻服务端逻辑） ---- */
 function slimLocal(it){ const keep=['id','ID','title','cat1','cat2','cat3','tag','quote','summary','keywords','ctype','date','status','source']; const o={}; keep.forEach(k=> o[k]=it[k]); return o; }
-function inspMatchLocal(it, q){ if(!q) return true; const ql=q.toLowerCase(); const hay=[it.title,it.keywords,it.quote,it.summary,it.tag,it.cat1,it.cat2,it.cat3].filter(Boolean).join(' ').toLowerCase(); return hay.includes(ql); }
+function inspMatchLocal(it, q){ if(!q) return true; const ql=q.toLowerCase(); const hay=[it.title,it.keywords,it.quote,it.summary,it.abstract,it.original,it.reflection,it.tag,it.cat1,it.cat2,it.cat3].filter(Boolean).join(' ').toLowerCase(); return hay.includes(ql); }
 function inspFacetLocal(list, key){ const s=new Set(); list.forEach(it=>{ const v=it[key]; if(v) s.add(v); }); return [...s]; }
 
 /* ---- 同步：先把本地 dirty 推到飞书，再拉取外部变更（本地优先，冲突以本地为准） ---- */
@@ -1791,7 +1791,19 @@ function setupInspScroll(sectionId){
   };
   window.addEventListener('scroll', _infiniteScrollFn, {passive:true});
 }
-function inspSearch(sectionId, v){ const st=pgGet(sectionId); st.q=(v||'').trim(); renderInspirationSection(sectionId); }
+/* 搜索/筛选前静默拉取该桶最新数据（解决"新录入文章在服务端、本地缓存未更新导致搜不到"）。
+   灵感库各分类页共用 inspiration 桶，必须拉 inspiration 全量——若只拉当前分类子集，
+   mergePull 会把桶内其它标签的记录误判为"远端已删"而清除。失败静默降级为搜本地缓存。 */
+async function refreshBucketFromNet(sectionId){
+  const sec = localSection(sectionId);
+  if(localExcluded(sectionId) || !sectionBacked(sectionId)) return;
+  const netId = sec==='inspiration' ? 'inspiration' : sectionId;
+  try{
+    const arr = await apiJson('/section/'+netId+'?full=1');
+    if(Array.isArray(arr)) await mergePull(sec, arr);
+  }catch(e){ /* 离线/失败静默，仍搜本地 */ }
+}
+async function inspSearch(sectionId, v){ const st=pgGet(sectionId); st.q=(v||'').trim(); await refreshBucketFromNet(sectionId); renderInspirationSection(sectionId); }
 function inspSet(sectionId, k, v){ const st=pgGet(sectionId); st[k]=v; renderInspirationSection(sectionId); }
 function inspReset(sectionId){ const st=pgGet(sectionId); st.q='';st.cat1='';st.cat2='';st.tag='';st.ctype='';st.status=''; renderInspirationSection(sectionId); }
 function inspToggleStatus(sectionId){   // 点击循环切换：全部 → 整理(已整理) → 未整理 → 全部
