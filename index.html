@@ -1267,11 +1267,11 @@ const SECTIONS = {
   caps:{name:'鸭舌帽',kind:'project',accent:'#14b8a6',hint:'项目目标、任务与进度追踪。'},
   counseling:{name:'心理咨询',kind:'project',accent:'#a855f7',hint:'项目目标、任务与进度追踪。'},
   outfit:{name:'穿搭IP',kind:'project',accent:'#ec4899',hint:'项目目标、任务与进度追踪。'},
-  articleInput:{name:'文章录入',kind:'article',accent:'#8b5cf6',hint:'粘贴文章内容，保存到「人生灵感库」等待 AI 分析。'},
+  articleInput:{name:'文章录入',kind:'article',accent:'#8b5cf6',hint:'粘贴文章内容，保存到「知识管理库」等待 AI 分析。'},
   diary:{name:'写日记',kind:'diary',accent:'#f43f5e',hint:'每天一篇私人日记：记录天气、心情与当日所思所想。提交后不可修改，日历中绿色日期可点开回看。'},
   habitChecks:{name:'习惯打卡',kind:'habitCheck',accent:'#10b981'},
   calendar:{name:'日历',kind:'calendar',accent:'#0ea5e9',hint:'按月查看日程与提醒：左侧小日历切换月份，右侧当月格子每格右上角「＋」可添加当天日程（标题 / 时间 / 备注 / 是否提醒）。'},
-  inspiration:{name:'知识库',kind:'wisdom',accent:'#f97316',hint:'来自「人生灵感库」的完整文案资产（在飞书中维护；可删除，也可点「详情」手动编辑补充）。',readonly:true,allowDelete:true,allowEdit:true},
+  inspiration:{name:'知识库',kind:'wisdom',accent:'#f97316',hint:'来自「知识管理库」的完整文案资产（可删除，也可点「详情」手动编辑补充）。',readonly:true,allowDelete:true,allowEdit:true},
   topics:{name:'选题库',kind:'topics',accent:'#3b82f6',hint:'把灵感打磨成可发布的选题。'},
   publish:{name:'发布草稿',kind:'publish',accent:'#22c55e',hint:'记录待发布与已发布的草稿：计划发布时间、标题、文案、备注。'},
   work:{name:'职场',kind:'kbcat',accent:'#d97706',hint:'职场进阶、沟通协作与职业发展的沉淀。'},
@@ -1607,7 +1607,7 @@ async function renderList(sectionId, kind){
   let html = `<div class="card"><div class="h"><div class="t">${s.name}（${arr.length}）</div>`;
   if(!s.readonly) html += `<button class="btn" onclick="addGeneric('${sectionId}')">+ 添加</button>`;
   html += `</div>`;
-  if(!arr.length){ html += `<div class="empty">${s.readonly?'这个库还是空的，去飞书「人生灵感库」添加内容吧':'还没有内容，点击「添加」开始记录 ✨'}</div></div>`; setView(html, pg); return; }
+  if(!arr.length){ html += `<div class="empty">${s.readonly?'这个库还是空的，去「文章录入」添加内容吧':'还没有内容，点击「添加」开始记录 ✨'}</div></div>`; setView(html, pg); return; }
   html += '<div class="grid cols-2">';
   arr.forEach(it=>{
     let ops = '';
@@ -1793,7 +1793,7 @@ function renderInspGrid(sectionId){
   const s = SECTIONS[sectionId];
   const readonly = !s.allowEdit;
   if(!st.items.length){
-    grid.innerHTML = `<div class="empty">${st.q?'没有匹配的内容，换个关键词试试':'还没有内容'+(readonly?'，去飞书「人生灵感库」添加吧':'，点击「添加」开始记录 ✨')}</div>`;
+    grid.innerHTML = `<div class="empty">${st.q?'没有匹配的内容，换个关键词试试':'还没有内容'+(readonly?'，去「文章录入」添加吧':'，点击「添加」开始记录 ✨')}</div>`;
   } else {
     grid.innerHTML = st.items.map(it=>{
       let inner = `<button class="btn ghost mini" onclick="editWisdom('${it.id}','${sectionId}')">详情</button>`;
@@ -2093,7 +2093,7 @@ async function editWisdom(recId, sectionId){
   const sel = (k,label,opts,cur)=> `<div class="field"><label>${label}</label><select data-k="${k}">${optList(opts,cur)}</select></div>`;
   const F = (k,label,val)=> `<div class="field"><label>${label}</label><input data-k="${k}" value="${esc(val||'')}"></div>`;
   const T = (k,label,val,cls)=> `<div class="field ${cls||''}"><label>${label}</label><textarea data-k="${k}">${esc(val||'')}</textarea></div>`;
-  const secName = (SECTIONS[sectionId] && SECTIONS[sectionId].name) || '人生灵感库';
+  const secName = (SECTIONS[sectionId] && SECTIONS[sectionId].name) || '知识管理库';
   modal.innerHTML = `<h3>编辑 · ${secName}</h3>
     ${F('title','文案标题',it.title)}
     ${T('original','原始文案',it.original,'fullw')}
@@ -2311,8 +2311,8 @@ async function renderArticle(){
       </div>
       <div class="hint-box">
         <b>使用说明：</b>「一级 / 二级 / 三级分类」「标签」「内容类型」「核心关键点」均为可选项——提前填好，AI 会直接沿用、免去重新判断；全部留空则交给 AI 自动分析。<br>
-        · <b>先记录，待AI分析</b>：保存到「录入表」，由 WorkBuddy 定时或对我说「处理待分析文章」触发 AI 分析后写入人生灵感库。<br>
-        · <b>直接录入</b>：不经录入表，直接写入「人生灵感库」（内容类型 / 核心关键点一并保存，其余 AI 字段留空待后续在灵感库详情里补充）。<br>
+        · <b>先记录，待AI分析</b>：保存到「录入表」，由 WorkBuddy 定时或对我说「处理待分析文章」触发 AI 分析后写入知识管理库。<br>
+        · <b>直接录入</b>：不经录入表，直接写入「知识管理库」（内容类型 / 核心关键点一并保存，其余 AI 字段留空待后续在灵感库详情里补充）。<br>
         开启「多篇」时，AI 会先按文章规律拆成多条再分别分析。
       </div>
     </div>
@@ -2364,7 +2364,7 @@ async function submitArticleDirect(){
     const r = await fetch(API+'/article-direct',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content,source,sourceLink,reflection,cat1,cat2,cat3,tag,ctype,summary})});
     const j = await r.json();
     if(!r.ok) throw new Error(j.error||'保存失败');
-    alert('已直接录入「人生灵感库」（record_id: '+j.record_id+'）');
+    alert('已直接录入「知识管理库」（record_id: '+j.record_id+'）');
     resetArticleForm();
   }catch(e){ alert('保存失败：'+(e.message||e)); }
   finally{ articleSubmitting = false; }
@@ -4120,10 +4120,10 @@ async function renderDashboard(){
   // 每条数据独立容错：某板块本地缓存缺失/未同步也不影响首页其余板块渲染。
   const safe = async (fn, def) => { try { return await fn(); } catch(e){ return def; } };
   const t = (() => { const d = new Date(Date.now() + 8 * 3600 * 1000), p = n => (n < 10 ? '0' + n : '' + n); return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()); })();
-  let todayTodos=[], todoPending=0, habits=[], major=[], projCount=0, insp=0, topics=0, knowledge=0, inputPending=-1;
+  let todayTodos=[], todoPending=0, habits=[], major=[], projCount=0, insp=0, topics=0, quotes=0, knowledge=0, inputPending=-1;
   try {
     // 并行拉取所有本地缓存（原串行 await 约 10 次，改为一次性并发，大幅缩短首页加载耗时）
-    const [todos, habitRows, checks, majorArr, taobao, caps, counseling, outfit, insprecArr, topicsArr, articleInputArr] = await Promise.all([
+    const [todos, habitRows, checks, majorArr, taobao, caps, counseling, outfit, insprecArr, topicsArr, articleInputArr, quotesArr, inspirationArr] = await Promise.all([
       safe(()=>localList('todos'), []),
       safe(()=>localList('habits'), []),
       safe(()=>localList('habitCheck'), []),
@@ -4135,6 +4135,8 @@ async function renderDashboard(){
       safe(()=>localList('insprec'), []),
       safe(()=>localList('topics'), []),
       safe(()=>localList('articleInput'), []),
+      safe(()=>localList('quotes'), []),
+      safe(()=>localList('inspiration'), []),
     ]);
     todayTodos = todos.filter(x => x.date === t);
     todoPending = todayTodos.filter(x => !x.done).length;
@@ -4146,7 +4148,8 @@ async function renderDashboard(){
     projCount = taobao.length + caps.length + counseling.length + outfit.length;
     insp = insprecArr.length;
     topics = topicsArr.length;
-    knowledge = insp; // 「知识沉淀」与灵感同源同一张「人生灵感库」表
+    quotes = quotesArr.length;
+    knowledge = inspirationArr.length; // 「知识沉淀」= 知识管理库全部文章数
     inputPending = articleInputArr.length;
   } catch(e){ if(current!=='dashboard') return; setView(`<div class="empty">⚠️ 加载失败：${esc(e.message||e)}</div>`, 'dashboard'); return; }
   dashCache = { todayTodos };
@@ -4161,12 +4164,12 @@ async function renderDashboard(){
   if (pend > 0) {
     pendingBanner = `<div class="pending-banner warn" onclick="go('articleInput')" title="点击前往「文章录入」">
       <div class="pb-ic">📥</div>
-      <div class="pb-txt">录入表还有 <b>${pend}</b> 条文章待分析，尚未写入「人生灵感库」。在 WorkBuddy 说「处理待分析文章」即可触发 AI 分析，或点此前往「文章录入」查看。<span class="pb-link">去处理 →</span></div>
+      <div class="pb-txt">录入表还有 <b>${pend}</b> 条文章待分析，尚未写入「知识管理库」。在 WorkBuddy 说「处理待分析文章」即可触发 AI 分析，或点此前往「文章录入」查看。<span class="pb-link">去处理 →</span></div>
     </div>`;
   } else if (pend === 0) {
     pendingBanner = `<div class="pending-banner ok">
       <div class="pb-ic">✅</div>
-      <div class="pb-txt">录入表已清空，所有文章都已完成分析并写入「人生灵感库」。</div>
+      <div class="pb-txt">录入表已清空，所有文章都已完成分析并写入「知识管理库」。</div>
     </div>`;
   } else {
     pendingBanner = `<div class="pending-banner ok">
@@ -4191,8 +4194,8 @@ async function renderDashboard(){
   </div>
   <div class="grid cols-3" style="margin-bottom:18px">
     ${stat('🚀 项目任务', projCount, '跨 4 个项目', 'projects')}
-    ${stat('✍️ 内容资产', insp+topics, '灵感 '+insp+' · 选题 '+topics, 'content')}
-    ${stat('📚 知识沉淀', knowledge, '7 大主题', 'work')}
+    ${stat('✍️ 灵感记录', insp, '金句 '+quotes+' · 选题 '+topics, 'insprec')}
+    ${stat('📚 知识沉淀', knowledge, '7 大主题', 'inspiration')}
   </div>`;
 
   html += `<div class="grid cols-2">`;
