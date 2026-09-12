@@ -354,13 +354,13 @@ function usingSqlite() {
 function newRecId() { return 'rec' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'); }
 async function sqlList(name, base = BASE_TOKEN) {
   const d = initDb();
-  return d.prepare('SELECT rec, fields FROM records WHERE base = ? AND tbl = ?').all(base || BASE_TOKEN, name)
-    .map(r => Object.assign({ record_id: r.rec }, JSON.parse(r.fields)));
+  return d.prepare('SELECT rec, fields, updated_at FROM records WHERE base = ? AND tbl = ?').all(base || BASE_TOKEN, name)
+    .map(r => Object.assign({ record_id: r.rec, __updated: r.updated_at }, JSON.parse(r.fields)));
 }
 async function sqlGet(name, rec, base = BASE_TOKEN) {
   const d = initDb();
-  const row = d.prepare('SELECT fields FROM records WHERE base = ? AND tbl = ? AND rec = ?').get(base || BASE_TOKEN, name, rec);
-  return row ? Object.assign({ record_id: rec }, JSON.parse(row.fields)) : null;
+  const row = d.prepare('SELECT fields, updated_at FROM records WHERE base = ? AND tbl = ? AND rec = ?').get(base || BASE_TOKEN, name, rec);
+  return row ? Object.assign({ record_id: rec, __updated: row.updated_at }, JSON.parse(row.fields)) : null;
 }
 async function sqlCreate(name, fields, base = BASE_TOKEN) {
   const d = initDb();
@@ -548,7 +548,8 @@ function readInspireFields(r) {
     status: sel(r['是否整理']) || '',
     source: r['来源'] || '',
     sourceLink: slText,
-    reflection: r['个人感悟'] || ''
+    reflection: r['个人感悟'] || '',
+    updated: Number(r.__updated) || 0   // SQLite 行的最后修改时间（ms），前端按它排最新在前
   };
 }
 function readRec(kind, r) {

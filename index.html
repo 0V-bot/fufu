@@ -990,6 +990,16 @@ function sectionPayload(id, data){
 }
 
 const _seeded = {};
+// 分类树（一级/二级/三级级联）客户端缓存：筛选下拉选项的全量来源
+let _catTreeCache = null, _catTreePromise = null;
+async function loadCatTree(){
+  if(_catTreeCache) return _catTreeCache;
+  if(!_catTreePromise){
+    _catTreePromise = apiJson('/category').then(j=>{ _catTreeCache = { cat1: j.cat1||[], tree: j.tree||{} }; return _catTreeCache; })
+      .catch(()=>{ _catTreePromise = null; return { cat1:[], tree:{} }; });
+  }
+  return _catTreePromise;
+}
 async function ensureLocal(sectionId){
   const sec = localSection(sectionId);
   if(_seeded[sec]) return;
@@ -1033,7 +1043,7 @@ async function localCreate(sectionId, obj){
   if(localExcluded(sectionId) || !sectionBacked(sectionId)) return _netCreate(sectionId, obj);
   const sec = localSection(sectionId);
   const id = uuid();
-  const data = Object.assign({}, obj); data.id = id;
+  const data = Object.assign({}, obj); data.id = id; data.updated = Date.now();   // updated：列表「最新在前」排序依据
   const k = SECTIONS[sectionId] && SECTIONS[sectionId].kind;
   if(isPtaskKind(k) && !isRealTid(data.tid)) data.tid = 'L'+id; // 本地临时 tid：离线建树用，推送时剥离
   if(SECTIONS[sectionId] && (SECTIONS[sectionId].kind==='knowledge' || SECTIONS[sectionId].kind==='kbcat')){
@@ -1062,6 +1072,7 @@ async function localUpdate(sectionId, rec, obj){
   if(SECTIONS[sectionId] && SECTIONS[sectionId].kind==='wisdom') merged = Object.assign({}, doc.data, wisdomFromFeishu(obj));
   else merged = Object.assign({}, doc.data, obj);
   merged.id = doc.id;
+  merged.updated = Date.now();   // 本地编辑也顶到列表最前；推送后由 mergePull 刷新为服务端修改时间
   doc.data = merged;
   doc._op = (doc._op==='create') ? 'create' : 'update';
   doc._dirty = true; doc._ts = doc._ts || Date.now();
@@ -1691,18 +1702,31 @@ async function fetchInspPage(sectionId, page){
     const tag = SECTIONS[sectionId] && SECTIONS[sectionId].name; list = list.filter(x=> (x.tag||'')===tag);
   }
   const q = (st.q||'').trim();
+  const baseList = list;   // 未加搜索/筛选的全量（分类页已按标签限域）：下拉选项从此派生，不受筛选影响
   if(q) list = list.filter(it=> inspMatchLocal(it, q));
   if(st.cat1) list = list.filter(it=> it.cat1===st.cat1);
   if(st.cat2) list = list.filter(it=> it.cat2===st.cat2);
   if(st.tag)  list = list.filter(it=> it.tag===st.tag);
   if(st.ctype) list = list.filter(it=> it.ctype===st.ctype);
   if(st.status) list = list.filter(it=> it.status===st.status);
-  list.sort((a,b)=> String(b.id).localeCompare(String(a.id)) );
+  // 排序：创建/修改时间最新在前（updated=服务端 SQLite 行修改时间 / 本地写入时间），无 updated 的老数据回退 record_id 倒序（≈创建顺序）
+  list.sort((a,b)=> ((Number(b.updated)||0)-(Number(a.updated)||0)) || String(b.id).localeCompare(String(a.id)) );
   const total = list.length;
   const pageSize = PG_SIZE;
   const start = (page-1)*pageSize;
   const items = list.slice(start, start+pageSize).map(slimLocal);
-  const facets = { cat1: inspFacetLocal(list,'cat1'), cat2: inspFacetLocal(list,'cat2'), tag: inspFacetLocal(list,'tag'), ctype: inspFacetLocal(list,'ctype') };
+  // 下拉选项：一级/二级分类以分类注册表全量树为准（不管有没有文章用过都在）；与文章实际值并集兜底旧数据。
+  // 二级分类 = 当前选中一级分类下的全部二级（未选一级时给全部）；标签/内容类型从当前页全量（未筛选）派生。
+  const catTree = await loadCatTree();
+  const uniq = a => [...new Set(a.filter(Boolean))];
+  const scope1 = st.cat1 ? baseList.filter(x=> x.cat1===st.cat1) : baseList;
+  const treeCat2 = st.cat1 ? Object.keys(catTree.tree[st.cat1]||{}) : uniq([].concat.apply([], Object.keys(catTree.tree).map(k=> Object.keys(catTree.tree[k]||{}))));
+  const facets = {
+    cat1: uniq([...(catTree.cat1||[]), ...inspFacetLocal(baseList,'cat1')]),
+    cat2: uniq([...treeCat2, ...inspFacetLocal(scope1,'cat2')]),
+    tag: inspFacetLocal(baseList,'tag'),
+    ctype: inspFacetLocal(baseList,'ctype')
+  };
   return { items, total, page, pageSize, hasMore: start+pageSize<total, facets };
 }
 async function renderInspirationSection(sectionId){
