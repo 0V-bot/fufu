@@ -1,0 +1,11 @@
+# 部署到 Linux VPS 的文本文件强制 LF 行尾。
+# Windows 端 core.autocrlf=true 会在 checkout 时转成 CRLF，导致 bash 脚本
+# 报 `$'\r': command not found`、nginx 配置解析异常，故在此显式锁定。
+*.sh        text eol=lf
+*.py        text eol=lf
+*.conf      text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+Dockerfile  text eol=lf
+*.js        text eol=lf
+*.html      text eol=lf
