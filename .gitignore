@@ -3,6 +3,15 @@
 .env.local
 .env.*.local
 
+# ===== TLS 证书 / 私钥（绝不入库，含阿里云下载的 pem/key/zip）=====
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.cer
+*_nginx.zip
+
 # ===== 本地测试 / Cookie 产物 =====
 cj.txt
 *.log
