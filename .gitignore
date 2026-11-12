@@ -21,6 +21,8 @@ node_modules/
 .DS_Store
 Thumbs.db
 *.swp
+__pycache__/
+*.pyc
 
 # ===== 运行时：创建幂等去重映射（自动生成，勿入库）=====
 __cid_map.json
