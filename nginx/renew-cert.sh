@@ -29,6 +29,16 @@ done
 echo "==> [1/5] 当前证书状态"
 certbot certificates || true
 
+# 预检：若 80 端口的 ACME 校验路径被 301 跳到 HTTPS，--nginx 插件签发必然失败，
+# 直接引导去跑 fix_acme_and_renew.py（修 challenge + webroot 重签），避免白等一次超时。
+probe=$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://${DOMAIN}/.well-known/acme-challenge/__probe__" 2>/dev/null || true)
+if [ "$probe" = "301" ] || [ "$probe" = "302" ]; then
+  echo "WARN: 80 端口的 ACME 校验路径被跳转（HTTP $probe），nginx 插件无法通过校验。"
+  echo "请先修复：sudo python3 nginx/fix_acme_and_renew.py --check"
+  echo "确认无误后执行：sudo python3 nginx/fix_acme_and_renew.py"
+  exit 2
+fi
+
 echo "==> [2/5] 强制重新签发免费证书（90 天）"
 certbot renew --force-renewal --cert-name "$DOMAIN" --non-interactive
 
