@@ -1,0 +1,2443 @@
+{
+  "meta": {
+    "title": "傅傅的工作台 · 分类树（一级 / 二级 / 三级）",
+    "exportedAt": "2026-11-12 23:42:08",
+    "database": "workbench.db",
+    "databaseModifiedAt": "2026-09-12 01:32:59",
+    "sources": [
+      "tblfMizz0bw1juvw（原始分类表）",
+      "分类注册表（分类注册表，稳定 ID）"
+    ],
+    "rule": "以原始分类表为主干保留完整清单与顺序，补入分类注册表的新增/改名节点；能匹配到注册表的节点带稳定 id，未匹配则 id=null",
+    "note": "contentTypes 是「内容类型」，不属于三级分类树，单独列出；apiFormat 与 GET /api/category 的 cat1/tree/ctypes 结构一致，可直接作为回退数据源"
+  },
+  "counts": {
+    "level1": 14,
+    "level2": 76,
+    "level3": 16,
+    "contentTypes": 5,
+    "withRegistryId": 73
+  },
+  "categories": [
+    {
+      "name": "终身提升的能力",
+      "level": 1,
+      "id": "recvtSvB4X3T8J",
+      "inRegistry": true,
+      "path": [
+        "终身提升的能力"
+      ],
+      "children": [
+        {
+          "name": "保持终身学习能力",
+          "level": 2,
+          "id": "recvtSvGgVv9iH",
+          "inRegistry": true,
+          "path": [
+            "终身提升的能力",
+            "保持终身学习能力"
+          ],
+          "children": []
+        },
+        {
+          "name": "识人能力",
+          "level": 2,
+          "id": "recvtSvCRnDCl2",
+          "inRegistry": true,
+          "path": [
+            "终身提升的能力",
+            "识人能力"
+          ],
+          "children": []
+        },
+        {
+          "name": "解决问题的能力",
+          "level": 2,
+          "id": "recvtSvExlxIyE",
+          "inRegistry": true,
+          "path": [
+            "终身提升的能力",
+            "解决问题的能力"
+          ],
+          "children": []
+        },
+        {
+          "name": "学会做饭的重要性",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "终身提升的能力",
+            "学会做饭的重要性"
+          ],
+          "children": []
+        },
+        {
+          "name": "专注力",
+          "level": 2,
+          "id": "recvuVEJPd9HrV",
+          "inRegistry": true,
+          "path": [
+            "终身提升的能力",
+            "专注力"
+          ],
+          "children": []
+        },
+        {
+          "name": "聚焦目标",
+          "level": 2,
+          "id": "recvuVEXRjUq39",
+          "inRegistry": true,
+          "path": [
+            "终身提升的能力",
+            "聚焦目标"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "时间管理",
+      "level": 1,
+      "id": "recvtSvBVWFKxg",
+      "inRegistry": true,
+      "path": [
+        "时间管理"
+      ],
+      "children": [
+        {
+          "name": "时间规划",
+          "level": 2,
+          "id": "recvtSvDLn0tjo",
+          "inRegistry": true,
+          "path": [
+            "时间管理",
+            "时间规划"
+          ],
+          "children": []
+        },
+        {
+          "name": "拖延",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "时间管理",
+            "拖延"
+          ],
+          "children": []
+        },
+        {
+          "name": "优先级",
+          "level": 2,
+          "id": "recvtSvDKUfrHf",
+          "inRegistry": true,
+          "path": [
+            "时间管理",
+            "优先级"
+          ],
+          "children": []
+        },
+        {
+          "name": "长期主义",
+          "level": 2,
+          "id": "recvtSvEx0cnzV",
+          "inRegistry": true,
+          "path": [
+            "时间管理",
+            "长期主义"
+          ],
+          "children": []
+        },
+        {
+          "name": "一整块时间专注做事",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "时间管理",
+            "一整块时间专注做事"
+          ],
+          "children": []
+        },
+        {
+          "name": "一天只做一件重要的事情",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "时间管理",
+            "一天只做一件重要的事情"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "精力管理",
+      "level": 1,
+      "id": "recvtSvB555dJz",
+      "inRegistry": true,
+      "path": [
+        "精力管理"
+      ],
+      "children": [
+        {
+          "name": "要事优先做",
+          "level": 2,
+          "id": "recvtSvEB9fg5A",
+          "inRegistry": true,
+          "path": [
+            "精力管理",
+            "要事优先做"
+          ],
+          "children": []
+        },
+        {
+          "name": "提升能量的方式",
+          "level": 2,
+          "id": "recvtSvCSnwtoe",
+          "inRegistry": true,
+          "path": [
+            "精力管理",
+            "提升能量的方式"
+          ],
+          "children": []
+        },
+        {
+          "name": "保持良好的身体状态",
+          "level": 2,
+          "id": "recvtSvCQMPvTF",
+          "inRegistry": true,
+          "path": [
+            "精力管理",
+            "保持良好的身体状态"
+          ],
+          "children": []
+        },
+        {
+          "name": "不要有状态洁癖",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "精力管理",
+            "不要有状态洁癖"
+          ],
+          "children": []
+        },
+        {
+          "name": "远离消耗你的人和事",
+          "level": 2,
+          "id": "recvtSvFsFHbaB",
+          "inRegistry": true,
+          "path": [
+            "精力管理",
+            "远离消耗你的人和事"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "情绪管理",
+      "level": 1,
+      "id": "recvtSvB57oBuH",
+      "inRegistry": true,
+      "path": [
+        "情绪管理"
+      ],
+      "children": [
+        {
+          "name": "不要花时间形成共识",
+          "level": 2,
+          "id": "recvtSvECbD2z5",
+          "inRegistry": true,
+          "path": [
+            "情绪管理",
+            "不要花时间形成共识"
+          ],
+          "children": []
+        },
+        {
+          "name": "快速翻篇的能力",
+          "level": 2,
+          "id": "recvtSvEwAawQL",
+          "inRegistry": true,
+          "path": [
+            "情绪管理",
+            "快速翻篇的能力"
+          ],
+          "children": []
+        },
+        {
+          "name": "积极心态看问题",
+          "level": 2,
+          "id": "recvtSvDHljyUb",
+          "inRegistry": true,
+          "path": [
+            "情绪管理",
+            "积极心态看问题"
+          ],
+          "children": []
+        },
+        {
+          "name": "不要反复咀嚼坏人坏事",
+          "level": 2,
+          "id": "recvtSvCQCWA4Z",
+          "inRegistry": true,
+          "path": [
+            "情绪管理",
+            "不要反复咀嚼坏人坏事"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "自我认知",
+      "level": 1,
+      "id": "recvtSvB56DgQF",
+      "inRegistry": true,
+      "path": [
+        "自我认知"
+      ],
+      "children": [
+        {
+          "name": "高敏感人格",
+          "level": 2,
+          "id": "recvtSvEBlGAUG",
+          "inRegistry": true,
+          "path": [
+            "自我认知",
+            "高敏感人格"
+          ],
+          "children": []
+        },
+        {
+          "name": "习惯性讨好",
+          "level": 2,
+          "id": "recvtSvFqIP21k",
+          "inRegistry": true,
+          "path": [
+            "自我认知",
+            "习惯性讨好"
+          ],
+          "children": []
+        },
+        {
+          "name": "自己擅长的",
+          "level": 2,
+          "id": "recvtSvCRRHV1S",
+          "inRegistry": true,
+          "path": [
+            "自我认知",
+            "自己擅长的"
+          ],
+          "children": []
+        },
+        {
+          "name": "自己的三观：人生观、价值观、消费观",
+          "level": 2,
+          "id": "recvtSvGgHdITP",
+          "inRegistry": true,
+          "path": [
+            "自我认知",
+            "自己的三观：人生观、价值观、消费观"
+          ],
+          "children": []
+        },
+        {
+          "name": "对自我的认知：意识到自己是怎样的人、了解自己的性格",
+          "level": 2,
+          "id": "recvtSvCR0QMkh",
+          "inRegistry": true,
+          "path": [
+            "自我认知",
+            "对自我的认知：意识到自己是怎样的人、了解自己的性格"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "职场认知",
+      "level": 1,
+      "id": "recvtSvB57F7Tw",
+      "inRegistry": true,
+      "path": [
+        "职场认知"
+      ],
+      "children": [
+        {
+          "name": "职业发展",
+          "level": 2,
+          "id": "recvtSvDKn2rgy",
+          "inRegistry": true,
+          "path": [
+            "职场认知",
+            "职业发展"
+          ],
+          "children": []
+        },
+        {
+          "name": "工作能力",
+          "level": 2,
+          "id": "recvtSvCQGCU2V",
+          "inRegistry": true,
+          "path": [
+            "职场认知",
+            "工作能力"
+          ],
+          "children": []
+        },
+        {
+          "name": "领导力",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "职场认知",
+            "领导力"
+          ],
+          "children": []
+        },
+        {
+          "name": "沟通",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "职场认知",
+            "沟通"
+          ],
+          "children": []
+        },
+        {
+          "name": "职场规则",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "职场认知",
+            "职场规则"
+          ],
+          "children": []
+        },
+        {
+          "name": "同事关系",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "职场认知",
+            "同事关系"
+          ],
+          "children": []
+        },
+        {
+          "name": "职业危机",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "职场认知",
+            "职业危机"
+          ],
+          "children": []
+        },
+        {
+          "name": "行业周期",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "职场认知",
+            "行业周期"
+          ],
+          "children": []
+        },
+        {
+          "name": "技能储备",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "职场认知",
+            "技能储备"
+          ],
+          "children": []
+        },
+        {
+          "name": "第二收入：副业",
+          "level": 2,
+          "id": "recvtSvGhG98Um",
+          "inRegistry": true,
+          "path": [
+            "职场认知",
+            "第二收入：副业"
+          ],
+          "children": []
+        },
+        {
+          "name": "个人品牌",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "职场认知",
+            "个人品牌"
+          ],
+          "children": []
+        },
+        {
+          "name": "职业转型",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "职场认知",
+            "职业转型"
+          ],
+          "children": []
+        },
+        {
+          "name": "不可替代性",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "职场认知",
+            "不可替代性"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "亲密关系",
+      "level": 1,
+      "id": "recvtSvB4StAjM",
+      "inRegistry": true,
+      "path": [
+        "亲密关系"
+      ],
+      "children": [
+        {
+          "name": "爱情",
+          "level": 2,
+          "id": "recvtSvDGLilHP",
+          "inRegistry": true,
+          "path": [
+            "亲密关系",
+            "爱情"
+          ],
+          "children": []
+        },
+        {
+          "name": "友情",
+          "level": 2,
+          "id": "recvtSvFmPLSdZ",
+          "inRegistry": true,
+          "path": [
+            "亲密关系",
+            "友情"
+          ],
+          "children": [
+            {
+              "name": "边界感",
+              "level": 3,
+              "id": null,
+              "inRegistry": false,
+              "path": [
+                "亲密关系",
+                "友情",
+                "边界感"
+              ],
+              "children": []
+            },
+            {
+              "name": "识人能力",
+              "level": 3,
+              "id": "recvtSvHXInaj5",
+              "inRegistry": true,
+              "path": [
+                "亲密关系",
+                "友情",
+                "识人能力"
+              ],
+              "children": []
+            },
+            {
+              "name": "情绪价值",
+              "level": 3,
+              "id": "recvtT4T0ANKDQ",
+              "inRegistry": true,
+              "path": [
+                "亲密关系",
+                "友情",
+                "情绪价值"
+              ],
+              "children": []
+            },
+            {
+              "name": "消耗型关系",
+              "level": 3,
+              "id": "recvtT74JoTYIy",
+              "inRegistry": true,
+              "path": [
+                "亲密关系",
+                "友情",
+                "消耗型关系"
+              ],
+              "children": []
+            },
+            {
+              "name": "利益关系",
+              "level": 3,
+              "id": "recvtT8R6rjhss",
+              "inRegistry": true,
+              "path": [
+                "亲密关系",
+                "友情",
+                "利益关系"
+              ],
+              "children": []
+            },
+            {
+              "name": "人情成本",
+              "level": 3,
+              "id": "recvtT8YXS2wu1",
+              "inRegistry": true,
+              "path": [
+                "亲密关系",
+                "友情",
+                "人情成本"
+              ],
+              "children": []
+            },
+            {
+              "name": "社交风险",
+              "level": 3,
+              "id": null,
+              "inRegistry": false,
+              "path": [
+                "亲密关系",
+                "友情",
+                "社交风险"
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "人性的丑陋：控制欲、偷窥癖、八卦",
+          "level": 2,
+          "id": "recvtSvGgT3lvI",
+          "inRegistry": true,
+          "path": [
+            "亲密关系",
+            "人性的丑陋：控制欲、偷窥癖、八卦"
+          ],
+          "children": []
+        },
+        {
+          "name": "婚姻",
+          "level": 2,
+          "id": "recvtSvEB9fLmI",
+          "inRegistry": true,
+          "path": [
+            "亲密关系",
+            "婚姻"
+          ],
+          "children": []
+        },
+        {
+          "name": "沟通",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "亲密关系",
+            "沟通"
+          ],
+          "children": []
+        },
+        {
+          "name": "警惕关系中的pua",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "亲密关系",
+            "警惕关系中的pua"
+          ],
+          "children": []
+        },
+        {
+          "name": "安全感",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "亲密关系",
+            "安全感"
+          ],
+          "children": []
+        },
+        {
+          "name": "边界感",
+          "level": 2,
+          "id": "recvtSvFqUEFEM",
+          "inRegistry": true,
+          "path": [
+            "亲密关系",
+            "边界感"
+          ],
+          "children": []
+        },
+        {
+          "name": "原生家庭影响",
+          "level": 2,
+          "id": "recvtSvGh8shyZ",
+          "inRegistry": true,
+          "path": [
+            "亲密关系",
+            "原生家庭影响"
+          ],
+          "children": []
+        },
+        {
+          "name": "学会对所有关系冷漠、祛魅",
+          "level": 2,
+          "id": "recvuIVK94fqcC",
+          "inRegistry": true,
+          "path": [
+            "亲密关系",
+            "学会对所有关系冷漠、祛魅"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "风险控制",
+      "level": 1,
+      "id": "recvtSvC0oFNj3",
+      "inRegistry": true,
+      "path": [
+        "风险控制"
+      ],
+      "children": [
+        {
+          "name": "保险",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "风险控制",
+            "保险"
+          ],
+          "children": [
+            {
+              "name": "医疗险、意外险",
+              "level": 3,
+              "id": null,
+              "inRegistry": false,
+              "path": [
+                "风险控制",
+                "保险",
+                "医疗险、意外险"
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "有意识培养副业",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "风险控制",
+            "有意识培养副业"
+          ],
+          "children": []
+        },
+        {
+          "name": "消费陷阱",
+          "level": 2,
+          "id": "recvtSvHb4wMJJ",
+          "inRegistry": true,
+          "path": [
+            "风险控制",
+            "消费陷阱"
+          ],
+          "children": []
+        },
+        {
+          "name": "现金流/紧急备用金",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "风险控制",
+            "现金流/紧急备用金"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "健康管理",
+      "level": 1,
+      "id": "recvtSvBWUkTwd",
+      "inRegistry": true,
+      "path": [
+        "健康管理"
+      ],
+      "children": [
+        {
+          "name": "睡眠的重要性",
+          "level": 2,
+          "id": "recvtSvFqHhUQf",
+          "inRegistry": true,
+          "path": [
+            "健康管理",
+            "睡眠的重要性"
+          ],
+          "children": [
+            {
+              "name": "早睡早起，睡前好习惯",
+              "level": 3,
+              "id": "recvtSvHYvkXYi",
+              "inRegistry": true,
+              "path": [
+                "健康管理",
+                "睡眠的重要性",
+                "早睡早起，睡前好习惯"
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "健康饮食",
+          "level": 2,
+          "id": "recvtSvFqv6jbf",
+          "inRegistry": true,
+          "path": [
+            "健康管理",
+            "健康饮食"
+          ],
+          "children": [
+            {
+              "name": "吃干净的食物、吃足够蛋白质",
+              "level": 3,
+              "id": "recvtSvHXFKPff",
+              "inRegistry": true,
+              "path": [
+                "健康管理",
+                "健康饮食",
+                "吃干净的食物、吃足够蛋白质"
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "关注肌肉的留存",
+          "level": 2,
+          "id": "recvtSvH7ESzIJ",
+          "inRegistry": true,
+          "path": [
+            "健康管理",
+            "关注肌肉的留存"
+          ],
+          "children": [
+            {
+              "name": "原理和锻炼",
+              "level": 3,
+              "id": "recvtSvHXOF0rf",
+              "inRegistry": true,
+              "path": [
+                "健康管理",
+                "关注肌肉的留存",
+                "原理和锻炼"
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "定期体检",
+          "level": 2,
+          "id": "recvtSvH7oJaLy",
+          "inRegistry": true,
+          "path": [
+            "健康管理",
+            "定期体检"
+          ],
+          "children": [
+            {
+              "name": "有哪些女性需要关注的核心体检项目",
+              "level": 3,
+              "id": "recvtSvHXThUoE",
+              "inRegistry": true,
+              "path": [
+                "健康管理",
+                "定期体检",
+                "有哪些女性需要关注的核心体检项目"
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "运动",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "健康管理",
+            "运动"
+          ],
+          "children": [
+            {
+              "name": "抗阻力训练",
+              "level": 3,
+              "id": null,
+              "inRegistry": false,
+              "path": [
+                "健康管理",
+                "运动",
+                "抗阻力训练"
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "好的健康微习惯",
+          "level": 2,
+          "id": "recvtSvFrbjtEw",
+          "inRegistry": true,
+          "path": [
+            "健康管理",
+            "好的健康微习惯"
+          ],
+          "children": [
+            {
+              "name": "晒太阳、补维生素d、泡脚、七枣水",
+              "level": 3,
+              "id": "recvtSvHY8yUXb",
+              "inRegistry": true,
+              "path": [
+                "健康管理",
+                "好的健康微习惯",
+                "晒太阳、补维生素d、泡脚、七枣水"
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "关于善良",
+      "level": 1,
+      "id": "recvtSvBWgdeuv",
+      "inRegistry": true,
+      "path": [
+        "关于善良"
+      ],
+      "children": [
+        {
+          "name": "善良要有锋芒",
+          "level": 2,
+          "id": "recvtSvDLvzZM0",
+          "inRegistry": true,
+          "path": [
+            "关于善良",
+            "善良要有锋芒"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "理财意识",
+      "level": 1,
+      "id": "recvtSvC1g7457",
+      "inRegistry": true,
+      "path": [
+        "理财意识"
+      ],
+      "children": [
+        {
+          "name": "强制储蓄，第一桶金的重要性",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "理财意识",
+            "强制储蓄，第一桶金的重要性"
+          ],
+          "children": []
+        },
+        {
+          "name": "保险理财产品基础知识",
+          "level": 2,
+          "id": "recvtSvH7HTfkw",
+          "inRegistry": true,
+          "path": [
+            "理财意识",
+            "保险理财产品基础知识"
+          ],
+          "children": []
+        },
+        {
+          "name": "资产配置",
+          "level": 2,
+          "id": "recvtSvH3JcjUq",
+          "inRegistry": true,
+          "path": [
+            "理财意识",
+            "资产配置"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "人生感悟",
+      "level": 1,
+      "id": "recvtSvB4Z9mno",
+      "inRegistry": true,
+      "path": [
+        "人生感悟"
+      ],
+      "children": [
+        {
+          "name": "真正爱你的人会鼓励你的主体性",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "人生感悟",
+            "真正爱你的人会鼓励你的主体性"
+          ],
+          "children": []
+        },
+        {
+          "name": "值得聊天的人",
+          "level": 2,
+          "id": "recvtSvGgOU9nD",
+          "inRegistry": true,
+          "path": [
+            "人生感悟",
+            "值得聊天的人"
+          ],
+          "children": []
+        },
+        {
+          "name": "三重极简人生：精神极简、社交极简、做事极简 越简单越高级",
+          "level": 2,
+          "id": "recvtSvGh5XFlM",
+          "inRegistry": true,
+          "path": [
+            "人生感悟",
+            "三重极简人生：精神极简、社交极简、做事极简 越简单越高级"
+          ],
+          "children": []
+        },
+        {
+          "name": "晚婚",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "人生感悟",
+            "晚婚"
+          ],
+          "children": []
+        },
+        {
+          "name": "学会好好爱自己",
+          "level": 2,
+          "id": "recvtSvDGD9zAQ",
+          "inRegistry": true,
+          "path": [
+            "人生感悟",
+            "学会好好爱自己"
+          ],
+          "children": []
+        },
+        {
+          "name": "有些事不要赢，只需要脱身，买单离场走人",
+          "level": 2,
+          "id": "recvtSvGdhJ5CF",
+          "inRegistry": true,
+          "path": [
+            "人生感悟",
+            "有些事不要赢，只需要脱身，买单离场走人"
+          ],
+          "children": []
+        },
+        {
+          "name": "永远勇敢、真诚、坦荡",
+          "level": 2,
+          "id": "recvtSvDG0xrFd",
+          "inRegistry": true,
+          "path": [
+            "人生感悟",
+            "永远勇敢、真诚、坦荡"
+          ],
+          "children": []
+        },
+        {
+          "name": "人生排序",
+          "level": 2,
+          "id": "recvtSvH8r20xl",
+          "inRegistry": true,
+          "path": [
+            "人生感悟",
+            "人生排序"
+          ],
+          "children": [
+            {
+              "name": "睡觉第一、吃饭第二、运动第三、工作第四",
+              "level": 3,
+              "id": "recvtSvHXUK0rf",
+              "inRegistry": true,
+              "path": [
+                "人生感悟",
+                "人生排序",
+                "睡觉第一、吃饭第二、运动第三、工作第四"
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "女性意识觉醒",
+      "level": 1,
+      "id": "recvtSvB53Pc2y",
+      "inRegistry": true,
+      "path": [
+        "女性意识觉醒"
+      ],
+      "children": [
+        {
+          "name": "人生需要很多支点会幸福很多",
+          "level": 2,
+          "id": "recvtSvFqmJRnV",
+          "inRegistry": true,
+          "path": [
+            "女性意识觉醒",
+            "人生需要很多支点会幸福很多"
+          ],
+          "children": [
+            {
+              "name": "有兴趣爱好",
+              "level": 3,
+              "id": null,
+              "inRegistry": false,
+              "path": [
+                "女性意识觉醒",
+                "人生需要很多支点会幸福很多",
+                "有兴趣爱好"
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "女孩子从小被教育要听话，习惯牺牲自己",
+          "level": 2,
+          "id": "recvtSvCQGY95Q",
+          "inRegistry": true,
+          "path": [
+            "女性意识觉醒",
+            "女孩子从小被教育要听话，习惯牺牲自己"
+          ],
+          "children": []
+        },
+        {
+          "name": "习惯性谈钱羞耻",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "女性意识觉醒",
+            "习惯性谈钱羞耻"
+          ],
+          "children": []
+        },
+        {
+          "name": "不敢表达野心",
+          "level": 2,
+          "id": "recvtSvEBlTRtX",
+          "inRegistry": true,
+          "path": [
+            "女性意识觉醒",
+            "不敢表达野心"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "电影观后感",
+      "level": 1,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "电影观后感"
+      ],
+      "children": [
+        {
+          "name": "阿嬷的情书",
+          "level": 2,
+          "id": null,
+          "inRegistry": false,
+          "path": [
+            "电影观后感",
+            "阿嬷的情书"
+          ],
+          "children": []
+        }
+      ]
+    }
+  ],
+  "flat": [
+    {
+      "name": "终身提升的能力",
+      "level": 1,
+      "id": "recvtSvB4X3T8J",
+      "inRegistry": true,
+      "path": [
+        "终身提升的能力"
+      ]
+    },
+    {
+      "name": "保持终身学习能力",
+      "level": 2,
+      "id": "recvtSvGgVv9iH",
+      "inRegistry": true,
+      "path": [
+        "终身提升的能力",
+        "保持终身学习能力"
+      ]
+    },
+    {
+      "name": "识人能力",
+      "level": 2,
+      "id": "recvtSvCRnDCl2",
+      "inRegistry": true,
+      "path": [
+        "终身提升的能力",
+        "识人能力"
+      ]
+    },
+    {
+      "name": "解决问题的能力",
+      "level": 2,
+      "id": "recvtSvExlxIyE",
+      "inRegistry": true,
+      "path": [
+        "终身提升的能力",
+        "解决问题的能力"
+      ]
+    },
+    {
+      "name": "学会做饭的重要性",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "终身提升的能力",
+        "学会做饭的重要性"
+      ]
+    },
+    {
+      "name": "专注力",
+      "level": 2,
+      "id": "recvuVEJPd9HrV",
+      "inRegistry": true,
+      "path": [
+        "终身提升的能力",
+        "专注力"
+      ]
+    },
+    {
+      "name": "聚焦目标",
+      "level": 2,
+      "id": "recvuVEXRjUq39",
+      "inRegistry": true,
+      "path": [
+        "终身提升的能力",
+        "聚焦目标"
+      ]
+    },
+    {
+      "name": "时间管理",
+      "level": 1,
+      "id": "recvtSvBVWFKxg",
+      "inRegistry": true,
+      "path": [
+        "时间管理"
+      ]
+    },
+    {
+      "name": "时间规划",
+      "level": 2,
+      "id": "recvtSvDLn0tjo",
+      "inRegistry": true,
+      "path": [
+        "时间管理",
+        "时间规划"
+      ]
+    },
+    {
+      "name": "拖延",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "时间管理",
+        "拖延"
+      ]
+    },
+    {
+      "name": "优先级",
+      "level": 2,
+      "id": "recvtSvDKUfrHf",
+      "inRegistry": true,
+      "path": [
+        "时间管理",
+        "优先级"
+      ]
+    },
+    {
+      "name": "长期主义",
+      "level": 2,
+      "id": "recvtSvEx0cnzV",
+      "inRegistry": true,
+      "path": [
+        "时间管理",
+        "长期主义"
+      ]
+    },
+    {
+      "name": "一整块时间专注做事",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "时间管理",
+        "一整块时间专注做事"
+      ]
+    },
+    {
+      "name": "一天只做一件重要的事情",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "时间管理",
+        "一天只做一件重要的事情"
+      ]
+    },
+    {
+      "name": "精力管理",
+      "level": 1,
+      "id": "recvtSvB555dJz",
+      "inRegistry": true,
+      "path": [
+        "精力管理"
+      ]
+    },
+    {
+      "name": "要事优先做",
+      "level": 2,
+      "id": "recvtSvEB9fg5A",
+      "inRegistry": true,
+      "path": [
+        "精力管理",
+        "要事优先做"
+      ]
+    },
+    {
+      "name": "提升能量的方式",
+      "level": 2,
+      "id": "recvtSvCSnwtoe",
+      "inRegistry": true,
+      "path": [
+        "精力管理",
+        "提升能量的方式"
+      ]
+    },
+    {
+      "name": "保持良好的身体状态",
+      "level": 2,
+      "id": "recvtSvCQMPvTF",
+      "inRegistry": true,
+      "path": [
+        "精力管理",
+        "保持良好的身体状态"
+      ]
+    },
+    {
+      "name": "不要有状态洁癖",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "精力管理",
+        "不要有状态洁癖"
+      ]
+    },
+    {
+      "name": "远离消耗你的人和事",
+      "level": 2,
+      "id": "recvtSvFsFHbaB",
+      "inRegistry": true,
+      "path": [
+        "精力管理",
+        "远离消耗你的人和事"
+      ]
+    },
+    {
+      "name": "情绪管理",
+      "level": 1,
+      "id": "recvtSvB57oBuH",
+      "inRegistry": true,
+      "path": [
+        "情绪管理"
+      ]
+    },
+    {
+      "name": "不要花时间形成共识",
+      "level": 2,
+      "id": "recvtSvECbD2z5",
+      "inRegistry": true,
+      "path": [
+        "情绪管理",
+        "不要花时间形成共识"
+      ]
+    },
+    {
+      "name": "快速翻篇的能力",
+      "level": 2,
+      "id": "recvtSvEwAawQL",
+      "inRegistry": true,
+      "path": [
+        "情绪管理",
+        "快速翻篇的能力"
+      ]
+    },
+    {
+      "name": "积极心态看问题",
+      "level": 2,
+      "id": "recvtSvDHljyUb",
+      "inRegistry": true,
+      "path": [
+        "情绪管理",
+        "积极心态看问题"
+      ]
+    },
+    {
+      "name": "不要反复咀嚼坏人坏事",
+      "level": 2,
+      "id": "recvtSvCQCWA4Z",
+      "inRegistry": true,
+      "path": [
+        "情绪管理",
+        "不要反复咀嚼坏人坏事"
+      ]
+    },
+    {
+      "name": "自我认知",
+      "level": 1,
+      "id": "recvtSvB56DgQF",
+      "inRegistry": true,
+      "path": [
+        "自我认知"
+      ]
+    },
+    {
+      "name": "高敏感人格",
+      "level": 2,
+      "id": "recvtSvEBlGAUG",
+      "inRegistry": true,
+      "path": [
+        "自我认知",
+        "高敏感人格"
+      ]
+    },
+    {
+      "name": "习惯性讨好",
+      "level": 2,
+      "id": "recvtSvFqIP21k",
+      "inRegistry": true,
+      "path": [
+        "自我认知",
+        "习惯性讨好"
+      ]
+    },
+    {
+      "name": "自己擅长的",
+      "level": 2,
+      "id": "recvtSvCRRHV1S",
+      "inRegistry": true,
+      "path": [
+        "自我认知",
+        "自己擅长的"
+      ]
+    },
+    {
+      "name": "自己的三观：人生观、价值观、消费观",
+      "level": 2,
+      "id": "recvtSvGgHdITP",
+      "inRegistry": true,
+      "path": [
+        "自我认知",
+        "自己的三观：人生观、价值观、消费观"
+      ]
+    },
+    {
+      "name": "对自我的认知：意识到自己是怎样的人、了解自己的性格",
+      "level": 2,
+      "id": "recvtSvCR0QMkh",
+      "inRegistry": true,
+      "path": [
+        "自我认知",
+        "对自我的认知：意识到自己是怎样的人、了解自己的性格"
+      ]
+    },
+    {
+      "name": "职场认知",
+      "level": 1,
+      "id": "recvtSvB57F7Tw",
+      "inRegistry": true,
+      "path": [
+        "职场认知"
+      ]
+    },
+    {
+      "name": "职业发展",
+      "level": 2,
+      "id": "recvtSvDKn2rgy",
+      "inRegistry": true,
+      "path": [
+        "职场认知",
+        "职业发展"
+      ]
+    },
+    {
+      "name": "工作能力",
+      "level": 2,
+      "id": "recvtSvCQGCU2V",
+      "inRegistry": true,
+      "path": [
+        "职场认知",
+        "工作能力"
+      ]
+    },
+    {
+      "name": "领导力",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "职场认知",
+        "领导力"
+      ]
+    },
+    {
+      "name": "沟通",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "职场认知",
+        "沟通"
+      ]
+    },
+    {
+      "name": "职场规则",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "职场认知",
+        "职场规则"
+      ]
+    },
+    {
+      "name": "同事关系",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "职场认知",
+        "同事关系"
+      ]
+    },
+    {
+      "name": "职业危机",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "职场认知",
+        "职业危机"
+      ]
+    },
+    {
+      "name": "行业周期",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "职场认知",
+        "行业周期"
+      ]
+    },
+    {
+      "name": "技能储备",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "职场认知",
+        "技能储备"
+      ]
+    },
+    {
+      "name": "第二收入：副业",
+      "level": 2,
+      "id": "recvtSvGhG98Um",
+      "inRegistry": true,
+      "path": [
+        "职场认知",
+        "第二收入：副业"
+      ]
+    },
+    {
+      "name": "个人品牌",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "职场认知",
+        "个人品牌"
+      ]
+    },
+    {
+      "name": "职业转型",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "职场认知",
+        "职业转型"
+      ]
+    },
+    {
+      "name": "不可替代性",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "职场认知",
+        "不可替代性"
+      ]
+    },
+    {
+      "name": "亲密关系",
+      "level": 1,
+      "id": "recvtSvB4StAjM",
+      "inRegistry": true,
+      "path": [
+        "亲密关系"
+      ]
+    },
+    {
+      "name": "爱情",
+      "level": 2,
+      "id": "recvtSvDGLilHP",
+      "inRegistry": true,
+      "path": [
+        "亲密关系",
+        "爱情"
+      ]
+    },
+    {
+      "name": "友情",
+      "level": 2,
+      "id": "recvtSvFmPLSdZ",
+      "inRegistry": true,
+      "path": [
+        "亲密关系",
+        "友情"
+      ]
+    },
+    {
+      "name": "边界感",
+      "level": 3,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "亲密关系",
+        "友情",
+        "边界感"
+      ]
+    },
+    {
+      "name": "识人能力",
+      "level": 3,
+      "id": "recvtSvHXInaj5",
+      "inRegistry": true,
+      "path": [
+        "亲密关系",
+        "友情",
+        "识人能力"
+      ]
+    },
+    {
+      "name": "情绪价值",
+      "level": 3,
+      "id": "recvtT4T0ANKDQ",
+      "inRegistry": true,
+      "path": [
+        "亲密关系",
+        "友情",
+        "情绪价值"
+      ]
+    },
+    {
+      "name": "消耗型关系",
+      "level": 3,
+      "id": "recvtT74JoTYIy",
+      "inRegistry": true,
+      "path": [
+        "亲密关系",
+        "友情",
+        "消耗型关系"
+      ]
+    },
+    {
+      "name": "利益关系",
+      "level": 3,
+      "id": "recvtT8R6rjhss",
+      "inRegistry": true,
+      "path": [
+        "亲密关系",
+        "友情",
+        "利益关系"
+      ]
+    },
+    {
+      "name": "人情成本",
+      "level": 3,
+      "id": "recvtT8YXS2wu1",
+      "inRegistry": true,
+      "path": [
+        "亲密关系",
+        "友情",
+        "人情成本"
+      ]
+    },
+    {
+      "name": "社交风险",
+      "level": 3,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "亲密关系",
+        "友情",
+        "社交风险"
+      ]
+    },
+    {
+      "name": "人性的丑陋：控制欲、偷窥癖、八卦",
+      "level": 2,
+      "id": "recvtSvGgT3lvI",
+      "inRegistry": true,
+      "path": [
+        "亲密关系",
+        "人性的丑陋：控制欲、偷窥癖、八卦"
+      ]
+    },
+    {
+      "name": "婚姻",
+      "level": 2,
+      "id": "recvtSvEB9fLmI",
+      "inRegistry": true,
+      "path": [
+        "亲密关系",
+        "婚姻"
+      ]
+    },
+    {
+      "name": "沟通",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "亲密关系",
+        "沟通"
+      ]
+    },
+    {
+      "name": "警惕关系中的pua",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "亲密关系",
+        "警惕关系中的pua"
+      ]
+    },
+    {
+      "name": "安全感",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "亲密关系",
+        "安全感"
+      ]
+    },
+    {
+      "name": "边界感",
+      "level": 2,
+      "id": "recvtSvFqUEFEM",
+      "inRegistry": true,
+      "path": [
+        "亲密关系",
+        "边界感"
+      ]
+    },
+    {
+      "name": "原生家庭影响",
+      "level": 2,
+      "id": "recvtSvGh8shyZ",
+      "inRegistry": true,
+      "path": [
+        "亲密关系",
+        "原生家庭影响"
+      ]
+    },
+    {
+      "name": "学会对所有关系冷漠、祛魅",
+      "level": 2,
+      "id": "recvuIVK94fqcC",
+      "inRegistry": true,
+      "path": [
+        "亲密关系",
+        "学会对所有关系冷漠、祛魅"
+      ]
+    },
+    {
+      "name": "风险控制",
+      "level": 1,
+      "id": "recvtSvC0oFNj3",
+      "inRegistry": true,
+      "path": [
+        "风险控制"
+      ]
+    },
+    {
+      "name": "保险",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "风险控制",
+        "保险"
+      ]
+    },
+    {
+      "name": "医疗险、意外险",
+      "level": 3,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "风险控制",
+        "保险",
+        "医疗险、意外险"
+      ]
+    },
+    {
+      "name": "有意识培养副业",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "风险控制",
+        "有意识培养副业"
+      ]
+    },
+    {
+      "name": "消费陷阱",
+      "level": 2,
+      "id": "recvtSvHb4wMJJ",
+      "inRegistry": true,
+      "path": [
+        "风险控制",
+        "消费陷阱"
+      ]
+    },
+    {
+      "name": "现金流/紧急备用金",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "风险控制",
+        "现金流/紧急备用金"
+      ]
+    },
+    {
+      "name": "健康管理",
+      "level": 1,
+      "id": "recvtSvBWUkTwd",
+      "inRegistry": true,
+      "path": [
+        "健康管理"
+      ]
+    },
+    {
+      "name": "睡眠的重要性",
+      "level": 2,
+      "id": "recvtSvFqHhUQf",
+      "inRegistry": true,
+      "path": [
+        "健康管理",
+        "睡眠的重要性"
+      ]
+    },
+    {
+      "name": "早睡早起，睡前好习惯",
+      "level": 3,
+      "id": "recvtSvHYvkXYi",
+      "inRegistry": true,
+      "path": [
+        "健康管理",
+        "睡眠的重要性",
+        "早睡早起，睡前好习惯"
+      ]
+    },
+    {
+      "name": "健康饮食",
+      "level": 2,
+      "id": "recvtSvFqv6jbf",
+      "inRegistry": true,
+      "path": [
+        "健康管理",
+        "健康饮食"
+      ]
+    },
+    {
+      "name": "吃干净的食物、吃足够蛋白质",
+      "level": 3,
+      "id": "recvtSvHXFKPff",
+      "inRegistry": true,
+      "path": [
+        "健康管理",
+        "健康饮食",
+        "吃干净的食物、吃足够蛋白质"
+      ]
+    },
+    {
+      "name": "关注肌肉的留存",
+      "level": 2,
+      "id": "recvtSvH7ESzIJ",
+      "inRegistry": true,
+      "path": [
+        "健康管理",
+        "关注肌肉的留存"
+      ]
+    },
+    {
+      "name": "原理和锻炼",
+      "level": 3,
+      "id": "recvtSvHXOF0rf",
+      "inRegistry": true,
+      "path": [
+        "健康管理",
+        "关注肌肉的留存",
+        "原理和锻炼"
+      ]
+    },
+    {
+      "name": "定期体检",
+      "level": 2,
+      "id": "recvtSvH7oJaLy",
+      "inRegistry": true,
+      "path": [
+        "健康管理",
+        "定期体检"
+      ]
+    },
+    {
+      "name": "有哪些女性需要关注的核心体检项目",
+      "level": 3,
+      "id": "recvtSvHXThUoE",
+      "inRegistry": true,
+      "path": [
+        "健康管理",
+        "定期体检",
+        "有哪些女性需要关注的核心体检项目"
+      ]
+    },
+    {
+      "name": "运动",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "健康管理",
+        "运动"
+      ]
+    },
+    {
+      "name": "抗阻力训练",
+      "level": 3,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "健康管理",
+        "运动",
+        "抗阻力训练"
+      ]
+    },
+    {
+      "name": "好的健康微习惯",
+      "level": 2,
+      "id": "recvtSvFrbjtEw",
+      "inRegistry": true,
+      "path": [
+        "健康管理",
+        "好的健康微习惯"
+      ]
+    },
+    {
+      "name": "晒太阳、补维生素d、泡脚、七枣水",
+      "level": 3,
+      "id": "recvtSvHY8yUXb",
+      "inRegistry": true,
+      "path": [
+        "健康管理",
+        "好的健康微习惯",
+        "晒太阳、补维生素d、泡脚、七枣水"
+      ]
+    },
+    {
+      "name": "关于善良",
+      "level": 1,
+      "id": "recvtSvBWgdeuv",
+      "inRegistry": true,
+      "path": [
+        "关于善良"
+      ]
+    },
+    {
+      "name": "善良要有锋芒",
+      "level": 2,
+      "id": "recvtSvDLvzZM0",
+      "inRegistry": true,
+      "path": [
+        "关于善良",
+        "善良要有锋芒"
+      ]
+    },
+    {
+      "name": "理财意识",
+      "level": 1,
+      "id": "recvtSvC1g7457",
+      "inRegistry": true,
+      "path": [
+        "理财意识"
+      ]
+    },
+    {
+      "name": "强制储蓄，第一桶金的重要性",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "理财意识",
+        "强制储蓄，第一桶金的重要性"
+      ]
+    },
+    {
+      "name": "保险理财产品基础知识",
+      "level": 2,
+      "id": "recvtSvH7HTfkw",
+      "inRegistry": true,
+      "path": [
+        "理财意识",
+        "保险理财产品基础知识"
+      ]
+    },
+    {
+      "name": "资产配置",
+      "level": 2,
+      "id": "recvtSvH3JcjUq",
+      "inRegistry": true,
+      "path": [
+        "理财意识",
+        "资产配置"
+      ]
+    },
+    {
+      "name": "人生感悟",
+      "level": 1,
+      "id": "recvtSvB4Z9mno",
+      "inRegistry": true,
+      "path": [
+        "人生感悟"
+      ]
+    },
+    {
+      "name": "真正爱你的人会鼓励你的主体性",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "人生感悟",
+        "真正爱你的人会鼓励你的主体性"
+      ]
+    },
+    {
+      "name": "值得聊天的人",
+      "level": 2,
+      "id": "recvtSvGgOU9nD",
+      "inRegistry": true,
+      "path": [
+        "人生感悟",
+        "值得聊天的人"
+      ]
+    },
+    {
+      "name": "三重极简人生：精神极简、社交极简、做事极简 越简单越高级",
+      "level": 2,
+      "id": "recvtSvGh5XFlM",
+      "inRegistry": true,
+      "path": [
+        "人生感悟",
+        "三重极简人生：精神极简、社交极简、做事极简 越简单越高级"
+      ]
+    },
+    {
+      "name": "晚婚",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "人生感悟",
+        "晚婚"
+      ]
+    },
+    {
+      "name": "学会好好爱自己",
+      "level": 2,
+      "id": "recvtSvDGD9zAQ",
+      "inRegistry": true,
+      "path": [
+        "人生感悟",
+        "学会好好爱自己"
+      ]
+    },
+    {
+      "name": "有些事不要赢，只需要脱身，买单离场走人",
+      "level": 2,
+      "id": "recvtSvGdhJ5CF",
+      "inRegistry": true,
+      "path": [
+        "人生感悟",
+        "有些事不要赢，只需要脱身，买单离场走人"
+      ]
+    },
+    {
+      "name": "永远勇敢、真诚、坦荡",
+      "level": 2,
+      "id": "recvtSvDG0xrFd",
+      "inRegistry": true,
+      "path": [
+        "人生感悟",
+        "永远勇敢、真诚、坦荡"
+      ]
+    },
+    {
+      "name": "人生排序",
+      "level": 2,
+      "id": "recvtSvH8r20xl",
+      "inRegistry": true,
+      "path": [
+        "人生感悟",
+        "人生排序"
+      ]
+    },
+    {
+      "name": "睡觉第一、吃饭第二、运动第三、工作第四",
+      "level": 3,
+      "id": "recvtSvHXUK0rf",
+      "inRegistry": true,
+      "path": [
+        "人生感悟",
+        "人生排序",
+        "睡觉第一、吃饭第二、运动第三、工作第四"
+      ]
+    },
+    {
+      "name": "女性意识觉醒",
+      "level": 1,
+      "id": "recvtSvB53Pc2y",
+      "inRegistry": true,
+      "path": [
+        "女性意识觉醒"
+      ]
+    },
+    {
+      "name": "人生需要很多支点会幸福很多",
+      "level": 2,
+      "id": "recvtSvFqmJRnV",
+      "inRegistry": true,
+      "path": [
+        "女性意识觉醒",
+        "人生需要很多支点会幸福很多"
+      ]
+    },
+    {
+      "name": "有兴趣爱好",
+      "level": 3,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "女性意识觉醒",
+        "人生需要很多支点会幸福很多",
+        "有兴趣爱好"
+      ]
+    },
+    {
+      "name": "女孩子从小被教育要听话，习惯牺牲自己",
+      "level": 2,
+      "id": "recvtSvCQGY95Q",
+      "inRegistry": true,
+      "path": [
+        "女性意识觉醒",
+        "女孩子从小被教育要听话，习惯牺牲自己"
+      ]
+    },
+    {
+      "name": "习惯性谈钱羞耻",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "女性意识觉醒",
+        "习惯性谈钱羞耻"
+      ]
+    },
+    {
+      "name": "不敢表达野心",
+      "level": 2,
+      "id": "recvtSvEBlTRtX",
+      "inRegistry": true,
+      "path": [
+        "女性意识觉醒",
+        "不敢表达野心"
+      ]
+    },
+    {
+      "name": "电影观后感",
+      "level": 1,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "电影观后感"
+      ]
+    },
+    {
+      "name": "阿嬷的情书",
+      "level": 2,
+      "id": null,
+      "inRegistry": false,
+      "path": [
+        "电影观后感",
+        "阿嬷的情书"
+      ]
+    }
+  ],
+  "contentTypes": [
+    "案例",
+    "金句",
+    "故事",
+    "长文",
+    "观点"
+  ],
+  "apiFormat": {
+    "cat1": [
+      "终身提升的能力",
+      "时间管理",
+      "精力管理",
+      "情绪管理",
+      "自我认知",
+      "职场认知",
+      "亲密关系",
+      "风险控制",
+      "健康管理",
+      "关于善良",
+      "理财意识",
+      "人生感悟",
+      "女性意识觉醒",
+      "电影观后感"
+    ],
+    "tree": {
+      "终身提升的能力": {
+        "保持终身学习能力": [],
+        "识人能力": [],
+        "解决问题的能力": [],
+        "学会做饭的重要性": [],
+        "专注力": [],
+        "聚焦目标": []
+      },
+      "时间管理": {
+        "时间规划": [],
+        "拖延": [],
+        "优先级": [],
+        "长期主义": [],
+        "一整块时间专注做事": [],
+        "一天只做一件重要的事情": []
+      },
+      "精力管理": {
+        "要事优先做": [],
+        "提升能量的方式": [],
+        "保持良好的身体状态": [],
+        "不要有状态洁癖": [],
+        "远离消耗你的人和事": []
+      },
+      "情绪管理": {
+        "不要花时间形成共识": [],
+        "快速翻篇的能力": [],
+        "积极心态看问题": [],
+        "不要反复咀嚼坏人坏事": []
+      },
+      "自我认知": {
+        "高敏感人格": [],
+        "习惯性讨好": [],
+        "自己擅长的": [],
+        "自己的三观：人生观、价值观、消费观": [],
+        "对自我的认知：意识到自己是怎样的人、了解自己的性格": []
+      },
+      "职场认知": {
+        "职业发展": [],
+        "工作能力": [],
+        "领导力": [],
+        "沟通": [],
+        "职场规则": [],
+        "同事关系": [],
+        "职业危机": [],
+        "行业周期": [],
+        "技能储备": [],
+        "第二收入：副业": [],
+        "个人品牌": [],
+        "职业转型": [],
+        "不可替代性": []
+      },
+      "亲密关系": {
+        "爱情": [],
+        "友情": [
+          "边界感",
+          "识人能力",
+          "情绪价值",
+          "消耗型关系",
+          "利益关系",
+          "人情成本",
+          "社交风险"
+        ],
+        "人性的丑陋：控制欲、偷窥癖、八卦": [],
+        "婚姻": [],
+        "沟通": [],
+        "警惕关系中的pua": [],
+        "安全感": [],
+        "边界感": [],
+        "原生家庭影响": [],
+        "学会对所有关系冷漠、祛魅": []
+      },
+      "风险控制": {
+        "保险": [
+          "医疗险、意外险"
+        ],
+        "有意识培养副业": [],
+        "消费陷阱": [],
+        "现金流/紧急备用金": []
+      },
+      "健康管理": {
+        "睡眠的重要性": [
+          "早睡早起，睡前好习惯"
+        ],
+        "健康饮食": [
+          "吃干净的食物、吃足够蛋白质"
+        ],
+        "关注肌肉的留存": [
+          "原理和锻炼"
+        ],
+        "定期体检": [
+          "有哪些女性需要关注的核心体检项目"
+        ],
+        "运动": [
+          "抗阻力训练"
+        ],
+        "好的健康微习惯": [
+          "晒太阳、补维生素d、泡脚、七枣水"
+        ]
+      },
+      "关于善良": {
+        "善良要有锋芒": []
+      },
+      "理财意识": {
+        "强制储蓄，第一桶金的重要性": [],
+        "保险理财产品基础知识": [],
+        "资产配置": []
+      },
+      "人生感悟": {
+        "真正爱你的人会鼓励你的主体性": [],
+        "值得聊天的人": [],
+        "三重极简人生：精神极简、社交极简、做事极简 越简单越高级": [],
+        "晚婚": [],
+        "学会好好爱自己": [],
+        "有些事不要赢，只需要脱身，买单离场走人": [],
+        "永远勇敢、真诚、坦荡": [],
+        "人生排序": [
+          "睡觉第一、吃饭第二、运动第三、工作第四"
+        ]
+      },
+      "女性意识觉醒": {
+        "人生需要很多支点会幸福很多": [
+          "有兴趣爱好"
+        ],
+        "女孩子从小被教育要听话，习惯牺牲自己": [],
+        "习惯性谈钱羞耻": [],
+        "不敢表达野心": []
+      },
+      "电影观后感": {
+        "阿嬷的情书": []
+      }
+    },
+    "ctypes": [
+      "案例",
+      "金句",
+      "故事",
+      "长文",
+      "观点"
+    ]
+  }
+}
